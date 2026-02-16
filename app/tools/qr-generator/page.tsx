@@ -10,7 +10,6 @@ declare global {
   }
 }
 
-type PatternStyle = 'square' | 'dots' | 'rounded' | 'extra-rounded' | 'star' | 'diamond' | 'lines' | 'blob' | 'pixel' | 'wave' | 'cross' | 'heart'
 type CornerStyle = 'square' | 'rounded' | 'dot' | 'classic'
 
 const COLOR_PRESETS = [
@@ -39,7 +38,6 @@ export default function QRGenerator() {
   // Customization states
   const [foregroundColor, setForegroundColor] = useState('#000000')
   const [backgroundColor, setBackgroundColor] = useState('#FFFFFF')
-  const [patternStyle, setPatternStyle] = useState<PatternStyle>('square')
   const [cornerStyle, setCornerStyle] = useState<CornerStyle>('square')
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
@@ -57,131 +55,6 @@ export default function QRGenerator() {
   const API_URL = typeof window !== 'undefined' 
     ? window.location.origin 
     : 'http://localhost:3000'
-
-  const drawPattern = useCallback((
-    ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    size: number,
-    pattern: PatternStyle,
-    color: string
-  ) => {
-    ctx.fillStyle = color
-    const centerX = x + size / 2
-    const centerY = y + size / 2
-    
-    switch (pattern) {
-      case 'square':
-        ctx.fillRect(x, y, size, size)
-        break
-      case 'dots':
-        const radius = size / 2
-        ctx.beginPath()
-        ctx.arc(centerX, centerY, radius * 0.8, 0, Math.PI * 2)
-        ctx.fill()
-        break
-      case 'rounded':
-        const cornerRadius = size * 0.2
-        ctx.beginPath()
-        ctx.moveTo(x + cornerRadius, y)
-        ctx.lineTo(x + size - cornerRadius, y)
-        ctx.quadraticCurveTo(x + size, y, x + size, y + cornerRadius)
-        ctx.lineTo(x + size, y + size - cornerRadius)
-        ctx.quadraticCurveTo(x + size, y + size, x + size - cornerRadius, y + size)
-        ctx.lineTo(x + cornerRadius, y + size)
-        ctx.quadraticCurveTo(x, y + size, x, y + size - cornerRadius)
-        ctx.lineTo(x, y + cornerRadius)
-        ctx.quadraticCurveTo(x, y, x + cornerRadius, y)
-        ctx.closePath()
-        ctx.fill()
-        break
-      case 'extra-rounded':
-        ctx.beginPath()
-        ctx.arc(centerX, centerY, size / 2, 0, Math.PI * 2)
-        ctx.fill()
-        break
-      case 'star':
-        ctx.beginPath()
-        const starRadius = size * 0.45
-        const spikes = 5
-        for (let i = 0; i < spikes * 2; i++) {
-          const angle = (i * Math.PI) / spikes - Math.PI / 2
-          const r = i % 2 === 0 ? starRadius : starRadius * 0.4
-          const px = centerX + Math.cos(angle) * r
-          const py = centerY + Math.sin(angle) * r
-          if (i === 0) ctx.moveTo(px, py)
-          else ctx.lineTo(px, py)
-        }
-        ctx.closePath()
-        ctx.fill()
-        break
-      case 'diamond':
-        ctx.beginPath()
-        ctx.moveTo(centerX, y)
-        ctx.lineTo(x + size, centerY)
-        ctx.lineTo(centerX, y + size)
-        ctx.lineTo(x, centerY)
-        ctx.closePath()
-        ctx.fill()
-        break
-      case 'lines':
-        ctx.fillRect(x, y + size * 0.2, size, size * 0.15)
-        ctx.fillRect(x, y + size * 0.65, size, size * 0.15)
-        break
-      case 'blob':
-        ctx.beginPath()
-        const blobRadius = size * 0.4
-        const points = 8
-        const seed = (x + y) % 7
-        for (let i = 0; i < points; i++) {
-          const angle = (i * Math.PI * 2) / points
-          const variation = Math.sin(seed + i) * 0.2 + Math.cos(seed * 2 + i) * 0.1
-          const radius = blobRadius + variation * blobRadius
-          const px = centerX + Math.cos(angle) * radius
-          const py = centerY + Math.sin(angle) * radius
-          if (i === 0) ctx.moveTo(px, py)
-          else ctx.lineTo(px, py)
-        }
-        ctx.closePath()
-        ctx.fill()
-        break
-      case 'pixel':
-        const pixelSize = size / 3
-        ctx.fillRect(x + pixelSize, y, pixelSize, pixelSize)
-        ctx.fillRect(x, y + pixelSize, pixelSize, pixelSize)
-        ctx.fillRect(x + pixelSize * 2, y + pixelSize, pixelSize, pixelSize)
-        ctx.fillRect(x + pixelSize, y + pixelSize * 2, pixelSize, pixelSize)
-        break
-      case 'wave':
-        ctx.beginPath()
-        const waveHeight = size * 0.3
-        ctx.moveTo(x, centerY)
-        for (let i = 0; i <= size; i += 2) {
-          const waveY = centerY + Math.sin((i / size) * Math.PI * 4) * waveHeight
-          ctx.lineTo(x + i, waveY)
-        }
-        ctx.lineTo(x + size, y + size)
-        ctx.lineTo(x, y + size)
-        ctx.closePath()
-        ctx.fill()
-        break
-      case 'cross':
-        const crossWidth = size * 0.3
-        ctx.fillRect(centerX - crossWidth / 2, y, crossWidth, size)
-        ctx.fillRect(x, centerY - crossWidth / 2, size, crossWidth)
-        break
-      case 'heart':
-        ctx.beginPath()
-        ctx.moveTo(centerX, centerY + size * 0.15)
-        ctx.bezierCurveTo(centerX, centerY, x + size * 0.2, y + size * 0.2, x + size * 0.2, centerY)
-        ctx.bezierCurveTo(x + size * 0.2, centerY + size * 0.1, centerX, centerY + size * 0.3, centerX, centerY + size * 0.5)
-        ctx.bezierCurveTo(centerX, centerY + size * 0.3, x + size * 0.8, centerY + size * 0.1, x + size * 0.8, centerY)
-        ctx.bezierCurveTo(x + size * 0.8, y + size * 0.2, centerX, centerY, centerX, centerY + size * 0.15)
-        ctx.closePath()
-        ctx.fill()
-        break
-    }
-  }, [backgroundColor])
 
   const drawCorner = useCallback((
     ctx: CanvasRenderingContext2D,
@@ -304,7 +177,9 @@ export default function QRGenerator() {
                 if (isCorner) {
                   drawCorner(ctx, pixelX, pixelY, moduleSize, cornerStyle, foregroundColor)
                 } else {
-                  drawPattern(ctx, pixelX, pixelY, moduleSize, patternStyle, foregroundColor)
+                  // Simple square pattern for non-corner modules
+                  ctx.fillStyle = foregroundColor
+                  ctx.fillRect(pixelX, pixelY, moduleSize, moduleSize)
                 }
               }
             }
@@ -377,7 +252,7 @@ export default function QRGenerator() {
         reject(err)
       }
     })
-  }, [qrSize, errorLevel, foregroundColor, backgroundColor, patternStyle, cornerStyle, logoPreview, centerText, textBelow, drawPattern, drawCorner])
+  }, [qrSize, errorLevel, foregroundColor, backgroundColor, cornerStyle, logoPreview, centerText, textBelow, drawCorner])
 
   // Live preview effect with debouncing
   useEffect(() => {
@@ -407,7 +282,7 @@ export default function QRGenerator() {
     }, 500) // Debounce 500ms
 
     return () => clearTimeout(timeoutId)
-  }, [qrText, qrCodeLoaded, generateQRCode])
+  }, [qrText, qrCodeLoaded, generateQRCode, foregroundColor, backgroundColor, cornerStyle, logoPreview, centerText, textBelow, qrSize, errorLevel])
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -693,74 +568,6 @@ export default function QRGenerator() {
                         />
                       </div>
                     </div>
-                  </div>
-                </div>
-
-                {/* Pattern Styles - Smaller buttons, more per row */}
-                <div>
-                  <h3 className="text-base font-semibold text-gray-900 mb-2">Pattern Styles</h3>
-                  <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-2">
-                    {([
-                      'square', 'dots', 'rounded', 'extra-rounded', 
-                      'star', 'diamond', 'lines', 'blob', 
-                      'pixel', 'wave', 'cross', 'heart'
-                    ] as PatternStyle[]).map((pattern) => (
-                      <button
-                        key={pattern}
-                        onClick={() => setPatternStyle(pattern)}
-                        className={`p-2 rounded border-2 transition-all ${
-                          patternStyle === pattern
-                            ? 'border-gray-900 bg-gray-100'
-                            : 'border-gray-200 hover:border-gray-400'
-                        }`}
-                        title={pattern === 'square' ? 'Firkant' :
-                               pattern === 'dots' ? 'Prikker' :
-                               pattern === 'rounded' ? 'Afrundet' :
-                               pattern === 'extra-rounded' ? 'Meget Afrundet' :
-                               pattern === 'star' ? 'Stjerne' :
-                               pattern === 'diamond' ? 'Diamant' :
-                               pattern === 'lines' ? 'Linjer' :
-                               pattern === 'blob' ? 'Blob' :
-                               pattern === 'pixel' ? 'Pixel' :
-                               pattern === 'wave' ? 'Bølge' :
-                               pattern === 'cross' ? 'Kors' :
-                               pattern === 'heart' ? 'Hjerte' :
-                               pattern}
-                      >
-                        <div className="flex justify-center mb-1">
-                          <div className={`w-6 h-6 ${
-                            pattern === 'square' ? 'bg-gray-900' :
-                            pattern === 'dots' ? 'bg-gray-900 rounded-full' :
-                            pattern === 'rounded' ? 'bg-gray-900 rounded-lg' :
-                            pattern === 'extra-rounded' ? 'bg-gray-900 rounded-full' :
-                            pattern === 'star' ? 'bg-gray-900' :
-                            pattern === 'diamond' ? 'bg-gray-900 rotate-45' :
-                            pattern === 'lines' ? 'bg-gray-900' :
-                            pattern === 'blob' ? 'bg-gray-900 rounded-full' :
-                            pattern === 'pixel' ? 'bg-gray-900' :
-                            pattern === 'wave' ? 'bg-gray-900' :
-                            pattern === 'cross' ? 'bg-gray-900' :
-                            pattern === 'heart' ? 'bg-gray-900' :
-                            'bg-gray-900'
-                          }`} />
-                        </div>
-                        <p className="text-[10px] font-medium text-gray-700 capitalize text-center leading-tight">
-                          {pattern === 'square' ? 'Firkant' :
-                           pattern === 'dots' ? 'Prikker' :
-                           pattern === 'rounded' ? 'Afrundet' :
-                           pattern === 'extra-rounded' ? 'Meget' :
-                           pattern === 'star' ? 'Stjerne' :
-                           pattern === 'diamond' ? 'Diamant' :
-                           pattern === 'lines' ? 'Linjer' :
-                           pattern === 'blob' ? 'Blob' :
-                           pattern === 'pixel' ? 'Pixel' :
-                           pattern === 'wave' ? 'Bølge' :
-                           pattern === 'cross' ? 'Kors' :
-                           pattern === 'heart' ? 'Hjerte' :
-                           pattern}
-                        </p>
-                      </button>
-                    ))}
                   </div>
                 </div>
 
