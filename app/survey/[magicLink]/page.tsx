@@ -12,7 +12,7 @@ interface Question {
   placeholder?: string
   min?: number
   max?: number
-  rows?: number
+  rows?: number | string[]
   columns?: string[]
   scaleLabels?: { min: string; max: string }
 }
@@ -233,7 +233,7 @@ export default function SurveyPage() {
                 value={answers[currentQuestion.id] || ''}
                 onChange={(e) => handleAnswer(currentQuestion.id, e.target.value)}
                 placeholder={currentQuestion.placeholder || 'Dit svar...'}
-                rows={currentQuestion.rows || 4}
+                rows={typeof currentQuestion.rows === 'number' ? currentQuestion.rows : 4}
                 className="w-full px-4 py-3 border-2 rounded-lg focus:outline-none resize-none"
                 style={{
                   borderColor: survey.design.primaryColor,
@@ -450,7 +450,7 @@ export default function SurveyPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {currentQuestion.rows?.map((row, rowIndex) => (
+                    {(Array.isArray(currentQuestion.rows) ? currentQuestion.rows : []).map((row, rowIndex) => (
                       <tr key={rowIndex}>
                         <td className="border-2 p-3 font-medium">{row}</td>
                         {currentQuestion.columns?.map((col, colIndex) => (
