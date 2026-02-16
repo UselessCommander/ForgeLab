@@ -65,6 +65,7 @@ export default function SurveyBuilder() {
   const [showPreview, setShowPreview] = useState(false)
   const [showResponses, setShowResponses] = useState(false)
   const [activeQuestionId, setActiveQuestionId] = useState<string | null>(null)
+  const [responses, setResponses] = useState<any[]>([])
 
   const createNewSurvey = () => {
     const newSurvey: Survey = {
@@ -217,6 +218,22 @@ export default function SurveyBuilder() {
       }
     }
   }, [])
+
+  // Load responses when survey is selected
+  useEffect(() => {
+    if (currentSurvey && typeof window !== 'undefined') {
+      const savedResponses = localStorage.getItem(`forgelab_responses_${currentSurvey.magicLink}`)
+      if (savedResponses) {
+        try {
+          setResponses(JSON.parse(savedResponses))
+        } catch (err) {
+          console.error('Fejl ved indlæsning af svar:', err)
+        }
+      } else {
+        setResponses([])
+      }
+    }
+  }, [currentSurvey])
 
   const questionTypes = [
     { type: 'text' as QuestionType, label: 'Tekst', icon: '📝' },
@@ -536,12 +553,25 @@ export default function SurveyBuilder() {
                       🔗 Kopier Magic Link
                     </button>
                     <button
+                      onClick={() => setShowResponses(!showResponses)}
+                      className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium"
+                    >
+                      📊 Se Svar ({responses.length})
+                    </button>
+                    <div className="mt-2 p-3 bg-gray-50 rounded-lg">
+                      <div className="text-xs text-gray-600 mb-1">Magic Link:</div>
+                      <code className="text-xs break-all text-gray-900">
+                        {typeof window !== 'undefined' ? window.location.origin : ''}/survey/{currentSurvey.magicLink}
+                      </code>
+                    </div>
+                    <button
                       onClick={() => {
                         setShowBuilder(false)
                         setCurrentSurvey(null)
                         setShowPreview(false)
+                        setShowResponses(false)
                       }}
-                      className="w-full px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium"
+                      className="w-full px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium mt-2"
                     >
                       ← Tilbage til liste
                     </button>
@@ -559,6 +589,135 @@ export default function SurveyBuilder() {
             onClose={() => setShowPreview(false)}
           />
         )}
+
+        {/* Responses Modal */}
+        {showResponses && currentSurvey && (
+          <ResponsesView
+            survey={currentSurvey}
+            responses={responses}
+            onClose={() => setShowResponses(false)}
+          />
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Responses View Component
+function ResponsesView({
+  survey,
+  responses,
+  onClose
+}: {
+  survey: Survey
+  responses: any[]
+  onClose: () => void
+}) {
+  const [selectedResponse, setSelectedResponse] = useState<number | null>(null)
+
+  const getAnswerText = (questionId: string, answer: any): string => {
+    if (Array.isArray(answer)) {
+      return answer.join(', ')
+    }
+    if (typeof answer === 'object' && answer !== null) {
+      return Object.entries(answer)
+        .sort(([, a], [, b]) => (a as number) - (b as number))
+        .map(([key, value]) => `${value}: ${key}`)
+        .join(', ')
+    }
+    return String(answer || 'Ingen svar')
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="p-6 border-b border-gray-200 flex justify-between items-center">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">Svar & Statistikker</h2>
+            <p className="text-sm text-gray-600 mt-1">{responses.length} besvarelser</p>
+          </div>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 text-2xl">×</button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6">
+          {responses.length === 0 ? (
+            <div className="text-center py-12 text-gray-500">
+              <p>Ingen besvarelser endnu</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Summary Statistics */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div className="bg-blue-50 rounded-lg p-4 border-2 border-blue-200">
+                  <div className="text-2xl font-bold text-blue-900">{responses.length}</div>
+                  <div className="text-sm text-blue-700">Total Besvarelser</div>
+                </div>
+                <div className="bg-green-50 rounded-lg p-4 border-2 border-green-200">
+                  <div className="text-2xl font-bold text-green-900">
+                    {survey.questions.length}
+                  </div>
+                  <div className="text-sm text-green-700">Spørgsmål</div>
+                </div>
+                <div className="bg-purple-50 rounded-lg p-4 border-2 border-purple-200">
+                  <div className="text-2xl font-bold text-purple-900">
+                    {responses.filter(r => r.email).length}
+                  </div>
+                  <div className="text-sm text-purple-700">Med Email</div>
+                </div>
+              </div>
+
+              {/* Individual Responses */}
+              <div className="space-y-4">
+                {responses.map((response, index) => (
+                  <div
+                    key={index}
+                    className="border-2 border-gray-200 rounded-lg p-4 hover:border-gray-400 transition-colors"
+                  >
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <div className="font-semibold text-gray-900">
+                          Besvarelse #{index + 1}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {new Date(response.submittedAt).toLocaleString('da-DK')}
+                        </div>
+                        {response.email && (
+                          <div className="text-sm text-gray-600 mt-1">
+                            📧 {response.email}
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => setSelectedResponse(selectedResponse === index ? null : index)}
+                        className="px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-sm"
+                      >
+                        {selectedResponse === index ? 'Skjul' : 'Vis'}
+                      </button>
+                    </div>
+
+                    {selectedResponse === index && (
+                      <div className="space-y-3 pt-4 border-t border-gray-200">
+                        {survey.questions.map((question) => {
+                          const answer = response.answers[question.id]
+                          return (
+                            <div key={question.id} className="bg-gray-50 rounded-lg p-3">
+                              <div className="font-medium text-gray-900 mb-1">
+                                {question.title}
+                              </div>
+                              <div className="text-gray-700">
+                                {getAnswerText(question.id, answer)}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
