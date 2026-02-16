@@ -43,6 +43,16 @@ export default function QRGenerator() {
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [centerText, setCenterText] = useState('')
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const [savedQRCodes, setSavedQRCodes] = useState<Array<{
+    id: string
+    qrId: string | null
+    image: string
+    text: string
+    originalUrl: string
+    createdAt: string
+    scanCount: number
+  }>>([])
+  const [showSaved, setShowSaved] = useState(false)
   
   const logoInputRef = useRef<HTMLInputElement>(null)
   const statsIntervalRef = useRef<NodeJS.Timeout | null>(null)
@@ -51,7 +61,63 @@ export default function QRGenerator() {
     if (typeof window !== 'undefined' && window.QRCode) {
       setQrCodeLoaded(true)
     }
+    // Load saved QR codes from localStorage
+    loadSavedQRCodes()
   }, [])
+
+  const loadSavedQRCodes = () => {
+    if (typeof window === 'undefined') return
+    try {
+      const saved = localStorage.getItem('forgelab_saved_qr_codes')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        setSavedQRCodes(parsed)
+      }
+    } catch (err) {
+      console.error('Fejl ved indlæsning af gemte QR koder:', err)
+    }
+  }
+
+  const saveQRCode = (qrId: string | null, image: string, text: string, originalUrl: string, scanCount: number) => {
+    if (typeof window === 'undefined') return
+    try {
+      const newQRCode = {
+        id: Date.now().toString() + Math.random().toString(36).substring(7),
+        qrId,
+        image,
+        text,
+        originalUrl,
+        createdAt: new Date().toISOString(),
+        scanCount
+      }
+      const updated = [...savedQRCodes, newQRCode]
+      setSavedQRCodes(updated)
+      localStorage.setItem('forgelab_saved_qr_codes', JSON.stringify(updated))
+    } catch (err) {
+      console.error('Fejl ved gemning af QR kode:', err)
+    }
+  }
+
+  const deleteSavedQRCode = (id: string) => {
+    if (typeof window === 'undefined') return
+    try {
+      const updated = savedQRCodes.filter(qr => qr.id !== id)
+      setSavedQRCodes(updated)
+      localStorage.setItem('forgelab_saved_qr_codes', JSON.stringify(updated))
+    } catch (err) {
+      console.error('Fejl ved sletning af QR kode:', err)
+    }
+  }
+
+  const loadSavedQRCode = (savedQR: typeof savedQRCodes[0]) => {
+    setFinalQRImage(savedQR.image)
+    setQrText(savedQR.text)
+    setCurrentQrId(savedQR.qrId)
+    setScanCount(savedQR.scanCount)
+    if (savedQR.qrId) {
+      startAutoRefreshStats(savedQR.qrId)
+    }
+  }
 
   const API_URL = typeof window !== 'undefined' 
     ? window.location.origin 
@@ -316,7 +382,16 @@ export default function QRGenerator() {
       const response = await fetch(`${API_URL}/api/stats/${qrId}`)
       if (response.ok) {
         const data = await response.json()
-        setScanCount(data.count || 0)
+        const count = data.count || 0
+        setScanCount(count)
+        // Update saved QR code scan count
+        const updated = savedQRCodes.map(qr => 
+          qr.qrId === qrId ? { ...qr, scanCount: count } : qr
+        )
+        setSavedQRCodes(updated)
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('forgelab_saved_qr_codes', JSON.stringify(updated))
+        }
       }
     } catch (err) {
       console.error('Kunne ikke hente statistik:', err)
@@ -395,13 +470,15 @@ export default function QRGenerator() {
           : `${API_URL}${trackUrl}`
         
         finalText = fullTrackUrl
-        refreshStats(data.qrId)
-        startAutoRefreshStats(data.qrId)
+          refreshStats(data.qrId)
+          startAutoRefreshStats(data.qrId)
         
         // Generate QR code with tracking URL
         try {
           const imageData = await generateQRCode(finalText, false)
           setFinalQRImage(imageData)
+          // Save to localStorage
+          saveQRCode(data.qrId, imageData, finalText, urlToTrack, 0)
         } catch (err: any) {
           setError('Fejl ved generering af QR kode: ' + err.message)
         }
@@ -415,6 +492,8 @@ export default function QRGenerator() {
       try {
         const imageData = await generateQRCode(finalText, false)
         setFinalQRImage(imageData)
+        // Save to localStorage
+        saveQRCode(null, imageData, finalText, finalText, 0)
       } catch (err: any) {
         setError('Fejl ved generering af QR kode: ' + err.message)
       }
@@ -766,16 +845,90 @@ export default function QRGenerator() {
                 </div>
               )}
               
-              {/* Download Button */}
-              {finalQRImage && (
-                <button
-                  onClick={downloadQR}
-                  className="w-full px-6 py-4 bg-gray-700 text-white rounded-lg font-medium text-lg hover:bg-gray-600 transition-all duration-200"
-                >
-                  Download QR Kode
-                </button>
+            {/* Download Button */}
+            {finalQRImage && (
+              <button
+                onClick={downloadQR}
+                className="w-full px-6 py-4 bg-gray-700 text-white rounded-lg font-medium text-lg hover:bg-gray-600 transition-all duration-200 mb-4"
+              >
+                Download QR Kode
+              </button>
+            )}
+
+            {/* Saved QR Codes Section */}
+            <div className="mt-6 pt-6 border-t border-gray-200">
+              <button
+                onClick={() => setShowSaved(!showSaved)}
+                className="w-full px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium text-gray-700 transition-all duration-200 flex items-center justify-between"
+              >
+                <span>💾 Gemte QR Koder ({savedQRCodes.length})</span>
+                <span className={showSaved ? 'rotate-180' : ''}>▼</span>
+              </button>
+              
+              {showSaved && (
+                <div className="mt-4 space-y-3 max-h-[400px] overflow-y-auto">
+                  {savedQRCodes.length === 0 ? (
+                    <p className="text-gray-500 text-sm text-center py-4">
+                      Ingen gemte QR koder endnu. Generer en QR kode for at gemme den.
+                    </p>
+                  ) : (
+                    savedQRCodes.slice().reverse().map((savedQR) => (
+                      <div
+                        key={savedQR.id}
+                        className="bg-gray-50 rounded-lg p-4 border border-gray-200 hover:border-gray-300 transition-all"
+                      >
+                        <div className="flex gap-3">
+                          <img
+                            src={savedQR.image}
+                            alt="Saved QR Code"
+                            className="w-20 h-20 object-contain rounded border border-gray-200"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate mb-1">
+                              {savedQR.originalUrl || savedQR.text}
+                            </p>
+                            <p className="text-xs text-gray-500 mb-2">
+                              {new Date(savedQR.createdAt).toLocaleString('da-DK')}
+                            </p>
+                            {savedQR.qrId && (
+                              <p className="text-xs text-gray-600 mb-2">
+                                Scans: <span className="font-semibold">{savedQR.scanCount}</span>
+                              </p>
+                            )}
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => {
+                                  const link = document.createElement('a')
+                                  link.download = `qr-kode-${savedQR.id.substring(0, 8)}.png`
+                                  link.href = savedQR.image
+                                  link.click()
+                                }}
+                                className="px-3 py-1.5 text-xs bg-gray-700 text-white rounded hover:bg-gray-600 transition-colors"
+                              >
+                                Download
+                              </button>
+                              <button
+                                onClick={() => loadSavedQRCode(savedQR)}
+                                className="px-3 py-1.5 text-xs bg-gray-900 text-white rounded hover:bg-gray-800 transition-colors"
+                              >
+                                Indlæs
+                              </button>
+                              <button
+                                onClick={() => deleteSavedQRCode(savedQR.id)}
+                                className="px-3 py-1.5 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors ml-auto"
+                              >
+                                Slet
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
               )}
             </div>
+          </div>
 
             {/* Right Column - QR Preview (on larger screens) */}
             <div className="lg:sticky lg:top-6 lg:self-start">
