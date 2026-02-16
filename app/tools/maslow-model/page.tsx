@@ -39,85 +39,39 @@ export default function MaslowModel() {
       key: 'selfActualization' as const,
       title: 'Self-Actualization',
       subtitle: 'Selvrealisering',
-      icon: '🌟',
-      color: 'purple',
-      description: 'Personlig vækst, kreativitet, opfyldelse af potentiale'
+      color: 'purple'
     },
     {
       key: 'esteem' as const,
       title: 'Esteem',
       subtitle: 'Selvrespekt',
-      icon: '💪',
-      color: 'blue',
-      description: 'Selvrespekt, anerkendelse, status'
+      color: 'blue'
     },
     {
       key: 'love' as const,
       title: 'Love & Belonging',
       subtitle: 'Kærlighed & Tilhørsforhold',
-      icon: '❤️',
-      color: 'pink',
-      description: 'Venskab, familie, intimitet, tilhørsforhold'
+      color: 'pink'
     },
     {
       key: 'safety' as const,
       title: 'Safety',
       subtitle: 'Sikkerhed',
-      icon: '🛡️',
-      color: 'yellow',
-      description: 'Sikkerhed, stabilitet, beskyttelse'
+      color: 'yellow'
     },
     {
       key: 'physiological' as const,
       title: 'Physiological',
       subtitle: 'Fysiologiske behov',
-      icon: '🍞',
-      color: 'green',
-      description: 'Luft, vand, mad, søvn, varme'
+      color: 'green'
     }
   ]
-
-  const getColorClasses = (color: string) => {
-    const colors: Record<string, { border: string; bg: string; text: string; hover: string }> = {
-      purple: {
-        border: 'border-purple-200',
-        bg: 'bg-purple-50',
-        text: 'text-purple-700',
-        hover: 'hover:bg-purple-100'
-      },
-      blue: {
-        border: 'border-blue-200',
-        bg: 'bg-blue-50',
-        text: 'text-blue-700',
-        hover: 'hover:bg-blue-100'
-      },
-      pink: {
-        border: 'border-pink-200',
-        bg: 'bg-pink-50',
-        text: 'text-pink-700',
-        hover: 'hover:bg-pink-100'
-      },
-      yellow: {
-        border: 'border-yellow-200',
-        bg: 'bg-yellow-50',
-        text: 'text-yellow-700',
-        hover: 'hover:bg-yellow-100'
-      },
-      green: {
-        border: 'border-green-200',
-        bg: 'bg-green-50',
-        text: 'text-green-700',
-        hover: 'hover:bg-green-100'
-      }
-    }
-    return colors[color] || colors.blue
-  }
 
   return (
     <div className="min-h-screen px-4 py-8 md:py-12 bg-gradient-to-br from-gray-50 to-gray-100">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <header className="mb-8 md:mb-12">
+        <header className="mb-8">
           <div className="bg-white rounded-2xl p-6 md:p-10 shadow-sm border border-gray-200">
             <Link 
               href="/dashboard" 
@@ -135,83 +89,86 @@ export default function MaslowModel() {
           </div>
         </header>
 
-        {/* Pyramid Visualization */}
-        <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-200 mb-8">
+        {/* Classic Pyramid Visualization */}
+        <div className="bg-white rounded-xl p-8 shadow-lg border-2 border-gray-300 mb-8">
           <h2 className="text-xl font-semibold text-gray-900 mb-6 text-center">Behovspyramiden</h2>
-          <div className="flex flex-col items-center space-y-2">
+          <div className="flex flex-col items-center space-y-0">
             {/* Self-Actualization - Top (smallest) */}
-            <div className="w-full max-w-xs">
-              <div className="bg-purple-100 border-2 border-purple-300 rounded-t-lg p-4 text-center">
-                <div className="text-2xl mb-1">🌟</div>
-                <div className="font-semibold text-purple-900">Self-Actualization</div>
-                <div className="text-sm text-purple-700">Selvrealisering</div>
+            <div className="w-full max-w-[200px]">
+              <div className="bg-purple-200 border-4 border-purple-400 rounded-t-lg p-4 text-center">
+                <div className="text-xl mb-1">🌟</div>
+                <div className="font-bold text-purple-900 text-sm">Self-Actualization</div>
+                <div className="text-xs text-purple-700">Selvrealisering</div>
               </div>
             </div>
             
             {/* Esteem */}
-            <div className="w-full max-w-md">
-              <div className="bg-blue-100 border-2 border-blue-300 p-4 text-center">
-                <div className="text-2xl mb-1">💪</div>
-                <div className="font-semibold text-blue-900">Esteem</div>
-                <div className="text-sm text-blue-700">Selvrespekt</div>
+            <div className="w-full max-w-[300px]">
+              <div className="bg-blue-200 border-4 border-blue-400 p-4 text-center">
+                <div className="text-xl mb-1">💪</div>
+                <div className="font-bold text-blue-900 text-sm">Esteem</div>
+                <div className="text-xs text-blue-700">Selvrespekt</div>
               </div>
             </div>
             
             {/* Love & Belonging */}
-            <div className="w-full max-w-lg">
-              <div className="bg-pink-100 border-2 border-pink-300 p-4 text-center">
-                <div className="text-2xl mb-1">❤️</div>
-                <div className="font-semibold text-pink-900">Love & Belonging</div>
-                <div className="text-sm text-pink-700">Kærlighed & Tilhørsforhold</div>
+            <div className="w-full max-w-[400px]">
+              <div className="bg-pink-200 border-4 border-pink-400 p-4 text-center">
+                <div className="text-xl mb-1">❤️</div>
+                <div className="font-bold text-pink-900 text-sm">Love & Belonging</div>
+                <div className="text-xs text-pink-700">Kærlighed & Tilhørsforhold</div>
               </div>
             </div>
             
             {/* Safety */}
-            <div className="w-full max-w-xl">
-              <div className="bg-yellow-100 border-2 border-yellow-300 p-4 text-center">
-                <div className="text-2xl mb-1">🛡️</div>
-                <div className="font-semibold text-yellow-900">Safety</div>
-                <div className="text-sm text-yellow-700">Sikkerhed</div>
+            <div className="w-full max-w-[500px]">
+              <div className="bg-yellow-200 border-4 border-yellow-400 p-4 text-center">
+                <div className="text-xl mb-1">🛡️</div>
+                <div className="font-bold text-yellow-900 text-sm">Safety</div>
+                <div className="text-xs text-yellow-700">Sikkerhed</div>
               </div>
             </div>
             
             {/* Physiological - Bottom (largest) */}
-            <div className="w-full max-w-2xl">
-              <div className="bg-green-100 border-2 border-green-300 rounded-b-lg p-4 text-center">
-                <div className="text-2xl mb-1">🍞</div>
-                <div className="font-semibold text-green-900">Physiological</div>
-                <div className="text-sm text-green-700">Fysiologiske behov</div>
+            <div className="w-full max-w-[600px]">
+              <div className="bg-green-200 border-4 border-green-400 rounded-b-lg p-4 text-center">
+                <div className="text-xl mb-1">🍞</div>
+                <div className="font-bold text-green-900 text-sm">Physiological</div>
+                <div className="text-xs text-green-700">Fysiologiske behov</div>
               </div>
             </div>
           </div>
         </div>
 
         {/* Needs Details */}
-        <div className="space-y-6">
+        <div className="space-y-4">
           {levels.map((level) => {
-            const colors = getColorClasses(level.color)
+            const colorClasses = {
+              purple: 'border-purple-300 bg-purple-50',
+              blue: 'border-blue-300 bg-blue-50',
+              pink: 'border-pink-300 bg-pink-50',
+              yellow: 'border-yellow-300 bg-yellow-50',
+              green: 'border-green-300 bg-green-50'
+            }
+            
             return (
               <div
                 key={level.key}
-                className={`bg-white rounded-xl p-6 shadow-sm border-2 ${colors.border}`}
+                className={`bg-white rounded-xl p-6 shadow-sm border-2 ${colorClasses[level.color as keyof typeof colorClasses]}`}
               >
                 <div className="flex items-center gap-3 mb-4">
-                  <span className="text-3xl">{level.icon}</span>
-                  <div>
-                    <h2 className="text-xl font-semibold text-gray-900">{level.title}</h2>
-                    <p className="text-sm text-gray-600">{level.subtitle}</p>
-                  </div>
+                  <h2 className="text-xl font-bold text-gray-900">{level.title}</h2>
+                  <span className="text-sm text-gray-600">({level.subtitle})</span>
                 </div>
-                <p className="text-sm text-gray-600 mb-4">{level.description}</p>
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {needs[level.key].map((item, index) => (
                     <div key={index} className="flex gap-2">
                       <textarea
                         value={item}
                         onChange={(e) => updateNeed(level.key, index, e.target.value)}
-                        placeholder={`Tilføj behov for ${level.title.toLowerCase()}...`}
+                        placeholder={`Tilføj behov...`}
                         rows={2}
-                        className="flex-1 px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-900 focus:outline-none focus:border-gray-900 resize-none"
+                        className="flex-1 px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-900 focus:outline-none focus:border-gray-900 resize-none"
                       />
                       {needs[level.key].length > 1 && (
                         <button
@@ -225,7 +182,7 @@ export default function MaslowModel() {
                   ))}
                   <button
                     onClick={() => addItem(level.key)}
-                    className={`w-full px-4 py-3 ${colors.bg} ${colors.text} rounded-lg ${colors.hover} transition-colors font-medium`}
+                    className={`w-full px-4 py-2 ${colorClasses[level.color as keyof typeof colorClasses]} rounded-lg hover:opacity-80 transition-opacity font-medium`}
                   >
                     + Tilføj behov
                   </button>
