@@ -1,0 +1,15 @@
+node_modules/
+scans.json
+.env
+.env.local
+.env.production
+*.log
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.cache/
+dist/
+build/

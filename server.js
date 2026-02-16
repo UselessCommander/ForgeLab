@@ -340,8 +340,17 @@ app.get('/tools/:tool', (req, res) => {
     if (fs.existsSync(toolPath)) {
         res.sendFile(toolPath);
     } else {
-        res.status(404).send('Tool not found');
+        res.status(404).sendFile(path.join(__dirname, 'public', 'index.html'));
     }
+});
+
+// Catch-all route for SPA - must be last
+app.get('*', (req, res) => {
+    // Don't serve index.html for API routes or static files
+    if (req.path.startsWith('/api/') || req.path.includes('.')) {
+        return res.status(404).json({ error: 'Not found' });
+    }
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // Start server
