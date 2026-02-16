@@ -27,20 +27,29 @@ export default function AdminDashboard() {
   const loadData = async () => {
     try {
       const response = await fetch(`${API_URL}/api/stats`, {
-        cache: 'no-cache',
+        cache: 'no-store',
         headers: {
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache'
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
         }
       })
       
       if (response.ok) {
         const responseData = await response.json()
-        setData(responseData)
-        setLastUpdate(new Date().toLocaleTimeString('da-DK'))
+        // Only update if we got valid data
+        if (responseData && typeof responseData === 'object') {
+          setData(responseData)
+          setLastUpdate(new Date().toLocaleTimeString('da-DK'))
+        } else {
+          console.warn('⚠️ Received invalid data from API:', responseData)
+        }
+      } else {
+        console.error('❌ Failed to load data:', response.status, response.statusText)
       }
     } catch (error) {
-      console.error('Fejl ved indlæsning:', error)
+      console.error('❌ Fejl ved indlæsning:', error)
+      // Don't clear existing data on error, just log it
     } finally {
       setLoading(false)
     }
@@ -48,8 +57,21 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     loadData()
-    const interval = setInterval(loadData, 5000)
-    return () => clearInterval(interval)
+    // Auto-refresh every 5 seconds
+    const interval = setInterval(() => {
+      loadData()
+    }, 5000)
+    
+    // Also refresh when window gains focus (user comes back to tab)
+    const handleFocus = () => {
+      loadData()
+    }
+    window.addEventListener('focus', handleFocus)
+    
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('focus', handleFocus)
+    }
   }, [])
 
   const deleteQR = async (qrId: string) => {
