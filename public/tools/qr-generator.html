@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Code Generator - ForgeLab</title>
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .back-link {
+            display: inline-block;
+            color: #667eea;
+            text-decoration: none;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+
+        .back-link:hover {
+            text-decoration: underline;
+        }
+
+        .input-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 600;
+        }
+
+        input[type="text"],
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+            font-family: inherit;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            margin-right: 10px;
+            cursor: pointer;
+        }
+
+        .checkbox-group label {
+            cursor: pointer;
+            margin: 0;
+        }
+
+        .options {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .option-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        input[type="number"],
+        select {
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="number"]:focus,
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-bottom: 20px;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .error {
+            color: #dc3545;
+            text-align: center;
+            margin-top: 10px;
+            padding: 10px;
+            background: #f8d7da;
+            border-radius: 5px;
+            display: none;
+        }
+
+        .error.show {
+            display: block;
+        }
+
+        #qrcode {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 200px;
+            background: #f9f9f9;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .tracking-info {
+            background: #e7f3ff;
+            border: 2px solid #2196F3;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+            display: none;
+        }
+
+        .tracking-info.show {
+            display: block;
+        }
+
+        .tracking-info h3 {
+            margin: 0 0 10px 0;
+            color: #1976D2;
+            font-size: 16px;
+        }
+
+        .tracking-info p {
+            margin: 5px 0;
+            color: #555;
+            font-size: 14px;
+        }
+
+        .tracking-info code {
+            background: #fff;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+            word-break: break-all;
+        }
+
+        .download-btn {
+            background: #28a745;
+            margin-top: 15px;
+        }
+
+        .download-btn:hover {
+            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.4);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="back-link">← Tilbage til ForgeLab</a>
+        
+        <div class="header">
+            <h1>🔲 QR Code Generator</h1>
+        </div>
+        
+        <div class="input-group">
+            <label for="qrText">Indtast tekst eller URL:</label>
+            <textarea id="qrText" placeholder="Skriv din tekst eller URL her..."></textarea>
+        </div>
+
+        <div class="checkbox-group">
+            <input type="checkbox" id="enableTracking">
+            <label for="enableTracking">Aktiver scanning tracking</label>
+        </div>
+
+        <div class="options">
+            <div class="option-group">
+                <label for="qrSize">Størrelse:</label>
+                <input type="number" id="qrSize" value="200" min="100" max="500" step="50">
+            </div>
+            <div class="option-group">
+                <label for="qrErrorLevel">Fejlkorrektion:</label>
+                <select id="qrErrorLevel">
+                    <option value="L">Lav</option>
+                    <option value="M" selected>Medium</option>
+                    <option value="Q">Høj</option>
+                    <option value="H">Meget høj</option>
+                </select>
+            </div>
+        </div>
+
+        <button onclick="generateQR()">Generer QR Kode</button>
+        
+        <div class="error" id="error"></div>
+        
+        <div id="qrcode"></div>
+        
+        <div class="tracking-info" id="trackingInfo">
+            <h3>📊 Tracking Information</h3>
+            <p><strong>QR ID:</strong> <code id="qrIdDisplay"></code></p>
+            <p><strong>Antal scanninger:</strong> <span id="scanCount">0</span></p>
+        </div>
+        
+        <button class="download-btn" id="downloadBtn" onclick="downloadQR()" style="display: none;">
+            Download QR Kode
+        </button>
+    </div>
+
+    <script>
+        // Auto-detect API URL
+        const API_URL = (function() {
+            const hostname = window.location.hostname;
+            const protocol = window.location.protocol;
+            const port = window.location.port;
+            
+            if (hostname === 'qr.floweffekt.dk' || hostname.includes('vercel.app') || hostname.includes('vercel.com')) {
+                return `https://${hostname}`;
+            }
+            
+            if (hostname === 'localhost' || hostname === '127.0.0.1') {
+                return `http://localhost:${port || '3000'}`;
+            }
+            
+            return `${protocol}//${hostname}${port ? ':' + port : ''}`;
+        })();
+        console.log('🌐 API URL:', API_URL);
+
+        let currentQrId = null;
+
+        async function generateQR() {
+            if (typeof QRCode === 'undefined') {
+                const errorDiv = document.getElementById('error');
+                errorDiv.textContent = 'QRCode biblioteket kunne ikke indlæses. Genindlæs siden.';
+                errorDiv.classList.add('show');
+                return;
+            }
+
+            const text = document.getElementById('qrText').value.trim();
+            const size = parseInt(document.getElementById('qrSize').value);
+            const errorLevel = document.getElementById('qrErrorLevel').value;
+            const enableTracking = document.getElementById('enableTracking').checked;
+            const errorDiv = document.getElementById('error');
+            const qrcodeDiv = document.getElementById('qrcode');
+            const downloadBtn = document.getElementById('downloadBtn');
+            const trackingInfo = document.getElementById('trackingInfo');
+
+            errorDiv.classList.remove('show');
+            errorDiv.textContent = '';
+            trackingInfo.classList.remove('show');
+            currentQrId = null;
+
+            if (!text) {
+                errorDiv.textContent = 'Indtast venligst tekst eller URL!';
+                errorDiv.classList.add('show');
+                qrcodeDiv.innerHTML = '';
+                downloadBtn.style.display = 'none';
+                return;
+            }
+
+            qrcodeDiv.innerHTML = '<p style="color: #666;">Genererer QR kode...</p>';
+
+            let qrText = text;
+            let trackUrl = null;
+
+            if (enableTracking) {
+                try {
+                    if (!text.startsWith('http://') && !text.startsWith('https://')) {
+                        qrText = 'http://' + text;
+                    }
+
+                    const response = await fetch(`${API_URL}/api/create-tracked`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ url: qrText })
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        currentQrId = data.qrId;
+                        trackUrl = data.trackUrl;
+                        qrText = trackUrl;
+                        
+                        document.getElementById('qrIdDisplay').textContent = currentQrId;
+                        trackingInfo.classList.add('show');
+                        
+                        refreshStats();
+                        startAutoRefreshStats();
+                    } else {
+                        throw new Error('Kunne ikke oprette tracking. Er serveren startet?');
+                    }
+                } catch (error) {
+                    errorDiv.textContent = 'Tracking fejl: ' + error.message;
+                    errorDiv.classList.add('show');
+                }
+            }
+
+            try {
+                qrcodeDiv.innerHTML = '';
+                
+                const qrContainer = document.createElement('div');
+                qrContainer.id = 'qr-container-' + Date.now();
+                qrcodeDiv.appendChild(qrContainer);
+                
+                const errorLevelMap = {
+                    'L': 0,
+                    'M': 1,
+                    'Q': 2,
+                    'H': 3
+                };
+                const correctLevel = errorLevelMap[errorLevel] !== undefined ? errorLevelMap[errorLevel] : 1;
+                
+                const qr = new QRCode(qrContainer, {
+                    text: qrText,
+                    width: size,
+                    height: size,
+                    colorDark: '#000000',
+                    colorLight: '#FFFFFF',
+                    correctLevel: correctLevel
+                });
+                
+                setTimeout(function() {
+                    try {
+                        const canvas = qrContainer.querySelector('canvas');
+                        const table = qrContainer.querySelector('table');
+                        
+                        if (canvas) {
+                            const img = document.createElement('img');
+                            img.src = canvas.toDataURL('image/png');
+                            img.alt = 'QR Code';
+                            img.style.maxWidth = '100%';
+                            img.style.height = 'auto';
+                            
+                            qrcodeDiv.innerHTML = '';
+                            qrcodeDiv.appendChild(img);
+                            downloadBtn.style.display = 'block';
+                        } else if (table) {
+                            const canvas = document.createElement('canvas');
+                            const ctx = canvas.getContext('2d');
+                            canvas.width = size;
+                            canvas.height = size;
+                            
+                            ctx.fillStyle = '#FFFFFF';
+                            ctx.fillRect(0, 0, size, size);
+                            
+                            const cells = table.querySelectorAll('td');
+                            const cellSize = size / Math.sqrt(cells.length);
+                            
+                            ctx.fillStyle = '#000000';
+                            cells.forEach((cell, index) => {
+                                if (cell.style.backgroundColor === 'black' || 
+                                    cell.classList.contains('black') ||
+                                    cell.getAttribute('bgcolor') === 'black') {
+                                    const row = Math.floor(index / Math.sqrt(cells.length));
+                                    const col = index % Math.sqrt(cells.length);
+                                    ctx.fillRect(col * cellSize, row * cellSize, cellSize, cellSize);
+                                }
+                            });
+                            
+                            const img = document.createElement('img');
+                            img.src = canvas.toDataURL('image/png');
+                            img.alt = 'QR Code';
+                            img.style.maxWidth = '100%';
+                            img.style.height = 'auto';
+                            
+                            qrcodeDiv.innerHTML = '';
+                            qrcodeDiv.appendChild(img);
+                            downloadBtn.style.display = 'block';
+                        } else {
+                            downloadBtn.style.display = 'block';
+                        }
+                    } catch (err) {
+                        console.error('Fejl ved konvertering af QR kode:', err);
+                        downloadBtn.style.display = 'block';
+                    }
+                }, 200);
+            } catch (error) {
+                errorDiv.textContent = 'Fejl ved generering af QR kode: ' + error.message;
+                errorDiv.classList.add('show');
+                downloadBtn.style.display = 'none';
+                qrcodeDiv.innerHTML = '';
+            }
+        }
+
+        async function refreshStats() {
+            if (!currentQrId) return;
+
+            try {
+                const response = await fetch(`${API_URL}/api/stats/${currentQrId}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('scanCount').textContent = data.count || 0;
+                }
+            } catch (error) {
+                console.error('Kunne ikke hente statistik:', error);
+            }
+        }
+
+        let statsRefreshInterval = null;
+        function startAutoRefreshStats() {
+            if (statsRefreshInterval) {
+                clearInterval(statsRefreshInterval);
+            }
+            statsRefreshInterval = setInterval(() => {
+                if (currentQrId) {
+                    refreshStats();
+                }
+            }, 5000);
+        }
+
+        function downloadQR() {
+            const qrcodeDiv = document.getElementById('qrcode');
+            const img = qrcodeDiv.querySelector('img');
+            
+            if (!img || !img.src) {
+                alert('Generer venligst en QR kode først!');
+                return;
+            }
+
+            const link = document.createElement('a');
+            link.download = 'qr-kode.png';
+            link.href = img.src;
+            link.click();
+        }
+    </script>
+</body>
+</html>
