@@ -64,7 +64,7 @@ export default function ValuePropositionCanvas() {
     <div className="min-h-screen px-4 py-8 md:py-12 bg-gradient-to-br from-gray-50 to-gray-100">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <header className="mb-8 md:mb-12">
+        <header className="mb-8">
           <div className="bg-white rounded-2xl p-6 md:p-10 shadow-sm border border-gray-200">
             <Link 
               href="/dashboard" 
@@ -82,20 +82,17 @@ export default function ValuePropositionCanvas() {
           </div>
         </header>
 
-        {/* Canvas Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Customer Profile */}
-          <div className="bg-white rounded-xl p-6 shadow-sm border-2 border-blue-200">
-            <h2 className="text-2xl font-semibold text-blue-700 mb-6 pb-4 border-b border-blue-200">
-              Customer Profile
-            </h2>
-
+        {/* Classic Side-by-Side Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Customer Profile - Left Side */}
+          <div className="bg-white rounded-xl shadow-lg border-2 border-gray-300">
+            <div className="bg-blue-600 text-white p-4 border-b-2 border-gray-400">
+              <h2 className="text-xl font-bold uppercase tracking-wide">Customer Profile</h2>
+            </div>
+            
             {/* Jobs to be Done */}
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                <span className="text-xl">📋</span>
-                Jobs to be Done
-              </h3>
+            <div className="p-4 border-b-2 border-gray-300 bg-blue-50">
+              <h3 className="text-sm font-bold text-gray-900 mb-2 uppercase">Jobs to be Done</h3>
               <div className="space-y-2">
                 {customerProfile.jobs.map((item, index) => (
                   <div key={index} className="flex gap-2">
@@ -104,33 +101,20 @@ export default function ValuePropositionCanvas() {
                       onChange={(e) => updateCustomerField('jobs', index, e.target.value)}
                       placeholder="Hvad prøver kunden at opnå?"
                       rows={2}
-                      className="flex-1 px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-900 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 resize-none"
+                      className="flex-1 px-3 py-2 text-sm rounded border border-gray-300 bg-white resize-none focus:outline-none focus:border-blue-600"
                     />
                     {customerProfile.jobs.length > 1 && (
-                      <button
-                        onClick={() => removeCustomerItem('jobs', index)}
-                        className="px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors self-start"
-                      >
-                        ✕
-                      </button>
+                      <button onClick={() => removeCustomerItem('jobs', index)} className="text-red-500 text-sm">×</button>
                     )}
                   </div>
                 ))}
-                <button
-                  onClick={() => addCustomerItem('jobs')}
-                  className="w-full px-4 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors font-medium"
-                >
-                  + Tilføj job
-                </button>
+                <button onClick={() => addCustomerItem('jobs')} className="text-xs text-blue-600 hover:text-blue-800">+ Tilføj</button>
               </div>
             </div>
 
             {/* Pains */}
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                <span className="text-xl">😣</span>
-                Pains
-              </h3>
+            <div className="p-4 border-b-2 border-gray-300 bg-red-50">
+              <h3 className="text-sm font-bold text-gray-900 mb-2 uppercase">Pains</h3>
               <div className="space-y-2">
                 {customerProfile.pains.map((item, index) => (
                   <div key={index} className="flex gap-2">
@@ -139,33 +123,20 @@ export default function ValuePropositionCanvas() {
                       onChange={(e) => updateCustomerField('pains', index, e.target.value)}
                       placeholder="Hvad frustrerer kunden?"
                       rows={2}
-                      className="flex-1 px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-900 focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 resize-none"
+                      className="flex-1 px-3 py-2 text-sm rounded border border-gray-300 bg-white resize-none focus:outline-none focus:border-red-600"
                     />
                     {customerProfile.pains.length > 1 && (
-                      <button
-                        onClick={() => removeCustomerItem('pains', index)}
-                        className="px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors self-start"
-                      >
-                        ✕
-                      </button>
+                      <button onClick={() => removeCustomerItem('pains', index)} className="text-red-500 text-sm">×</button>
                     )}
                   </div>
                 ))}
-                <button
-                  onClick={() => addCustomerItem('pains')}
-                  className="w-full px-4 py-2 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors font-medium"
-                >
-                  + Tilføj pain
-                </button>
+                <button onClick={() => addCustomerItem('pains')} className="text-xs text-red-600 hover:text-red-800">+ Tilføj</button>
               </div>
             </div>
 
             {/* Gains */}
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                <span className="text-xl">✨</span>
-                Gains
-              </h3>
+            <div className="p-4 bg-green-50">
+              <h3 className="text-sm font-bold text-gray-900 mb-2 uppercase">Gains</h3>
               <div className="space-y-2">
                 {customerProfile.gains.map((item, index) => (
                   <div key={index} className="flex gap-2">
@@ -174,40 +145,27 @@ export default function ValuePropositionCanvas() {
                       onChange={(e) => updateCustomerField('gains', index, e.target.value)}
                       placeholder="Hvad ønsker kunden at opnå?"
                       rows={2}
-                      className="flex-1 px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-900 focus:outline-none focus:border-green-600 focus:ring-1 focus:ring-green-600 resize-none"
+                      className="flex-1 px-3 py-2 text-sm rounded border border-gray-300 bg-white resize-none focus:outline-none focus:border-green-600"
                     />
                     {customerProfile.gains.length > 1 && (
-                      <button
-                        onClick={() => removeCustomerItem('gains', index)}
-                        className="px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors self-start"
-                      >
-                        ✕
-                      </button>
+                      <button onClick={() => removeCustomerItem('gains', index)} className="text-red-500 text-sm">×</button>
                     )}
                   </div>
                 ))}
-                <button
-                  onClick={() => addCustomerItem('gains')}
-                  className="w-full px-4 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-colors font-medium"
-                >
-                  + Tilføj gain
-                </button>
+                <button onClick={() => addCustomerItem('gains')} className="text-xs text-green-600 hover:text-green-800">+ Tilføj</button>
               </div>
             </div>
           </div>
 
-          {/* Value Map */}
-          <div className="bg-white rounded-xl p-6 shadow-sm border-2 border-purple-200">
-            <h2 className="text-2xl font-semibold text-purple-700 mb-6 pb-4 border-b border-purple-200">
-              Value Map
-            </h2>
+          {/* Value Map - Right Side */}
+          <div className="bg-white rounded-xl shadow-lg border-2 border-gray-300">
+            <div className="bg-purple-600 text-white p-4 border-b-2 border-gray-400">
+              <h2 className="text-xl font-bold uppercase tracking-wide">Value Map</h2>
+            </div>
 
             {/* Products & Services */}
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                <span className="text-xl">🎁</span>
-                Products & Services
-              </h3>
+            <div className="p-4 border-b-2 border-gray-300 bg-purple-50">
+              <h3 className="text-sm font-bold text-gray-900 mb-2 uppercase">Products & Services</h3>
               <div className="space-y-2">
                 {valueMap.products.map((item, index) => (
                   <div key={index} className="flex gap-2">
@@ -216,33 +174,20 @@ export default function ValuePropositionCanvas() {
                       onChange={(e) => updateValueField('products', index, e.target.value)}
                       placeholder="Hvad tilbyder du?"
                       rows={2}
-                      className="flex-1 px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-900 focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-600 resize-none"
+                      className="flex-1 px-3 py-2 text-sm rounded border border-gray-300 bg-white resize-none focus:outline-none focus:border-purple-600"
                     />
                     {valueMap.products.length > 1 && (
-                      <button
-                        onClick={() => removeValueItem('products', index)}
-                        className="px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors self-start"
-                      >
-                        ✕
-                      </button>
+                      <button onClick={() => removeValueItem('products', index)} className="text-red-500 text-sm">×</button>
                     )}
                   </div>
                 ))}
-                <button
-                  onClick={() => addValueItem('products')}
-                  className="w-full px-4 py-2 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors font-medium"
-                >
-                  + Tilføj produkt/service
-                </button>
+                <button onClick={() => addValueItem('products')} className="text-xs text-purple-600 hover:text-purple-800">+ Tilføj</button>
               </div>
             </div>
 
             {/* Pain Relievers */}
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                <span className="text-xl">💊</span>
-                Pain Relievers
-              </h3>
+            <div className="p-4 border-b-2 border-gray-300 bg-red-50">
+              <h3 className="text-sm font-bold text-gray-900 mb-2 uppercase">Pain Relievers</h3>
               <div className="space-y-2">
                 {valueMap.painRelievers.map((item, index) => (
                   <div key={index} className="flex gap-2">
@@ -251,33 +196,20 @@ export default function ValuePropositionCanvas() {
                       onChange={(e) => updateValueField('painRelievers', index, e.target.value)}
                       placeholder="Hvordan løser du kundens problemer?"
                       rows={2}
-                      className="flex-1 px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-900 focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 resize-none"
+                      className="flex-1 px-3 py-2 text-sm rounded border border-gray-300 bg-white resize-none focus:outline-none focus:border-red-600"
                     />
                     {valueMap.painRelievers.length > 1 && (
-                      <button
-                        onClick={() => removeValueItem('painRelievers', index)}
-                        className="px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors self-start"
-                      >
-                        ✕
-                      </button>
+                      <button onClick={() => removeValueItem('painRelievers', index)} className="text-red-500 text-sm">×</button>
                     )}
                   </div>
                 ))}
-                <button
-                  onClick={() => addValueItem('painRelievers')}
-                  className="w-full px-4 py-2 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors font-medium"
-                >
-                  + Tilføj pain reliever
-                </button>
+                <button onClick={() => addValueItem('painRelievers')} className="text-xs text-red-600 hover:text-red-800">+ Tilføj</button>
               </div>
             </div>
 
             {/* Gain Creators */}
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                <span className="text-xl">🌟</span>
-                Gain Creators
-              </h3>
+            <div className="p-4 bg-green-50">
+              <h3 className="text-sm font-bold text-gray-900 mb-2 uppercase">Gain Creators</h3>
               <div className="space-y-2">
                 {valueMap.gainCreators.map((item, index) => (
                   <div key={index} className="flex gap-2">
@@ -286,24 +218,14 @@ export default function ValuePropositionCanvas() {
                       onChange={(e) => updateValueField('gainCreators', index, e.target.value)}
                       placeholder="Hvordan skaber du værdi for kunden?"
                       rows={2}
-                      className="flex-1 px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-900 focus:outline-none focus:border-green-600 focus:ring-1 focus:ring-green-600 resize-none"
+                      className="flex-1 px-3 py-2 text-sm rounded border border-gray-300 bg-white resize-none focus:outline-none focus:border-green-600"
                     />
                     {valueMap.gainCreators.length > 1 && (
-                      <button
-                        onClick={() => removeValueItem('gainCreators', index)}
-                        className="px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors self-start"
-                      >
-                        ✕
-                      </button>
+                      <button onClick={() => removeValueItem('gainCreators', index)} className="text-red-500 text-sm">×</button>
                     )}
                   </div>
                 ))}
-                <button
-                  onClick={() => addValueItem('gainCreators')}
-                  className="w-full px-4 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-colors font-medium"
-                >
-                  + Tilføj gain creator
-                </button>
+                <button onClick={() => addValueItem('gainCreators')} className="text-xs text-green-600 hover:text-green-800">+ Tilføj</button>
               </div>
             </div>
           </div>
