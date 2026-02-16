@@ -156,7 +156,7 @@ export default function LandingPage() {
                   Generer professionelle QR-koder med tracking. Følg scanninger og download som PNG.
                 </p>
                 <Link
-                  href="/login"
+                  href="/try/qr-generator"
                   className="inline-flex items-center gap-2 mt-4 text-amber-600 font-medium hover:text-amber-700"
                 >
                   Prøv nu
@@ -175,7 +175,7 @@ export default function LandingPage() {
                   Real-time statistik over scanninger. Se antal, tidspunkter og enkeltscan-detaljer.
                 </p>
                 <Link
-                  href="/login"
+                  href="/analytics"
                   className="inline-flex items-center gap-2 mt-4 text-sky-600 font-medium hover:text-sky-700"
                 >
                   Se dashboard
@@ -194,7 +194,7 @@ export default function LandingPage() {
                   SWOT, Business Model Canvas, Gantt, Kompasrose og mere. Alt i ét dashboard.
                 </p>
                 <Link
-                  href="/login"
+                  href="/vaerktoejer"
                   className="inline-flex items-center gap-2 mt-4 text-violet-600 font-medium hover:text-violet-700"
                 >
                   Udforsk værktøjer

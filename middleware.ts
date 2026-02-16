@@ -16,22 +16,22 @@ export function middleware(request: NextRequest) {
   }
   
   // Public routes that don't require authentication
-  const publicRoutes = ['/', '/login', '/register', '/api/auth/login', '/api/auth/register']
+  const publicRoutes = ['/', '/login', '/register', '/api/auth/login', '/api/auth/register', '/try/qr-generator', '/analytics', '/vaerktoejer']
   const isPublicRoute = publicRoutes.some(route => request.nextUrl.pathname === route)
+  const isPublicToolsExplore = request.nextUrl.pathname.startsWith('/vaerktoejer/')
+  const isPublic = isPublicRoute || isPublicToolsExplore
   
   // API routes that don't require authentication (tracking endpoints)
   const publicApiRoutes = ['/api/track', '/api/auth']
   const isPublicApiRoute = publicApiRoutes.some(route => request.nextUrl.pathname.startsWith(route))
   
   // If accessing protected route without authentication
-  if (!isPublicRoute && !isPublicApiRoute && !isAuthenticated) {
+  if (!isPublic && !isPublicApiRoute && !isAuthenticated) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
   
-  // If accessing login/register page while authenticated, redirect to dashboard
-  if ((request.nextUrl.pathname === '/login' || request.nextUrl.pathname === '/register') && isAuthenticated) {
-    return NextResponse.redirect(new URL('/dashboard', request.url))
-  }
+  // Let login/register pages handle "already logged in" themselves (show message + link to dashboard)
+  // so the user sees the page content instead of being redirected without feedback.
   
   return NextResponse.next()
 }
