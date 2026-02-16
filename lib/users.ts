@@ -1,92 +1,145 @@
-import fs from 'fs';
-import path from 'path';
+﻿import bcrypt from 'bcryptjs';
+import { supabase } from './supabase';
 import { generateId } from './data';
-
-const USERS_FILE = process.env.VERCEL || process.env.VERCEL_ENV
-    ? path.join('/tmp', 'users.json')
-    : path.join(process.cwd(), 'users.json');
-
-function ensureUsersFile() {
-    if (!fs.existsSync(USERS_FILE)) {
-        const dir = path.dirname(USERS_FILE);
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
-        }
-        fs.writeFileSync(USERS_FILE, JSON.stringify({}));
-    }
-}
 
 export interface User {
     id: string;
     username: string;
-    password: string; // I production skal dette være hashed
+    password: string; // Hashed password
     createdAt: string;
 }
 
-export function readUsers(): Record<string, User> {
-    try {
-        ensureUsersFile();
-        if (!fs.existsSync(USERS_FILE)) {
-            return {};
-        }
-        const data = fs.readFileSync(USERS_FILE, 'utf8');
-        if (!data || data.trim() === '') {
-            return {};
-        }
-        return JSON.parse(data);
-    } catch (error) {
-        console.error('❌ Fejl ved læsning af brugere:', error);
-        return {};
-    }
+export async function hashPassword(password: string): Promise<string> {
+    const saltRounds = 10;
+    return await bcrypt.hash(password, saltRounds);
 }
 
-export function writeUsers(users: Record<string, User>) {
-    try {
-        ensureUsersFile();
-        const dir = path.dirname(USERS_FILE);
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
-        }
-        fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), 'utf8');
-    } catch (error) {
-        console.error('❌ Fejl ved skrivning af brugere:', error);
-        throw error;
-    }
+export function isPasswordHashed(password: string): boolean {
+    return password.startsWith('$2') && password.length === 60;
 }
 
-export function createUser(username: string, password: string): User | null {
-    const users = readUsers();
-    
-    // Tjek om brugernavn allerede eksisterer
-    const existingUser = Object.values(users).find(u => u.username === username);
-    if (existingUser) {
+export async function createUser(username: string, password: string): Promise<User | null> {
+    try {
+        // Tjek om brugernavn allerede eksisterer
+        const { data: existingUser } = await supabase
+            .from('users')
+            .select('id')
+            .eq('username', username)
+            .single();
+
+        if (existingUser) {
+            return null;
+        }
+
+        // Hash password
+        const passwordHash = await hashPassword(password);
+        const userId = generateId();
+
+        // Opret bruger i Supabase
+        const { data, error } = await supabase
+            .from('users')
+            .insert({
+                id: userId,
+                username,
+                password_hash: passwordHash,
+                created_at: new Date().toISOString()
+            })
+            .select()
+            .single();
+
+        if (error) {
+            console.error('âŒ Fejl ved oprettelse af bruger:', error);
+            return null;
+        }
+
+        return {
+            id: data.id,
+            username: data.username,
+            password: data.password_hash,
+            createdAt: data.created_at
+        };
+    } catch (error) {
+        console.error('âŒ Fejl ved oprettelse af bruger:', error);
         return null;
     }
-    
-    const user: User = {
-        id: generateId(),
-        username,
-        password, // I production skal dette hashes med bcrypt
-        createdAt: new Date().toISOString()
-    };
-    
-    users[user.id] = user;
-    writeUsers(users);
-    
-    return user;
 }
 
-export function getUserByUsername(username: string): User | null {
-    const users = readUsers();
-    const user = Object.values(users).find(u => u.username === username);
-    return user || null;
+export async function getUserByUsername(username: string): Promise<User | null> {
+    try {
+        const { data, error } = await supabase
+            .from('users')
+            .select('*')
+            .eq('username', username)
+            .single();
+
+        if (error || !data) {
+            return null;
+        }
+
+        return {
+            id: data.id,
+            username: data.username,
+            password: data.password_hash,
+            createdAt: data.created_at
+        };
+    } catch (error) {
+        console.error('âŒ Fejl ved hentning af bruger:', error);
+        return null;
+    }
 }
 
-export function getUserById(id: string): User | null {
-    const users = readUsers();
-    return users[id] || null;
+export async function getUserById(id: string): Promise<User | null> {
+    try {
+        const { data, error } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+        if (error || !data) {
+            return null;
+        }
+
+        return {
+            id: data.id,
+            username: data.username,
+            password: data.password_hash,
+            createdAt: data.created_at
+        };
+    } catch (error) {
+        console.error('âŒ Fejl ved hentning af bruger:', error);
+        return null;
+    }
 }
 
-export function verifyPassword(user: User, password: string): boolean {
-    return user.password === password; // I production skal dette sammenligne hashes
+export async function verifyPassword(user: User, password: string): Promise<boolean> {
+    // Hvis password er hashet, brug bcrypt.compare
+    if (isPasswordHashed(user.password)) {
+        const isValid = await bcrypt.compare(password, user.password);
+        return isValid;
+    }
+    
+    // Hvis password ikke er hashet (gammel bruger), sammenlign direkte
+    // og hash det automatisk ved nÃ¦ste login (graduel migration)
+    if (user.password === password) {
+        // Auto-migrer: hash passwordet og gem det i Supabase
+        try {
+            const hashedPassword = await hashPassword(password);
+            const { error } = await supabase
+                .from('users')
+                .update({ password_hash: hashedPassword })
+                .eq('id', user.id);
+
+            if (error) {
+                console.error('âŒ Fejl ved auto-migration af password:', error);
+            } else {
+                console.log(`âœ… Auto-migreret password for bruger: ${user.username}`);
+            }
+        } catch (error) {
+            console.error('âŒ Fejl ved auto-migration af password:', error);
+        }
+        return true;
+    }
+    
+    return false;
 }

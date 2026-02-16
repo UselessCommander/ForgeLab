@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest, NextResponse } from 'next/server'
 import { createUser } from '@/lib/users'
 
 export async function POST(request: NextRequest) {
@@ -8,26 +8,26 @@ export async function POST(request: NextRequest) {
 
     if (!username || !password) {
       return NextResponse.json(
-        { error: 'Brugernavn og password er påkrævet' },
+        { error: 'Brugernavn og password er pÃ¥krÃ¦vet' },
         { status: 400 }
       )
     }
 
     if (username.length < 3) {
       return NextResponse.json(
-        { error: 'Brugernavn skal være mindst 3 tegn' },
+        { error: 'Brugernavn skal vÃ¦re mindst 3 tegn' },
         { status: 400 }
       )
     }
 
     if (password.length < 6) {
       return NextResponse.json(
-        { error: 'Password skal være mindst 6 tegn' },
+        { error: 'Password skal vÃ¦re mindst 6 tegn' },
         { status: 400 }
       )
     }
 
-    const user = createUser(username, password)
+    const user = await createUser(username, password)
 
     if (!user) {
       return NextResponse.json(

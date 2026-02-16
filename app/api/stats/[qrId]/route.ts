@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { readScans, writeScans } from '@/lib/data';
+﻿import { NextRequest, NextResponse } from 'next/server';
+import { getQRCodeById, deleteQRCode } from '@/lib/data';
 import { getCurrentUserId } from '@/lib/auth';
 
 // GET stats for specific QR code
@@ -18,9 +18,9 @@ export async function GET(
         }
 
         const { qrId } = params;
-        const scans = readScans();
+        const qrCode = await getQRCodeById(qrId);
 
-        if (!scans[qrId]) {
+        if (!qrCode) {
             return NextResponse.json({ 
                 count: 0, 
                 createdAt: null,
@@ -28,8 +28,8 @@ export async function GET(
             });
         }
 
-        // Tjek om QR-koden tilhører brugeren
-        if (scans[qrId].userId !== userId) {
+        // Tjek om QR-koden tilhÃ¸rer brugeren (eller admin)
+        if (qrCode.userId !== userId && userId !== 'admin') {
             return NextResponse.json(
                 { error: 'Ingen adgang til denne QR-kode' },
                 { status: 403 }
@@ -37,12 +37,12 @@ export async function GET(
         }
 
         return NextResponse.json({
-            count: scans[qrId].count,
-            createdAt: scans[qrId].createdAt,
-            scans: scans[qrId].scans
+            count: qrCode.count,
+            createdAt: qrCode.createdAt,
+            scans: qrCode.scans
         });
     } catch (error: any) {
-        console.error('❌ Fejl ved hentning af statistik:', error);
+        console.error('âŒ Fejl ved hentning af statistik:', error);
         return NextResponse.json(
             { error: 'Intern server fejl', message: error.message },
             { status: 500 }
@@ -66,27 +66,33 @@ export async function DELETE(
         }
 
         const { qrId } = params;
-        const scans = readScans();
+        const qrCode = await getQRCodeById(qrId);
 
-        if (!scans[qrId]) {
+        if (!qrCode) {
             return NextResponse.json(
                 { error: 'QR kode ikke fundet', qrId: qrId },
                 { status: 404 }
             );
         }
 
-        // Tjek om QR-koden tilhører brugeren
-        if (scans[qrId].userId !== userId) {
+        // Tjek om QR-koden tilhÃ¸rer brugeren (eller admin)
+        if (qrCode.userId !== userId && userId !== 'admin') {
             return NextResponse.json(
                 { error: 'Ingen adgang til denne QR-kode' },
                 { status: 403 }
             );
         }
 
-        delete scans[qrId];
-        writeScans(scans);
+        const success = await deleteQRCode(qrId);
 
-        console.log(`🗑️ QR-kode ${qrId} slettet af bruger ${userId}`);
+        if (!success) {
+            return NextResponse.json(
+                { error: 'Fejl ved sletning af QR-kode' },
+                { status: 500 }
+            );
+        }
+
+        console.log(`ðŸ—‘ï¸ QR-kode ${qrId} slettet af bruger ${userId}`);
 
         return NextResponse.json({ 
             success: true, 
@@ -94,7 +100,7 @@ export async function DELETE(
             qrId: qrId
         });
     } catch (error: any) {
-        console.error('❌ Fejl ved sletning af QR-kode:', error);
+        console.error('âŒ Fejl ved sletning af QR-kode:', error);
         return NextResponse.json(
             { error: 'Intern server fejl', message: error.message },
             { status: 500 }

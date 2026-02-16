@@ -1,4 +1,4 @@
-import { cookies } from 'next/headers'
+﻿import { cookies } from 'next/headers'
 import { getUserByUsername, verifyPassword, type User } from './users'
 
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin'
@@ -11,8 +11,8 @@ export async function login(username: string, password: string): Promise<{ succe
   }
   
   // Check user accounts
-  const user = getUserByUsername(username)
-  if (user && verifyPassword(user, password)) {
+  const user = await getUserByUsername(username)
+  if (user && await verifyPassword(user, password)) {
     return { success: true, userId: user.id }
   }
   

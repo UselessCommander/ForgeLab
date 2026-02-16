@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { readScans, writeScans, readScansForUser } from '@/lib/data';
+﻿import { NextRequest, NextResponse } from 'next/server';
+import { readScansForUser, deleteAllQRCodesForUser } from '@/lib/data';
 import { getCurrentUserId } from '@/lib/auth';
 
 // GET all stats for current user
@@ -14,10 +14,10 @@ export async function GET() {
             );
         }
 
-        const scans = readScansForUser(userId);
+        const scans = await readScansForUser(userId);
         return NextResponse.json(scans);
     } catch (error: any) {
-        console.error('❌ Fejl ved hentning af statistikker:', error);
+        console.error('âŒ Fejl ved hentning af statistikker:', error);
         return NextResponse.json(
             { error: 'Intern server fejl', message: error.message },
             { status: 500 }
@@ -37,17 +37,8 @@ export async function DELETE() {
             );
         }
 
-        const allScans = readScans();
-        const userScans = readScansForUser(userId);
-        const count = Object.keys(userScans).length;
-        
-        // Slet kun brugerens QR-koder
-        for (const qrId of Object.keys(userScans)) {
-            delete allScans[qrId];
-        }
-        
-        writeScans(allScans);
-        console.log(`🗑️ Alle QR-koder slettet for bruger ${userId} (${count} stk)`);
+        const count = await deleteAllQRCodesForUser(userId);
+        console.log(`ðŸ—‘ï¸ Alle QR-koder slettet for bruger ${userId} (${count} stk)`);
         
         return NextResponse.json({ 
             success: true, 
@@ -55,7 +46,7 @@ export async function DELETE() {
             deleted: count
         });
     } catch (error: any) {
-        console.error('❌ Fejl ved sletning af alle QR-koder:', error);
+        console.error('âŒ Fejl ved sletning af alle QR-koder:', error);
         return NextResponse.json(
             { error: 'Intern server fejl', message: error.message },
             { status: 500 }

@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { readScans, writeScans } from '@/lib/data';
+﻿import { NextRequest, NextResponse } from 'next/server';
+import { getQRCodeById, trackScan } from '@/lib/data';
 
 export async function GET(
     request: NextRequest,
@@ -7,17 +7,18 @@ export async function GET(
 ) {
     try {
         const { qrId } = params;
-        const scans = readScans();
         const clientIP = request.ip || 
             request.headers.get('x-forwarded-for') || 
             request.headers.get('x-real-ip') || 
             'unknown';
 
-        console.log(`\n📱 QR-kode scannet! ID: ${qrId}`);
-        console.log(`📍 IP: ${clientIP}`);
+        console.log(`\nðŸ“± QR-kode scannet! ID: ${qrId}`);
+        console.log(`ðŸ“ IP: ${clientIP}`);
 
-        if (!scans[qrId]) {
-            console.log(`❌ QR-kode ${qrId} ikke fundet i database`);
+        const qrCode = await getQRCodeById(qrId);
+
+        if (!qrCode) {
+            console.log(`âŒ QR-kode ${qrId} ikke fundet i database`);
             return new NextResponse(
                 `<!DOCTYPE html>
                 <html>
@@ -40,20 +41,17 @@ export async function GET(
         }
 
         // Track the scan
-        scans[qrId].count++;
-        scans[qrId].scans.push({
-            timestamp: new Date().toISOString(),
-            ip: clientIP,
-            userAgent: request.headers.get('user-agent') || 'unknown',
-            referer: request.headers.get('referer') || 'direct'
-        });
-        writeScans(scans);
+        const userAgent = request.headers.get('user-agent') || 'unknown';
+        const referer = request.headers.get('referer') || 'direct';
+        
+        await trackScan(qrId, clientIP, userAgent, referer);
 
-        console.log(`✅ Scan registreret! Total scanninger for ${qrId}: ${scans[qrId].count}`);
-        console.log(`🔗 Redirecter til: ${scans[qrId].originalUrl}\n`);
+        const newCount = qrCode.count + 1;
+        console.log(`âœ… Scan registreret! Total scanninger for ${qrId}: ${newCount}`);
+        console.log(`ðŸ”— Redirecter til: ${qrCode.originalUrl}\n`);
 
         // Redirect to original URL
-        const originalUrl = scans[qrId].originalUrl;
+        const originalUrl = qrCode.originalUrl;
         if (originalUrl) {
             // Ensure URL has protocol
             let redirectUrl = originalUrl;
@@ -77,7 +75,7 @@ export async function GET(
                     </head>
                     <body>
                         <h1>QR Kode Scannet!</h1>
-                        <p>Antal scanninger: ${scans[qrId].count}</p>
+                        <p>Antal scanninger: ${newCount}</p>
                         <p><a href="/">Tilbage til ForgeLab</a></p>
                     </body>
                 </html>`,
@@ -85,7 +83,7 @@ export async function GET(
             );
         }
     } catch (error: any) {
-        console.error('❌ Fejl ved tracking:', error);
+        console.error('âŒ Fejl ved tracking:', error);
         return NextResponse.json(
             { error: 'Intern server fejl', message: error.message },
             { status: 500 }

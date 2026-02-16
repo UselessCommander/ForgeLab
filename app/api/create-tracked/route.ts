@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { readScans, writeScans, generateId, getBaseUrl } from '@/lib/data';
+﻿import { NextRequest, NextResponse } from 'next/server';
+import { createQRCode, generateId, getBaseUrl } from '@/lib/data';
 import { getCurrentUserId } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
@@ -29,27 +29,23 @@ export async function POST(request: NextRequest) {
         }
 
         const id = qrId || generateId();
-        const scans = readScans();
+        const success = await createQRCode(id, userId, validatedUrl);
 
-        scans[id] = {
-            userId: userId,
-            count: 0,
-            createdAt: new Date().toISOString(),
-            originalUrl: validatedUrl,
-            scans: []
-        };
-
-        writeScans(scans);
+        if (!success) {
+            return NextResponse.json(
+                { error: 'Fejl ved oprettelse af QR-kode' },
+                { status: 500 }
+            );
+        }
 
         const BASE_URL = getBaseUrl();
 
-        console.log(`\n✨ Ny tracked QR-kode oprettet:`);
+        console.log(`\nâœ¨ Ny tracked QR-kode oprettet:`);
         console.log(`   QR ID: ${id}`);
         console.log(`   User ID: ${userId}`);
         console.log(`   Original URL: ${validatedUrl}`);
         console.log(`   Track URL: ${BASE_URL}/api/track/${id}\n`);
 
-        // Use relative URL for trackUrl to work correctly
         return NextResponse.json({
             success: true,
             qrId: id,
@@ -58,7 +54,7 @@ export async function POST(request: NextRequest) {
             originalUrl: validatedUrl
         });
     } catch (error: any) {
-        console.error('❌ Fejl ved oprettelse af tracked QR-kode:', error);
+        console.error('âŒ Fejl ved oprettelse af tracked QR-kode:', error);
         return NextResponse.json(
             { error: 'Intern server fejl', message: error.message },
             { status: 500 }

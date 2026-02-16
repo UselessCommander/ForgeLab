@@ -1,84 +1,4 @@
-import fs from 'fs';
-import path from 'path';
-import os from 'os';
-
-// Data file path
-// On Vercel, use /tmp which persists during function execution
-// Note: /tmp is ephemeral and may be cleared between deployments or after inactivity
-const DATA_FILE = process.env.VERCEL || process.env.VERCEL_ENV
-    ? path.join('/tmp', 'scans.json')
-    : path.join(process.cwd(), 'scans.json');
-
-// Initialize data file if it doesn't exist
-function ensureDataFile() {
-    if (!fs.existsSync(DATA_FILE)) {
-        const dir = path.dirname(DATA_FILE);
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
-        }
-        fs.writeFileSync(DATA_FILE, JSON.stringify({}));
-    }
-}
-
-// Read scans data
-export function readScans() {
-    try {
-        ensureDataFile();
-        if (!fs.existsSync(DATA_FILE)) {
-            console.log('⚠️ Data file does not exist, returning empty object');
-            return {};
-        }
-        const data = fs.readFileSync(DATA_FILE, 'utf8');
-        if (!data || data.trim() === '') {
-            console.log('⚠️ Data file is empty, returning empty object');
-            return {};
-        }
-        const parsed = JSON.parse(data);
-        console.log(`📊 Read ${Object.keys(parsed).length} QR codes from data file`);
-        return parsed;
-    } catch (error) {
-        console.error('❌ Fejl ved læsning af scans data:', error);
-        return {};
-    }
-}
-
-// Read scans for a specific user
-export function readScansForUser(userId: string) {
-    const allScans = readScans();
-    
-    // Admin bruger kan se alle QR-koder (inkl. gamle uden userId)
-    if (userId === 'admin') {
-        return allScans;
-    }
-    
-    const userScans: Record<string, any> = {};
-    
-    for (const [qrId, qrData] of Object.entries(allScans)) {
-        // Hvis QR-koden har userId, tjek om den matcher
-        // Hvis ikke, er det en gammel QR-kode som kun admin kan se
-        if ((qrData as any).userId === userId) {
-            userScans[qrId] = qrData;
-        }
-    }
-    
-    return userScans;
-}
-
-// Write scans data
-export function writeScans(data: any) {
-    try {
-        ensureDataFile();
-        const dir = path.dirname(DATA_FILE);
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
-        }
-        fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
-        console.log(`💾 Saved ${Object.keys(data).length} QR codes to data file`);
-    } catch (error) {
-        console.error('❌ Fejl ved skrivning af scans data:', error);
-        throw error;
-    }
-}
+﻿import { supabase } from './supabase';
 
 // Generate unique ID
 export function generateId() {
@@ -99,4 +19,256 @@ export function getBaseUrl() {
         }
     }
     return 'http://localhost:3000';
+}
+
+// Read all QR codes (for admin)
+export async function readScans(): Promise<Record<string, any>> {
+    try {
+        const { data: qrCodes, error } = await supabase
+            .from('qr_codes')
+            .select('*');
+
+        if (error) {
+            console.error('âŒ Fejl ved hentning af QR-koder:', error);
+            return {};
+        }
+
+        const result: Record<string, any> = {};
+        
+        for (const qrCode of qrCodes || []) {
+            // Hent scans for denne QR-kode
+            const { data: scans } = await supabase
+                .from('scans')
+                .select('*')
+                .eq('qr_code_id', qrCode.id)
+                .order('timestamp', { ascending: true });
+
+            result[qrCode.id] = {
+                userId: qrCode.user_id,
+                count: qrCode.count,
+                createdAt: qrCode.created_at,
+                originalUrl: qrCode.original_url,
+                scans: (scans || []).map(scan => ({
+                    timestamp: scan.timestamp,
+                    ip: scan.ip,
+                    userAgent: scan.user_agent,
+                    referer: scan.referer
+                }))
+            };
+        }
+
+        return result;
+    } catch (error) {
+        console.error('âŒ Fejl ved lÃ¦sning af scans data:', error);
+        return {};
+    }
+}
+
+// Read scans for a specific user
+export async function readScansForUser(userId: string): Promise<Record<string, any>> {
+    try {
+        // Admin bruger kan se alle QR-koder
+        if (userId === 'admin') {
+            return await readScans();
+        }
+
+        const { data: qrCodes, error } = await supabase
+            .from('qr_codes')
+            .select('*')
+            .eq('user_id', userId);
+
+        if (error) {
+            console.error('âŒ Fejl ved hentning af QR-koder:', error);
+            return {};
+        }
+
+        const result: Record<string, any> = {};
+        
+        for (const qrCode of qrCodes || []) {
+            // Hent scans for denne QR-kode
+            const { data: scans } = await supabase
+                .from('scans')
+                .select('*')
+                .eq('qr_code_id', qrCode.id)
+                .order('timestamp', { ascending: true });
+
+            result[qrCode.id] = {
+                userId: qrCode.user_id,
+                count: qrCode.count,
+                createdAt: qrCode.created_at,
+                originalUrl: qrCode.original_url,
+                scans: (scans || []).map(scan => ({
+                    timestamp: scan.timestamp,
+                    ip: scan.ip,
+                    userAgent: scan.user_agent,
+                    referer: scan.referer
+                }))
+            };
+        }
+
+        return result;
+    } catch (error) {
+        console.error('âŒ Fejl ved lÃ¦sning af scans data:', error);
+        return {};
+    }
+}
+
+// Create QR code
+export async function createQRCode(qrId: string, userId: string, originalUrl: string): Promise<boolean> {
+    try {
+        const { error } = await supabase
+            .from('qr_codes')
+            .insert({
+                id: qrId,
+                user_id: userId,
+                original_url: originalUrl,
+                count: 0,
+                created_at: new Date().toISOString()
+            });
+
+        if (error) {
+            console.error('âŒ Fejl ved oprettelse af QR-kode:', error);
+            return false;
+        }
+
+        return true;
+    } catch (error) {
+        console.error('âŒ Fejl ved oprettelse af QR-kode:', error);
+        return false;
+    }
+}
+
+// Get QR code by ID
+export async function getQRCodeById(qrId: string): Promise<any | null> {
+    try {
+        const { data, error } = await supabase
+            .from('qr_codes')
+            .select('*')
+            .eq('id', qrId)
+            .single();
+
+        if (error || !data) {
+            return null;
+        }
+
+        // Hent scans
+        const { data: scans } = await supabase
+            .from('scans')
+            .select('*')
+            .eq('qr_code_id', qrId)
+            .order('timestamp', { ascending: true });
+
+        return {
+            userId: data.user_id,
+            count: data.count,
+            createdAt: data.created_at,
+            originalUrl: data.original_url,
+            scans: (scans || []).map(scan => ({
+                timestamp: scan.timestamp,
+                ip: scan.ip,
+                userAgent: scan.user_agent,
+                referer: scan.referer
+            }))
+        };
+    } catch (error) {
+        console.error('âŒ Fejl ved hentning af QR-kode:', error);
+        return null;
+    }
+}
+
+// Track scan (increment count and add scan record)
+export async function trackScan(qrId: string, ip: string, userAgent: string, referer: string): Promise<boolean> {
+    try {
+        // Increment count
+        const { data: qrCode } = await supabase
+            .from('qr_codes')
+            .select('count')
+            .eq('id', qrId)
+            .single();
+
+        if (!qrCode) {
+            return false;
+        }
+
+        const { error: updateError } = await supabase
+            .from('qr_codes')
+            .update({ count: qrCode.count + 1 })
+            .eq('id', qrId);
+
+        if (updateError) {
+            console.error('âŒ Fejl ved opdatering af count:', updateError);
+            return false;
+        }
+
+        // Add scan record
+        const { error: insertError } = await supabase
+            .from('scans')
+            .insert({
+                qr_code_id: qrId,
+                timestamp: new Date().toISOString(),
+                ip,
+                user_agent: userAgent,
+                referer
+            });
+
+        if (insertError) {
+            console.error('âŒ Fejl ved indsÃ¦ttelse af scan:', insertError);
+            return false;
+        }
+
+        return true;
+    } catch (error) {
+        console.error('âŒ Fejl ved tracking:', error);
+        return false;
+    }
+}
+
+// Delete QR code
+export async function deleteQRCode(qrId: string): Promise<boolean> {
+    try {
+        // Scans vil blive slettet automatisk pga. CASCADE
+        const { error } = await supabase
+            .from('qr_codes')
+            .delete()
+            .eq('id', qrId);
+
+        if (error) {
+            console.error('âŒ Fejl ved sletning af QR-kode:', error);
+            return false;
+        }
+
+        return true;
+    } catch (error) {
+        console.error('âŒ Fejl ved sletning af QR-kode:', error);
+        return false;
+    }
+}
+
+// Delete all QR codes for a user
+export async function deleteAllQRCodesForUser(userId: string): Promise<number> {
+    try {
+        const { data: qrCodes } = await supabase
+            .from('qr_codes')
+            .select('id')
+            .eq('user_id', userId);
+
+        if (!qrCodes || qrCodes.length === 0) {
+            return 0;
+        }
+
+        const { error } = await supabase
+            .from('qr_codes')
+            .delete()
+            .eq('user_id', userId);
+
+        if (error) {
+            console.error('âŒ Fejl ved sletning af QR-koder:', error);
+            return 0;
+        }
+
+        return qrCodes.length;
+    } catch (error) {
+        console.error('âŒ Fejl ved sletning af QR-koder:', error);
+        return 0;
+    }
 }
