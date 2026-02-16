@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import ForgeLabLogo from '@/components/ForgeLabLogo'
 
 export default function TOWSMatrix() {
   const [matrix, setMatrix] = useState({
@@ -70,9 +71,12 @@ export default function TOWSMatrix() {
               <span>←</span>
               <span>Tilbage til Dashboard</span>
             </Link>
-            <h1 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-2">
-              TOWS Matrix
-            </h1>
+            <div className="flex items-center gap-4 mb-2">
+              <ForgeLabLogo size={48} />
+              <h1 className="text-3xl md:text-4xl font-semibold text-gray-900">
+                TOWS Matrix
+              </h1>
+            </div>
             <p className="text-gray-600">
               Strategisk analyse: Kombiner SWOT faktorer for at identificere strategiske muligheder
             </p>

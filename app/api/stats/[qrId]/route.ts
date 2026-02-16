@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { readScans, writeScans } from '@/lib/data';
+import { getCurrentUserId } from '@/lib/auth';
 
 // GET stats for specific QR code
 export async function GET(
@@ -7,6 +8,15 @@ export async function GET(
     { params }: { params: { qrId: string } }
 ) {
     try {
+        const userId = await getCurrentUserId();
+        
+        if (!userId) {
+            return NextResponse.json(
+                { error: 'Ikke autentificeret' },
+                { status: 401 }
+            );
+        }
+
         const { qrId } = params;
         const scans = readScans();
 
@@ -16,6 +26,14 @@ export async function GET(
                 createdAt: null,
                 scans: []
             });
+        }
+
+        // Tjek om QR-koden tilhører brugeren
+        if (scans[qrId].userId !== userId) {
+            return NextResponse.json(
+                { error: 'Ingen adgang til denne QR-kode' },
+                { status: 403 }
+            );
         }
 
         return NextResponse.json({
@@ -38,6 +56,15 @@ export async function DELETE(
     { params }: { params: { qrId: string } }
 ) {
     try {
+        const userId = await getCurrentUserId();
+        
+        if (!userId) {
+            return NextResponse.json(
+                { error: 'Ikke autentificeret' },
+                { status: 401 }
+            );
+        }
+
         const { qrId } = params;
         const scans = readScans();
 
@@ -48,10 +75,18 @@ export async function DELETE(
             );
         }
 
+        // Tjek om QR-koden tilhører brugeren
+        if (scans[qrId].userId !== userId) {
+            return NextResponse.json(
+                { error: 'Ingen adgang til denne QR-kode' },
+                { status: 403 }
+            );
+        }
+
         delete scans[qrId];
         writeScans(scans);
 
-        console.log(`🗑️ QR-kode ${qrId} slettet`);
+        console.log(`🗑️ QR-kode ${qrId} slettet af bruger ${userId}`);
 
         return NextResponse.json({ 
             success: true, 

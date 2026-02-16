@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import ForgeLabLogo from '@/components/ForgeLabLogo'
 
 export default function MaslowModel() {
   const [needs, setNeeds] = useState({
@@ -80,9 +81,12 @@ export default function MaslowModel() {
               <span>←</span>
               <span>Tilbage til Dashboard</span>
             </Link>
-            <h1 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-2">
-              Maslow's Hierarchy of Needs
-            </h1>
+            <div className="flex items-center gap-4 mb-2">
+              <ForgeLabLogo size={48} />
+              <h1 className="text-3xl md:text-4xl font-semibold text-gray-900">
+                Maslow's Hierarchy of Needs
+              </h1>
+            </div>
             <p className="text-gray-600">
               Forstå behovshierarkiet og mappér kundens eller brugerens behov
             </p>

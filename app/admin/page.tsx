@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Script from 'next/script'
+import ForgeLabLogo from '@/components/ForgeLabLogo'
 
 declare global {
   interface Window {
@@ -219,9 +220,12 @@ export default function AdminDashboard() {
               <span>←</span>
               <span>Tilbage til Dashboard</span>
             </Link>
-            <h1 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-2">
-              Admin Dashboard
-            </h1>
+            <div className="flex items-center gap-4 mb-2">
+              <ForgeLabLogo size={48} />
+              <h1 className="text-3xl md:text-4xl font-semibold text-gray-900">
+                Admin Dashboard
+              </h1>
+            </div>
             <p className="text-gray-600">
               Oversigt over alle QR-koder og scanninger
             </p>

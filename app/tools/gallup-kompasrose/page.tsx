@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import ForgeLabLogo from '@/components/ForgeLabLogo'
 
 export default function GallupKompasrose() {
   const [values1, setValues1] = useState([70, 55, 60, 45, 50, 65, 80, 75])
@@ -254,9 +255,12 @@ export default function GallupKompasrose() {
                 <span>←</span>
                 <span>Tilbage til Dashboard</span>
               </Link>
-              <h1 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-2">
-                Gallup Kompasrose
-              </h1>
+              <div className="flex items-center gap-4 mb-2">
+                <ForgeLabLogo size={48} />
+                <h1 className="text-3xl md:text-4xl font-semibold text-gray-900">
+                  Gallup Kompasrose
+                </h1>
+              </div>
               <p className="text-gray-600">
                 Radardiagram · 8 dimensioner
               </p>

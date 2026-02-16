@@ -1,8 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { readScans, writeScans, generateId, getBaseUrl } from '@/lib/data';
+import { getCurrentUserId } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
     try {
+        const userId = await getCurrentUserId();
+        
+        if (!userId) {
+            return NextResponse.json(
+                { error: 'Ikke autentificeret' },
+                { status: 401 }
+            );
+        }
+
         const body = await request.json();
         const { url, qrId } = body;
 
@@ -22,6 +32,7 @@ export async function POST(request: NextRequest) {
         const scans = readScans();
 
         scans[id] = {
+            userId: userId,
             count: 0,
             createdAt: new Date().toISOString(),
             originalUrl: validatedUrl,
@@ -34,6 +45,7 @@ export async function POST(request: NextRequest) {
 
         console.log(`\n✨ Ny tracked QR-kode oprettet:`);
         console.log(`   QR ID: ${id}`);
+        console.log(`   User ID: ${userId}`);
         console.log(`   Original URL: ${validatedUrl}`);
         console.log(`   Track URL: ${BASE_URL}/api/track/${id}\n`);
 

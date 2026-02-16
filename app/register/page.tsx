@@ -1,32 +1,44 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import ForgeLabLogo from '@/components/ForgeLabLogo'
 
-export default function LoginPage() {
+export default function RegisterPage() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
-  const searchParams = useSearchParams()
 
-  useEffect(() => {
-    if (searchParams.get('registered') === 'true') {
-      setSuccess('Bruger oprettet! Du kan nu logge ind.')
-    }
-  }, [searchParams])
-
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setLoading(true)
 
+    // Validering
+    if (username.length < 3) {
+      setError('Brugernavn skal være mindst 3 tegn')
+      setLoading(false)
+      return
+    }
+
+    if (password.length < 6) {
+      setError('Password skal være mindst 6 tegn')
+      setLoading(false)
+      return
+    }
+
+    if (password !== confirmPassword) {
+      setError('Passwords matcher ikke')
+      setLoading(false)
+      return
+    }
+
     try {
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -35,14 +47,13 @@ export default function LoginPage() {
       })
 
       if (response.ok) {
-        router.push('/dashboard')
-        router.refresh()
+        router.push('/login?registered=true')
       } else {
         const data = await response.json()
-        setError(data.error || 'Forkert brugernavn eller password')
+        setError(data.error || 'Fejl ved registrering')
       }
     } catch (err: any) {
-      setError('Fejl ved login. Prøv igen.')
+      setError('Fejl ved registrering. Prøv igen.')
     } finally {
       setLoading(false)
     }
@@ -62,10 +73,10 @@ export default function LoginPage() {
                 ForgeLab
               </h1>
             </div>
-            <p className="text-gray-300">Log ind for at fortsætte</p>
+            <p className="text-gray-300">Opret ny bruger</p>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-6">
+          <form onSubmit={handleRegister} className="space-y-6">
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
                 Brugernavn
@@ -75,8 +86,9 @@ export default function LoginPage() {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
+                minLength={3}
                 className="w-full px-4 py-3 bg-[#1a2f4a] border-2 border-[#3a4f6a] text-white placeholder-gray-400 focus:outline-none focus:border-[#F97316] transition-all"
-                placeholder="Indtast brugernavn"
+                placeholder="Indtast brugernavn (min. 3 tegn)"
               />
             </div>
 
@@ -89,16 +101,26 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                minLength={6}
                 className="w-full px-4 py-3 bg-[#1a2f4a] border-2 border-[#3a4f6a] text-white placeholder-gray-400 focus:outline-none focus:border-[#F97316] transition-all"
-                placeholder="Indtast password"
+                placeholder="Indtast password (min. 6 tegn)"
               />
             </div>
 
-            {success && (
-              <div className="p-4 bg-[#1a2f4a] border-2 border-green-600">
-                <p className="text-green-400 text-sm">{success}</p>
-              </div>
-            )}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Bekræft Password
+              </label>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                minLength={6}
+                className="w-full px-4 py-3 bg-[#1a2f4a] border-2 border-[#3a4f6a] text-white placeholder-gray-400 focus:outline-none focus:border-[#F97316] transition-all"
+                placeholder="Bekræft password"
+              />
+            </div>
 
             {error && (
               <div className="p-4 bg-[#1a2f4a] border-2 border-red-600">
@@ -111,16 +133,16 @@ export default function LoginPage() {
               disabled={loading}
               className="w-full px-6 py-4 bg-[#F97316] text-white border-2 border-[#F97316] font-bold text-lg hover:bg-[#ea580c] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Logger ind...' : 'Log Ind'}
+              {loading ? 'Opretter bruger...' : 'Opret Bruger'}
             </button>
           </form>
 
           <div className="mt-6 text-center space-y-2">
             <Link 
-              href="/register"
+              href="/login"
               className="block text-gray-400 hover:text-[#F97316] transition-colors text-sm"
             >
-              Har du ikke en bruger? Opret bruger →
+              Har du allerede en bruger? Log ind →
             </Link>
             <Link 
               href="/"

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import ForgeLabLogo from '@/components/ForgeLabLogo'
 
 export default function EmpathyMap() {
   const [map, setMap] = useState({
@@ -46,9 +47,12 @@ export default function EmpathyMap() {
               <span>←</span>
               <span>Tilbage til Dashboard</span>
             </Link>
-            <h1 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-2">
-              Empathy Map
-            </h1>
+            <div className="flex items-center gap-4 mb-2">
+              <ForgeLabLogo size={48} />
+              <h1 className="text-3xl md:text-4xl font-semibold text-gray-900">
+                Empathy Map
+              </h1>
+            </div>
             <p className="text-gray-600">
               Forstå kundens perspektiv gennem deres ord, tanker, følelser og handlinger
             </p>

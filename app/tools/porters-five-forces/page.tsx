@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import ForgeLabLogo from '@/components/ForgeLabLogo'
 
 export default function PortersFiveForces() {
   const [forces, setForces] = useState({
@@ -47,9 +48,12 @@ export default function PortersFiveForces() {
               <span>←</span>
               <span>Tilbage til Dashboard</span>
             </Link>
-            <h1 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-2">
-              Porter's 5 Forces
-            </h1>
+            <div className="flex items-center gap-4 mb-2">
+              <ForgeLabLogo size={48} />
+              <h1 className="text-3xl md:text-4xl font-semibold text-gray-900">
+                Porter's 5 Forces
+              </h1>
+            </div>
             <p className="text-gray-600">
               Analysér branchens konkurrencemæssige kræfter
             </p>

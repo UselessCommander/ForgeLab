@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import ForgeLabLogo from '@/components/ForgeLabLogo'
 
 type SortingMode = 'open' | 'closed' | 'hybrid'
 
@@ -108,9 +109,12 @@ export default function CardSorting() {
               <span>←</span>
               <span>Tilbage til Dashboard</span>
             </Link>
-            <h1 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-2">
-              Card Sorting Test
-            </h1>
+            <div className="flex items-center gap-4 mb-2">
+              <ForgeLabLogo size={48} />
+              <h1 className="text-3xl md:text-4xl font-semibold text-gray-900">
+                Card Sorting Test
+              </h1>
+            </div>
             <p className="text-gray-600">
               Test informationsarkitektur med kort sortering
             </p>

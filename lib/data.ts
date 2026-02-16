@@ -42,6 +42,28 @@ export function readScans() {
     }
 }
 
+// Read scans for a specific user
+export function readScansForUser(userId: string) {
+    const allScans = readScans();
+    
+    // Admin bruger kan se alle QR-koder (inkl. gamle uden userId)
+    if (userId === 'admin') {
+        return allScans;
+    }
+    
+    const userScans: Record<string, any> = {};
+    
+    for (const [qrId, qrData] of Object.entries(allScans)) {
+        // Hvis QR-koden har userId, tjek om den matcher
+        // Hvis ikke, er det en gammel QR-kode som kun admin kan se
+        if ((qrData as any).userId === userId) {
+            userScans[qrId] = qrData;
+        }
+    }
+    
+    return userScans;
+}
+
 // Write scans data
 export function writeScans(data: any) {
     try {

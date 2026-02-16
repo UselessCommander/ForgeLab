@@ -247,7 +247,10 @@ export default async function Dashboard() {
 
         {/* Footer */}
         <footer className="text-center text-gray-500 mt-16">
-          <p className="text-sm md:text-base">ForgeLab - Bygget med ❤️</p>
+          <div className="flex items-center justify-center gap-2">
+            <ForgeLabLogo size={24} />
+            <p className="text-sm md:text-base">ForgeLab - Bygget med ❤️</p>
+          </div>
         </footer>
       </div>
     </div>
