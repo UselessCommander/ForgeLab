@@ -212,11 +212,11 @@ export default function QRGenerator() {
           <div className="bg-white rounded-2xl p-6 md:p-10 shadow-sm border border-gray-200">
             {/* Back Link */}
             <Link 
-              href="/" 
+              href="/dashboard" 
               className="inline-flex items-center gap-2 text-gray-700 font-medium mb-8 hover:text-gray-900 transition-colors"
             >
               <span>←</span>
-              <span>Tilbage til ForgeLab</span>
+              <span>Tilbage til Dashboard</span>
             </Link>
             
             {/* Header */}
