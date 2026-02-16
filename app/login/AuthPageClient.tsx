@@ -56,7 +56,7 @@ function LoginFormInner({
         isVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
       }`}
     >
-      <div className="w-full max-w-md">
+      <div className="relative z-10 w-full max-w-md">
         <Link href="/" className="inline-flex items-center gap-3 mb-10">
           <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-amber-500/10 text-amber-600">
             <ForgeLabLogo size={28} />
@@ -69,7 +69,7 @@ function LoginFormInner({
           <button
             type="button"
             onClick={onSwitchToRegister}
-            className="text-amber-600 hover:text-orange-500 font-medium transition-colors"
+            className="text-amber-600 hover:text-amber-700 font-medium transition-colors"
           >
             Opret bruger
           </button>
@@ -82,7 +82,7 @@ function LoginFormInner({
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
-              className="w-full px-4 py-3 bg-white border-2 border-gray-200 text-gray-900 placeholder-gray-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition-all"
+              className="w-full px-4 py-3 bg-white/80 border-2 border-gray-200 text-gray-900 placeholder-gray-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition-all hover:border-amber-200"
               placeholder="Indtast brugernavn"
             />
           </div>
@@ -93,7 +93,7 @@ function LoginFormInner({
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="w-full px-4 py-3 bg-white border-2 border-gray-200 text-gray-900 placeholder-gray-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition-all"
+              className="w-full px-4 py-3 bg-white/80 border-2 border-gray-200 text-gray-900 placeholder-gray-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition-all hover:border-amber-200"
               placeholder="Indtast password"
             />
           </div>
@@ -110,14 +110,14 @@ function LoginFormInner({
           <button
             type="submit"
             disabled={loading}
-            className="w-full px-6 py-4 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-semibold text-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full px-6 py-4 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-semibold text-lg shadow-lg shadow-amber-500/25 hover:shadow-xl hover:shadow-amber-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? 'Logger ind...' : 'Log ind'}
           </button>
         </form>
         <Link
           href="/"
-          className="block mt-6 text-gray-500 hover:text-amber-600 text-sm font-medium transition-colors"
+          className="block mt-6 text-gray-500 hover:text-amber-700 text-sm font-medium transition-colors"
         >
           ← Tilbage til forsiden
         </Link>
@@ -184,7 +184,7 @@ function RegisterFormInner({
         isVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
       }`}
     >
-      <div className="w-full max-w-md ml-auto">
+      <div className="relative z-10 w-full max-w-md ml-auto">
         <Link href="/" className="inline-flex items-center gap-3 mb-10">
           <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-amber-500/10 text-amber-600">
             <ForgeLabLogo size={28} />
@@ -197,7 +197,7 @@ function RegisterFormInner({
           <button
             type="button"
             onClick={onSwitchToLogin}
-            className="text-amber-600 hover:text-orange-500 font-medium transition-colors"
+            className="text-amber-600 hover:text-amber-700 font-medium transition-colors"
           >
             Log ind
           </button>
@@ -211,7 +211,7 @@ function RegisterFormInner({
               onChange={(e) => setUsername(e.target.value)}
               required
               minLength={3}
-              className="w-full px-4 py-3 bg-white border-2 border-gray-200 text-gray-900 placeholder-gray-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition-all"
+              className="w-full px-4 py-3 bg-white/80 border-2 border-gray-200 text-gray-900 placeholder-gray-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition-all hover:border-amber-200"
               placeholder="Indtast brugernavn (min. 3 tegn)"
             />
           </div>
@@ -223,7 +223,7 @@ function RegisterFormInner({
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength={6}
-              className="w-full px-4 py-3 bg-white border-2 border-gray-200 text-gray-900 placeholder-gray-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition-all"
+              className="w-full px-4 py-3 bg-white/80 border-2 border-gray-200 text-gray-900 placeholder-gray-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition-all hover:border-amber-200"
               placeholder="Indtast password (min. 6 tegn)"
             />
           </div>
@@ -235,7 +235,7 @@ function RegisterFormInner({
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
               minLength={6}
-              className="w-full px-4 py-3 bg-white border-2 border-gray-200 text-gray-900 placeholder-gray-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition-all"
+              className="w-full px-4 py-3 bg-white/80 border-2 border-gray-200 text-gray-900 placeholder-gray-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition-all hover:border-amber-200"
               placeholder="Bekræft password"
             />
           </div>
@@ -247,14 +247,14 @@ function RegisterFormInner({
           <button
             type="submit"
             disabled={loading}
-            className="w-full px-6 py-4 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-semibold text-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full px-6 py-4 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-semibold text-lg shadow-lg shadow-amber-500/25 hover:shadow-xl hover:shadow-amber-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? 'Opretter bruger...' : 'Opret bruger'}
           </button>
         </form>
         <Link
           href="/"
-          className="block mt-6 text-gray-500 hover:text-amber-600 text-sm font-medium transition-colors"
+          className="block mt-6 text-gray-500 hover:text-amber-700 text-sm font-medium transition-colors"
         >
           ← Tilbage til forsiden
         </Link>
@@ -273,19 +273,20 @@ export default function AuthPageClient() {
   }, [searchParams])
 
   // Horizontal strip: [LoginForm | Graphic | RegisterForm]
-  // Login: show first 2 panels (translateX 0)
-  // Register: show last 2 panels (translateX -33.33%)
+  // Each panel = 50vw. Login: show panels 1+2. Register: show panels 2+3.
   return (
     <div className="min-h-screen w-full overflow-hidden">
       <div
-        className="flex h-screen transition-transform duration-500 ease-in-out md:flex-row"
+        className="flex h-screen transition-transform duration-500 ease-in-out"
         style={{
-          width: '300%',
-          transform: isRegister ? 'translateX(-33.333%)' : 'translateX(0)',
+          width: '150vw',
+          transform: isRegister ? 'translateX(-50vw)' : 'translateX(0)',
         }}
       >
-        {/* Panel 1: Login form (left when login) */}
-        <div className="w-1/3 min-h-screen flex-shrink-0 bg-white">
+        {/* Panel 1: Login form (left when login) - matches landing bg */}
+        <div className="relative w-[50vw] min-h-screen flex-shrink-0 bg-[#fafbfc] overflow-hidden">
+          <div className="absolute inset-0 bg-[linear-gradient(to_right,#f0f1f3_1px,transparent_1px),linear-gradient(to_bottom,#f0f1f3_1px,transparent_1px)] bg-[size:24px_24px] opacity-60 pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-b from-white/80 via-transparent to-amber-50/30 pointer-events-none" />
           <Suspense
             fallback={
               <div className="flex items-center justify-center h-full text-gray-400">Indlæser...</div>
@@ -299,12 +300,14 @@ export default function AuthPageClient() {
         </div>
 
         {/* Panel 2: Graphic (right when login, left when register) */}
-        <div className="w-1/3 min-h-screen flex-shrink-0">
+        <div className="relative w-[50vw] h-screen min-h-screen flex-shrink-0">
           <AuthGraphic />
         </div>
 
-        {/* Panel 3: Register form (right when register) */}
-        <div className="w-1/3 min-h-screen flex-shrink-0 bg-white">
+        {/* Panel 3: Register form (right when register) - matches landing bg */}
+        <div className="relative w-[50vw] min-h-screen flex-shrink-0 bg-[#fafbfc] overflow-hidden">
+          <div className="absolute inset-0 bg-[linear-gradient(to_right,#f0f1f3_1px,transparent_1px),linear-gradient(to_bottom,#f0f1f3_1px,transparent_1px)] bg-[size:24px_24px] opacity-60 pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-b from-white/80 via-transparent to-amber-50/30 pointer-events-none" />
           <RegisterFormInner
             onSwitchToLogin={() => setIsRegister(false)}
             isVisible={isRegister}
