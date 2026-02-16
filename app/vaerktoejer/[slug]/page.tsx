@@ -4,6 +4,7 @@ import ForgeLabLogo from '@/components/ForgeLabLogo'
 import { ArrowRight, LogIn } from 'lucide-react'
 import { getVaerktoejBySlug, getAllSlugs } from '@/lib/vaerktoejer-data'
 import { getToolIcon } from '@/lib/vaerktoejer-icons'
+import { ToolIllustration } from '../components/ToolIllustration'
 
 interface PageProps {
   params: Promise<{ slug: string }>
@@ -56,7 +57,7 @@ export default async function VaerktoejSlugPage({ params }: PageProps) {
           </div>
         </nav>
 
-        <main className="container mx-auto px-6 py-12 max-w-3xl">
+        <main className="container mx-auto px-6 py-12 max-w-4xl">
           <nav className="text-sm text-gray-500 mb-8">
             <Link href="/" className="hover:text-gray-900">Forside</Link>
             <span className="mx-2">/</span>
@@ -65,15 +66,24 @@ export default async function VaerktoejSlugPage({ params }: PageProps) {
             <span className="text-gray-900">{v.title}</span>
           </nav>
 
-          <div className={`inline-flex items-center justify-center w-14 h-14 rounded-2xl ${bg} ${text} mb-6`}>
-            <Icon className="w-7 h-7" />
+          <div className="flex flex-col md:flex-row md:items-start gap-8 md:gap-12 mb-12">
+            <div className="flex-shrink-0 w-full md:w-[280px]">
+              <div className="bg-white rounded-2xl border border-gray-200/80 shadow-lg shadow-gray-200/50 p-6 flex items-center justify-center min-h-[200px]">
+                <ToolIllustration slug={slug} />
+              </div>
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className={`inline-flex items-center justify-center w-14 h-14 rounded-2xl ${bg} ${text} mb-4`}>
+                <Icon className="w-7 h-7" />
+              </div>
+              <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-3">
+                {v.title}
+              </h1>
+              <p className="text-xl text-gray-600">
+                {v.shortDescription}
+              </p>
+            </div>
           </div>
-          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-            {v.title}
-          </h1>
-          <p className="text-xl text-gray-600 mb-10">
-            {v.shortDescription}
-          </p>
 
           <div className="prose prose-gray max-w-none">
             <div className="whitespace-pre-line text-gray-600 leading-relaxed">
@@ -81,10 +91,17 @@ export default async function VaerktoejSlugPage({ params }: PageProps) {
             </div>
           </div>
 
-          <div className="mt-12 p-6 bg-violet-50 border border-violet-200/80 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
-            <p className="text-gray-700">
-              Brug {v.title} fra dit dashboard efter login.
-            </p>
+          <div className="mt-12 p-6 bg-violet-50 border border-violet-200/80 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-6">
+            <div className="flex items-center gap-4 flex-1">
+              <div className="hidden sm:block w-20 h-20 flex-shrink-0 rounded-xl bg-white border border-violet-100 p-2 shadow-sm">
+                <div className="w-full h-full [&>svg]:w-full [&>svg]:h-full [&>svg]:max-h-[72px]">
+                  <ToolIllustration slug={slug} />
+                </div>
+              </div>
+              <p className="text-gray-700">
+                Brug {v.title} fra dit dashboard efter login.
+              </p>
+            </div>
             <Link
               href="/login"
               className="inline-flex items-center gap-2 px-6 py-3 bg-violet-500 text-white rounded-xl font-semibold hover:bg-violet-600 transition-colors shrink-0"
