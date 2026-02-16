@@ -10,7 +10,7 @@ declare global {
   }
 }
 
-type PatternStyle = 'square' | 'dots' | 'rounded' | 'extra-rounded'
+type PatternStyle = 'square' | 'dots' | 'rounded' | 'extra-rounded' | 'star' | 'diamond' | 'lines' | 'blob' | 'pixel' | 'wave' | 'cross' | 'heart'
 type CornerStyle = 'square' | 'rounded' | 'dot' | 'classic'
 
 const COLOR_PRESETS = [
@@ -108,6 +108,8 @@ export default function QRGenerator() {
     color: string
   ) => {
     ctx.fillStyle = color
+    const centerX = x + size / 2
+    const centerY = y + size / 2
     
     switch (pattern) {
       case 'square':
@@ -116,7 +118,7 @@ export default function QRGenerator() {
       case 'dots':
         const radius = size / 2
         ctx.beginPath()
-        ctx.arc(x + size / 2, y + size / 2, radius * 0.8, 0, Math.PI * 2)
+        ctx.arc(centerX, centerY, radius * 0.8, 0, Math.PI * 2)
         ctx.fill()
         break
       case 'rounded':
@@ -136,7 +138,93 @@ export default function QRGenerator() {
         break
       case 'extra-rounded':
         ctx.beginPath()
-        ctx.arc(x + size / 2, y + size / 2, size / 2, 0, Math.PI * 2)
+        ctx.arc(centerX, centerY, size / 2, 0, Math.PI * 2)
+        ctx.fill()
+        break
+      case 'star':
+        // 5-pointed star
+        ctx.beginPath()
+        const starRadius = size * 0.45
+        const spikes = 5
+        for (let i = 0; i < spikes * 2; i++) {
+          const angle = (i * Math.PI) / spikes - Math.PI / 2
+          const r = i % 2 === 0 ? starRadius : starRadius * 0.4
+          const px = centerX + Math.cos(angle) * r
+          const py = centerY + Math.sin(angle) * r
+          if (i === 0) ctx.moveTo(px, py)
+          else ctx.lineTo(px, py)
+        }
+        ctx.closePath()
+        ctx.fill()
+        break
+      case 'diamond':
+        // Diamond shape
+        ctx.beginPath()
+        ctx.moveTo(centerX, y)
+        ctx.lineTo(x + size, centerY)
+        ctx.lineTo(centerX, y + size)
+        ctx.lineTo(x, centerY)
+        ctx.closePath()
+        ctx.fill()
+        break
+      case 'lines':
+        // Horizontal lines
+        ctx.fillRect(x, y + size * 0.2, size, size * 0.15)
+        ctx.fillRect(x, y + size * 0.65, size, size * 0.15)
+        break
+      case 'blob':
+        // Organic blob shape
+        ctx.beginPath()
+        const blobRadius = size * 0.4
+        const points = 8
+        for (let i = 0; i < points; i++) {
+          const angle = (i * Math.PI * 2) / points
+          const radius = blobRadius + (Math.random() * 0.3 - 0.15) * blobRadius
+          const px = centerX + Math.cos(angle) * radius
+          const py = centerY + Math.sin(angle) * radius
+          if (i === 0) ctx.moveTo(px, py)
+          else ctx.lineTo(px, py)
+        }
+        ctx.closePath()
+        ctx.fill()
+        break
+      case 'pixel':
+        // Pixel art style - smaller squares
+        const pixelSize = size / 3
+        ctx.fillRect(x + pixelSize, y, pixelSize, pixelSize)
+        ctx.fillRect(x, y + pixelSize, pixelSize, pixelSize)
+        ctx.fillRect(x + pixelSize * 2, y + pixelSize, pixelSize, pixelSize)
+        ctx.fillRect(x + pixelSize, y + pixelSize * 2, pixelSize, pixelSize)
+        break
+      case 'wave':
+        // Wave pattern
+        ctx.beginPath()
+        const waveHeight = size * 0.3
+        ctx.moveTo(x, centerY)
+        for (let i = 0; i <= size; i += 2) {
+          const waveY = centerY + Math.sin((i / size) * Math.PI * 4) * waveHeight
+          ctx.lineTo(x + i, waveY)
+        }
+        ctx.lineTo(x + size, y + size)
+        ctx.lineTo(x, y + size)
+        ctx.closePath()
+        ctx.fill()
+        break
+      case 'cross':
+        // Cross shape
+        const crossWidth = size * 0.3
+        ctx.fillRect(centerX - crossWidth / 2, y, crossWidth, size)
+        ctx.fillRect(x, centerY - crossWidth / 2, size, crossWidth)
+        break
+      case 'heart':
+        // Heart shape
+        ctx.beginPath()
+        ctx.moveTo(centerX, centerY + size * 0.15)
+        ctx.bezierCurveTo(centerX, centerY, x + size * 0.2, y + size * 0.2, x + size * 0.2, centerY)
+        ctx.bezierCurveTo(x + size * 0.2, centerY + size * 0.1, centerX, centerY + size * 0.3, centerX, centerY + size * 0.5)
+        ctx.bezierCurveTo(centerX, centerY + size * 0.3, x + size * 0.8, centerY + size * 0.1, x + size * 0.8, centerY)
+        ctx.bezierCurveTo(x + size * 0.8, y + size * 0.2, centerX, centerY, centerX, centerY + size * 0.15)
+        ctx.closePath()
         ctx.fill()
         break
     }
@@ -624,30 +712,52 @@ export default function QRGenerator() {
                 {/* Pattern Styles */}
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">Pattern Styles</h3>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {(['square', 'dots', 'rounded', 'extra-rounded'] as PatternStyle[]).map((pattern) => (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+                    {([
+                      'square', 'dots', 'rounded', 'extra-rounded', 
+                      'star', 'diamond', 'lines', 'blob', 
+                      'pixel', 'wave', 'cross', 'heart'
+                    ] as PatternStyle[]).map((pattern) => (
                       <button
                         key={pattern}
                         onClick={() => setPatternStyle(pattern)}
-                        className={`p-4 rounded-lg border-2 transition-all ${
+                        className={`p-3 rounded-lg border-2 transition-all ${
                           patternStyle === pattern
                             ? 'border-gray-900 bg-gray-100'
                             : 'border-gray-200 hover:border-gray-400'
                         }`}
                       >
                         <div className="flex justify-center mb-2">
-                          <div className={`w-12 h-12 ${
+                          <div className={`w-10 h-10 ${
                             pattern === 'square' ? 'bg-gray-900' :
                             pattern === 'dots' ? 'bg-gray-900 rounded-full' :
                             pattern === 'rounded' ? 'bg-gray-900 rounded-lg' :
-                            'bg-gray-900 rounded-full'
+                            pattern === 'extra-rounded' ? 'bg-gray-900 rounded-full' :
+                            pattern === 'star' ? 'bg-gray-900' :
+                            pattern === 'diamond' ? 'bg-gray-900 rotate-45' :
+                            pattern === 'lines' ? 'bg-gray-900' :
+                            pattern === 'blob' ? 'bg-gray-900 rounded-full' :
+                            pattern === 'pixel' ? 'bg-gray-900' :
+                            pattern === 'wave' ? 'bg-gray-900' :
+                            pattern === 'cross' ? 'bg-gray-900' :
+                            pattern === 'heart' ? 'bg-gray-900' :
+                            'bg-gray-900'
                           }`} />
                         </div>
-                        <p className="text-xs font-medium text-gray-700 capitalize">
+                        <p className="text-xs font-medium text-gray-700 capitalize text-center">
                           {pattern === 'square' ? 'Firkant' :
                            pattern === 'dots' ? 'Prikker' :
                            pattern === 'rounded' ? 'Afrundet' :
-                           'Meget Afrundet'}
+                           pattern === 'extra-rounded' ? 'Meget Afrundet' :
+                           pattern === 'star' ? 'Stjerne' :
+                           pattern === 'diamond' ? 'Diamant' :
+                           pattern === 'lines' ? 'Linjer' :
+                           pattern === 'blob' ? 'Blob' :
+                           pattern === 'pixel' ? 'Pixel' :
+                           pattern === 'wave' ? 'Bølge' :
+                           pattern === 'cross' ? 'Kors' :
+                           pattern === 'heart' ? 'Hjerte' :
+                           pattern}
                         </p>
                       </button>
                     ))}
