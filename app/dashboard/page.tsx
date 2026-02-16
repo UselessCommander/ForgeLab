@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import Link from 'next/link'
 import ForgeLabLogo from '@/components/ForgeLabLogo'
+import LogoutButton from '@/components/LogoutButton'
 import { getCurrentUserId } from '@/lib/auth'
 
 async function checkAuth() {
@@ -34,14 +35,7 @@ export default async function Dashboard() {
                 </p>
                 </div>
               </div>
-              <form action="/api/auth/logout" method="POST">
-                <button
-                  type="submit"
-                  className="px-6 py-3 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-all duration-200"
-                >
-                  Log Ud
-                </button>
-              </form>
+              <LogoutButton />
             </div>
             <div className="flex flex-wrap justify-center gap-4">
               <Link 
