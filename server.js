@@ -71,16 +71,36 @@ if (!fs.existsSync(DATA_FILE)) {
 // Helper function to read scans data
 function readScans() {
     try {
+        if (!fs.existsSync(DATA_FILE)) {
+            // Create file if it doesn't exist
+            writeScans({});
+            return {};
+        }
         const data = fs.readFileSync(DATA_FILE, 'utf8');
+        if (!data || data.trim() === '') {
+            return {};
+        }
         return JSON.parse(data);
     } catch (error) {
+        console.error('❌ Fejl ved læsning af scans data:', error);
+        // Return empty object on error to prevent crashes
         return {};
     }
 }
 
 // Helper function to write scans data
 function writeScans(data) {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+    try {
+        // Ensure directory exists
+        const dir = path.dirname(DATA_FILE);
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+        fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
+    } catch (error) {
+        console.error('❌ Fejl ved skrivning af scans data:', error);
+        throw error; // Re-throw to let caller handle it
+    }
 }
 
 // Generate unique ID
