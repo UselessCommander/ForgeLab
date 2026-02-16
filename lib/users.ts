@@ -20,21 +20,22 @@ export function isPasswordHashed(password: string): boolean {
 
 export async function createUser(username: string, password: string): Promise<User | null> {
     try {
-        // Tjek om brugernavn allerede eksisterer
-        const { data: existingUser, error: checkError } = await supabase
+        // Tjek om brugernavn allerede eksisterer - brug select() i stedet for maybeSingle()
+        const { data: existingUsers, error: checkError } = await supabase
             .from('users')
             .select('id')
             .eq('username', username)
-            .maybeSingle();
+            .limit(1);
 
-        // Hvis der er en fejl (ikke PGRST116 = not found), log den
-        if (checkError && checkError.code !== 'PGRST116') {
+        // Hvis der er en fejl ved tjekket
+        if (checkError) {
             console.error('❌ Fejl ved tjek af eksisterende bruger:', checkError);
+            console.error('Error code:', checkError.code, 'Error message:', checkError.message);
             return null;
         }
 
         // Hvis brugeren allerede eksisterer
-        if (existingUser) {
+        if (existingUsers && existingUsers.length > 0) {
             console.log(`⚠️ Brugernavn "${username}" er allerede taget`);
             return null;
         }
@@ -78,23 +79,24 @@ export async function getUserByUsername(username: string): Promise<User | null> 
             .from('users')
             .select('*')
             .eq('username', username)
-            .maybeSingle();
+            .limit(1);
 
-        // PGRST116 = not found, hvilket er OK
-        if (error && error.code !== 'PGRST116') {
+        if (error) {
             console.error('❌ Fejl ved hentning af bruger:', error);
             return null;
         }
 
-        if (!data) {
+        if (!data || data.length === 0) {
             return null;
         }
 
+        const userData = data[0];
+
         return {
-            id: data.id,
-            username: data.username,
-            password: data.password_hash,
-            createdAt: data.created_at
+            id: userData.id,
+            username: userData.username,
+            password: userData.password_hash,
+            createdAt: userData.created_at
         };
     } catch (error) {
         console.error('âŒ Fejl ved hentning af bruger:', error);
@@ -108,23 +110,24 @@ export async function getUserById(id: string): Promise<User | null> {
             .from('users')
             .select('*')
             .eq('id', id)
-            .maybeSingle();
+            .limit(1);
 
-        // PGRST116 = not found, hvilket er OK
-        if (error && error.code !== 'PGRST116') {
+        if (error) {
             console.error('❌ Fejl ved hentning af bruger:', error);
             return null;
         }
 
-        if (!data) {
+        if (!data || data.length === 0) {
             return null;
         }
 
+        const userData = data[0];
+
         return {
-            id: data.id,
-            username: data.username,
-            password: data.password_hash,
-            createdAt: data.created_at
+            id: userData.id,
+            username: userData.username,
+            password: userData.password_hash,
+            createdAt: userData.created_at
         };
     } catch (error) {
         console.error('âŒ Fejl ved hentning af bruger:', error);
