@@ -16,12 +16,14 @@ function getSupabaseClient(): SupabaseClient {
     // Always create a dummy client if env vars are missing
     // This allows the build to succeed, but API calls will fail at runtime
     // which is the desired behavior - users will see errors if env vars are not set
-    supabaseClient = createClient('https://placeholder.supabase.co', 'placeholder-key') as any
-    return supabaseClient
+    const dummyClient = createClient('https://placeholder.supabase.co', 'placeholder-key')
+    supabaseClient = dummyClient
+    return dummyClient
   }
 
-  supabaseClient = createClient(supabaseUrl, supabaseAnonKey)
-  return supabaseClient
+  const client = createClient(supabaseUrl, supabaseAnonKey)
+  supabaseClient = client
+  return client
 }
 
 // Export as a Proxy to maintain the same API while lazy-loading
