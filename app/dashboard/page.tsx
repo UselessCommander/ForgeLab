@@ -2,11 +2,11 @@ import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import Link from 'next/link'
 import ForgeLabLogo from '@/components/ForgeLabLogo'
+import { getCurrentUserId } from '@/lib/auth'
 
 async function checkAuth() {
-  const cookieStore = await cookies()
-  const session = cookieStore.get('forgelab_session')
-  return session?.value === 'authenticated'
+  const userId = await getCurrentUserId()
+  return userId !== null
 }
 
 export default async function Dashboard() {

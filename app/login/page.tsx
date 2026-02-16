@@ -36,7 +36,6 @@ function LoginForm() {
 
       if (response.ok) {
         router.push('/dashboard')
-        router.refresh()
       } else {
         const data = await response.json()
         setError(data.error || 'Forkert brugernavn eller password')
