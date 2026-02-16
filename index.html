@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Kode Generator</title>
+    <script src="/qrcode.min.js?v=1"></script>
+    <script>
+        // Fallback: Load QRCode library from CDN if local file fails
+        (function() {
+            // Wait a bit to see if local file loaded
+            setTimeout(function() {
+                if (typeof QRCode === 'undefined') {
+                    console.log('Lokal fil ikke fundet, prøver CDN...');
+                    const cdnUrls = [
+                        'https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js',
+                        'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js'
+                    ];
+                    
+                    let loaded = false;
+                    let currentIndex = 0;
+                    
+                    function loadScript(url, callback) {
+                        const script = document.createElement('script');
+                        script.type = 'application/javascript';
+                        script.src = url;
+                        script.crossOrigin = 'anonymous';
+                        
+                        script.onload = function() {
+                            if (typeof QRCode !== 'undefined' && !loaded) {
+                                loaded = true;
+                                console.log('QRCode biblioteket indlæst fra CDN');
+                                if (callback) callback();
+                            }
+                        };
+                        
+                        script.onerror = function() {
+                            console.error('Fejl ved indlæsning fra:', url);
+                            if (currentIndex < cdnUrls.length - 1) {
+                                currentIndex++;
+                                loadScript(cdnUrls[currentIndex], callback);
+                            } else {
+                                console.error('Kunne ikke indlæse QRCode biblioteket fra nogen kilde');
+                                const errorDiv = document.getElementById('error');
+                                if (errorDiv) {
+                                    errorDiv.textContent = 'QRCode biblioteket kunne ikke indlæses. Kontakt administrator.';
+                                    errorDiv.classList.add('show');
+                                }
+                                if (callback) callback();
+                            }
+                        };
+                        
+                        document.head.appendChild(script);
+                    }
+                    
+                    // Try loading from CDN
+                    loadScript(cdnUrls[0], function() {
+                        if (!loaded && typeof QRCode === 'undefined') {
+                            const errorDiv = document.getElementById('error');
+                            if (errorDiv) {
+                                errorDiv.textContent = 'QRCode biblioteket kunne ikke indlæses. Tjek din internetforbindelse.';
+                                errorDiv.classList.add('show');
+                            }
+                        }
+                    });
+                } else {
+                    console.log('QRCode biblioteket indlæst fra lokal fil');
+                }
+            }, 500);
+        })();
+    </script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2em;
+        }
+
+        .input-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 600;
+        }
+
+        input[type="text"],
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+            font-family: inherit;
+        }
+
+        .options {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .option-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        input[type="number"],
+        select {
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="number"]:focus,
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-bottom: 20px;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        #qrcode {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 200px;
+            background: #f9f9f9;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .qr-text-below {
+            margin-top: 15px;
+            text-align: center;
+            color: #333;
+            font-size: 16px;
+            font-weight: 600;
+            max-width: 100%;
+            word-wrap: break-word;
+        }
+
+        input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        input[type="file"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        #qrcode canvas {
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .download-btn {
+            background: #28a745;
+            margin-top: 15px;
+        }
+
+        .download-btn:hover {
+            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.4);
+        }
+
+        .error {
+            color: #dc3545;
+            text-align: center;
+            margin-top: 10px;
+            padding: 10px;
+            background: #f8d7da;
+            border-radius: 5px;
+            display: none;
+        }
+
+        .error.show {
+            display: block;
+        }
+
+        .tracking-info {
+            background: #e7f3ff;
+            border: 2px solid #2196F3;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+            display: none;
+        }
+
+        .tracking-info.show {
+            display: block;
+        }
+
+        .tracking-info h3 {
+            margin: 0 0 10px 0;
+            color: #1976D2;
+            font-size: 16px;
+        }
+
+        .tracking-info p {
+            margin: 5px 0;
+            color: #555;
+            font-size: 14px;
+        }
+
+        .tracking-info code {
+            background: #fff;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+            word-break: break-all;
+        }
+
+        .stats-btn {
+            background: #2196F3;
+            margin-top: 10px;
+        }
+
+        .stats-btn:hover {
+            box-shadow: 0 5px 15px rgba(33, 150, 243, 0.4);
+        }
+
+        input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h1 style="margin: 0;">🔲 QR Kode Generator</h1>
+            <a href="/admin.html" style="color: #667eea; text-decoration: none; font-weight: 600; padding: 10px 15px; border-radius: 8px; transition: background 0.2s; border: 2px solid #667eea;">
+                📊 Se Statistikker
+            </a>
+        </div>
+        
+        <div class="input-group">
+            <label for="qrText">Indtast tekst eller URL:</label>
+            <textarea id="qrText" placeholder="Skriv din tekst eller URL her..."></textarea>
+        </div>
+
+        <div class="input-group">
+            <label style="display: flex; align-items: center; cursor: pointer;">
+                <input type="checkbox" id="enableTracking" style="width: auto; margin-right: 10px; cursor: pointer;">
+                <span>Aktiver scanning tracking</span>
+            </label>
+            <small style="color: #666; display: block; margin-top: 5px; margin-left: 28px;">
+                Track hvor mange gange QR-koden bliver scannet (kræver server)
+            </small>
+        </div>
+
+        <div class="options">
+            <div class="option-group">
+                <label for="qrSize">Størrelse:</label>
+                <input type="number" id="qrSize" value="200" min="100" max="500" step="50">
+            </div>
+            <div class="option-group">
+                <label for="qrErrorLevel">Fejlkorrektion:</label>
+                <select id="qrErrorLevel">
+                    <option value="L">Lav</option>
+                    <option value="M" selected>Medium</option>
+                    <option value="Q">Høj</option>
+                    <option value="H">Meget høj</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="input-group">
+            <label for="qrColor">QR-kode farve:</label>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <input type="color" id="qrColor" value="#000000" style="width: 80px; height: 40px; border: 2px solid #e0e0e0; border-radius: 8px; cursor: pointer;">
+                <input type="text" id="qrColorText" value="#000000" placeholder="#000000" style="flex: 1; padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px; font-family: monospace;">
+            </div>
+        </div>
+
+        <div class="input-group">
+            <label for="qrTextBelow">Tekst nedenunder QR-koden (valgfrit):</label>
+            <input type="text" id="qrTextBelow" placeholder="F.eks. Scan mig for at besøge hjemmesiden">
+        </div>
+
+        <div class="input-group">
+            <label for="qrLogo">Logo/Ikon i midten (valgfrit):</label>
+            <input type="file" id="qrLogo" accept="image/*" style="padding: 8px;">
+            <small style="color: #666; display: block; margin-top: 5px;">
+                Upload et logo eller ikon der vises i midten af QR-koden
+            </small>
+        </div>
+
+        <button onclick="generateQR()">Generer QR Kode</button>
+        
+        <div class="error" id="error"></div>
+        
+        <div id="qrcode"></div>
+        
+        <div class="tracking-info" id="trackingInfo">
+            <h3>📊 Tracking Information</h3>
+            <p><strong>QR ID:</strong> <code id="qrIdDisplay"></code></p>
+            <p><strong>Antal scanninger:</strong> <span id="scanCount">0</span></p>
+            <button class="stats-btn" id="refreshStatsBtn" onclick="refreshStats()" style="display: none;">
+                Opdater statistik
+            </button>
+        </div>
+        
+        <button class="download-btn" id="downloadBtn" onclick="downloadQR()" style="display: none;">
+            Download QR Kode
+        </button>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:3000';
+        let currentQrId = null;
+        let qrCodeLoaded = false;
+
+        // Check if QRCode library is loaded on page load
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                if (typeof QRCode !== 'undefined') {
+                    qrCodeLoaded = true;
+                    console.log('QRCode biblioteket er indlæst');
+                } else {
+                    console.warn('QRCode biblioteket er ikke indlæst');
+                    const errorDiv = document.getElementById('error');
+                    if (errorDiv) {
+                        errorDiv.textContent = 'QRCode biblioteket kunne ikke indlæses. Genindlæs siden.';
+                        errorDiv.classList.add('show');
+                    }
+                }
+            }, 1000);
+        });
+
+        async function generateQR() {
+            // Check if QRCode is available
+            if (typeof QRCode === 'undefined') {
+                const errorDiv = document.getElementById('error');
+                const isLocalFile = window.location.protocol === 'file:';
+                if (isLocalFile) {
+                    errorDiv.textContent = 'QRCode biblioteket kunne ikke indlæses. Start serveren med: npm start og gå til http://localhost:3000';
+                } else {
+                    errorDiv.textContent = 'QRCode biblioteket er ikke indlæst endnu. Vent venligst...';
+                }
+                errorDiv.classList.add('show');
+                return;
+            }
+
+            const text = document.getElementById('qrText').value.trim();
+            const size = parseInt(document.getElementById('qrSize').value);
+            const errorLevel = document.getElementById('qrErrorLevel').value;
+            const enableTracking = document.getElementById('enableTracking').checked;
+            const textBelow = document.getElementById('qrTextBelow').value.trim();
+            const logoFile = document.getElementById('qrLogo').files[0];
+            const qrColor = document.getElementById('qrColor').value;
+            const errorDiv = document.getElementById('error');
+            const qrcodeDiv = document.getElementById('qrcode');
+            const downloadBtn = document.getElementById('downloadBtn');
+            const trackingInfo = document.getElementById('trackingInfo');
+
+            // Clear previous error and tracking info
+            errorDiv.classList.remove('show');
+            errorDiv.textContent = '';
+            trackingInfo.classList.remove('show');
+            stopAutoRefreshStats();
+            currentQrId = null;
+
+            // Validate input
+            if (!text) {
+                errorDiv.textContent = 'Indtast venligst tekst eller URL!';
+                errorDiv.classList.add('show');
+                qrcodeDiv.innerHTML = '';
+                downloadBtn.style.display = 'none';
+                return;
+            }
+
+            // Clear previous QR code
+            qrcodeDiv.innerHTML = '';
+
+            // Show loading message
+            qrcodeDiv.innerHTML = '<p style="color: #666;">Genererer QR kode...</p>';
+
+            let qrText = text;
+            let trackUrl = null;
+
+            // If tracking is enabled, create tracked QR code
+            if (enableTracking) {
+                try {
+                    // Ensure URL format
+                    if (!text.startsWith('http://') && !text.startsWith('https://')) {
+                        qrText = 'http://' + text;
+                    }
+
+                    const response = await fetch(`${API_URL}/api/create-tracked`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ url: qrText })
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        currentQrId = data.qrId;
+                        trackUrl = data.trackUrl;
+                        qrText = trackUrl; // Use tracking URL in QR code
+                        
+                        // Show tracking info
+                        document.getElementById('qrIdDisplay').textContent = currentQrId;
+                        document.getElementById('refreshStatsBtn').style.display = 'block';
+                        trackingInfo.classList.add('show');
+                        
+                        // Load initial stats and start auto-refresh
+                        refreshStats();
+                        startAutoRefreshStats();
+                    } else {
+                        throw new Error('Kunne ikke oprette tracking. Er serveren startet?');
+                    }
+                } catch (error) {
+                    errorDiv.textContent = 'Tracking fejl: ' + error.message + '. Start serveren med: npm start';
+                    errorDiv.classList.add('show');
+                    // Continue without tracking
+                    enableTracking = false;
+                }
+            }
+
+            // Generate QR code using qrcodejs library
+            try {
+                // Clear previous QR code
+                qrcodeDiv.innerHTML = '';
+                
+                // Create a container div for the QR code
+                const qrContainer = document.createElement('div');
+                qrContainer.id = 'qr-container-' + Date.now();
+                qrcodeDiv.appendChild(qrContainer);
+                
+                // Map error level (qrcodejs uses numeric values: L=0, M=1, Q=2, H=3)
+                const errorLevelMap = {
+                    'L': 0,
+                    'M': 1,
+                    'Q': 2,
+                    'H': 3
+                };
+                const correctLevel = errorLevelMap[errorLevel] !== undefined ? errorLevelMap[errorLevel] : 1;
+                
+                // Create QR code instance
+                const qr = new QRCode(qrContainer, {
+                    text: qrText,
+                    width: size,
+                    height: size,
+                    colorDark: qrColor,
+                    colorLight: '#FFFFFF',
+                    correctLevel: correctLevel
+                });
+                
+                // Wait for QR code to be generated
+                setTimeout(async function() {
+                    try {
+                        // qrcodejs creates a canvas or table element
+                        const canvas = qrContainer.querySelector('canvas');
+                        const table = qrContainer.querySelector('table');
+                        
+                        let finalCanvas = null;
+                        
+                        if (canvas) {
+                            finalCanvas = canvas;
+                        } else if (table) {
+                            // If it's a table, convert it to canvas first
+                            finalCanvas = document.createElement('canvas');
+                            const ctx = finalCanvas.getContext('2d');
+                            finalCanvas.width = size;
+                            finalCanvas.height = size;
+                            
+                            // Fill white background
+                            ctx.fillStyle = '#FFFFFF';
+                            ctx.fillRect(0, 0, size, size);
+                            
+                            // Draw QR code from table
+                            const cells = table.querySelectorAll('td');
+                            const cellSize = size / Math.sqrt(cells.length);
+                            
+                            ctx.fillStyle = qrColor;
+                            cells.forEach((cell, index) => {
+                                if (cell.style.backgroundColor === 'black' || 
+                                    cell.classList.contains('black') ||
+                                    cell.getAttribute('bgcolor') === 'black' ||
+                                    cell.style.backgroundColor === 'rgb(0, 0, 0)' ||
+                                    cell.style.backgroundColor.toLowerCase() === qrColor.toLowerCase()) {
+                                    const row = Math.floor(index / Math.sqrt(cells.length));
+                                    const col = index % Math.sqrt(cells.length);
+                                    ctx.fillRect(col * cellSize, row * cellSize, cellSize, cellSize);
+                                }
+                            });
+                        }
+                        
+                        if (finalCanvas) {
+                            // Create a new canvas for final output (with logo and text)
+                            const outputCanvas = document.createElement('canvas');
+                            const outputCtx = outputCanvas.getContext('2d');
+                            
+                            // Calculate dimensions
+                            const textHeight = textBelow ? 40 : 0;
+                            const padding = 20;
+                            const qrSizeWithPadding = size + (padding * 2);
+                            outputCanvas.width = qrSizeWithPadding;
+                            outputCanvas.height = qrSizeWithPadding + textHeight;
+                            
+                            // Fill white background
+                            outputCtx.fillStyle = '#FFFFFF';
+                            outputCtx.fillRect(0, 0, outputCanvas.width, outputCanvas.height);
+                            
+                            // Draw QR code on output canvas
+                            outputCtx.drawImage(finalCanvas, padding, padding, size, size);
+                            
+                            // Draw logo in center if provided
+                            if (logoFile) {
+                                try {
+                                    const logoImg = await loadImage(logoFile);
+                                    const logoSize = size * 0.2; // 20% of QR code size
+                                    const logoX = padding + (size - logoSize) / 2;
+                                    const logoY = padding + (size - logoSize) / 2;
+                                    
+                                    // Draw white background circle/square for logo
+                                    outputCtx.fillStyle = '#FFFFFF';
+                                    outputCtx.fillRect(logoX - 5, logoY - 5, logoSize + 10, logoSize + 10);
+                                    
+                                    // Draw logo
+                                    outputCtx.drawImage(logoImg, logoX, logoY, logoSize, logoSize);
+                                } catch (logoErr) {
+                                    console.error('Fejl ved indlæsning af logo:', logoErr);
+                                }
+                            }
+                            
+                            // Draw text below QR code if provided
+                            if (textBelow) {
+                                outputCtx.fillStyle = '#333333';
+                                outputCtx.font = 'bold 16px Arial';
+                                outputCtx.textAlign = 'center';
+                                outputCtx.textBaseline = 'top';
+                                
+                                // Word wrap text
+                                const maxWidth = qrSizeWithPadding - 20;
+                                const words = textBelow.split(' ');
+                                let line = '';
+                                let y = qrSizeWithPadding + 10;
+                                
+                                for (let i = 0; i < words.length; i++) {
+                                    const testLine = line + words[i] + ' ';
+                                    const metrics = outputCtx.measureText(testLine);
+                                    if (metrics.width > maxWidth && i > 0) {
+                                        outputCtx.fillText(line, outputCanvas.width / 2, y);
+                                        line = words[i] + ' ';
+                                        y += 20;
+                                    } else {
+                                        line = testLine;
+                                    }
+                                }
+                                outputCtx.fillText(line, outputCanvas.width / 2, y);
+                            }
+                            
+                            // Create image element for display
+                            const img = document.createElement('img');
+                            img.src = outputCanvas.toDataURL('image/png');
+                            img.alt = 'QR Code';
+                            img.style.maxWidth = '100%';
+                            img.style.height = 'auto';
+                            
+                            // Store canvas for download
+                            img.dataset.canvasData = outputCanvas.toDataURL('image/png');
+                            
+                            // Replace container with image
+                            qrcodeDiv.innerHTML = '';
+                            qrcodeDiv.appendChild(img);
+                            downloadBtn.style.display = 'block';
+                        } else {
+                            // Keep the generated element as-is
+                            downloadBtn.style.display = 'block';
+                        }
+                    } catch (err) {
+                        console.error('Fejl ved konvertering af QR kode:', err);
+                        // Keep whatever was generated
+                        downloadBtn.style.display = 'block';
+                    }
+                }, 200);
+            } catch (error) {
+                errorDiv.textContent = 'Fejl ved generering af QR kode: ' + error.message;
+                errorDiv.classList.add('show');
+                downloadBtn.style.display = 'none';
+                qrcodeDiv.innerHTML = '';
+            }
+        }
+
+        async function refreshStats() {
+            if (!currentQrId) return;
+
+            try {
+                const response = await fetch(`${API_URL}/api/stats/${currentQrId}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('scanCount').textContent = data.count || 0;
+                }
+            } catch (error) {
+                console.error('Kunne ikke hente statistik:', error);
+            }
+        }
+
+        // Auto-refresh stats every 5 seconds if tracking is enabled
+        let statsRefreshInterval = null;
+        function startAutoRefreshStats() {
+            if (statsRefreshInterval) {
+                clearInterval(statsRefreshInterval);
+            }
+            statsRefreshInterval = setInterval(() => {
+                if (currentQrId) {
+                    refreshStats();
+                }
+            }, 5000);
+        }
+
+        // Stop auto-refresh when generating new QR code
+        function stopAutoRefreshStats() {
+            if (statsRefreshInterval) {
+                clearInterval(statsRefreshInterval);
+                statsRefreshInterval = null;
+            }
+        }
+
+        // Helper function to load image from file
+        function loadImage(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => resolve(img);
+                    img.onerror = reject;
+                    img.src = e.target.result;
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function downloadQR() {
+            const qrcodeDiv = document.getElementById('qrcode');
+            const img = qrcodeDiv.querySelector('img');
+            
+            if (!img || !img.src) {
+                alert('Generer venligst en QR kode først!');
+                return;
+            }
+
+            // Use stored canvas data if available, otherwise use img src
+            const imageData = img.dataset.canvasData || img.src;
+
+            // Create download link
+            const link = document.createElement('a');
+            link.download = 'qr-kode.png';
+            link.href = imageData;
+            link.click();
+        }
+
+        // Sync color picker and text input
+        document.getElementById('qrColor').addEventListener('input', function(e) {
+            document.getElementById('qrColorText').value = e.target.value;
+        });
+
+        document.getElementById('qrColorText').addEventListener('input', function(e) {
+            const colorValue = e.target.value;
+            if (/^#[0-9A-F]{6}$/i.test(colorValue)) {
+                document.getElementById('qrColor').value = colorValue;
+            }
+        });
+
+        // Generate QR code on Enter key press
+        document.getElementById('qrText').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && e.ctrlKey) {
+                generateQR();
+            }
+        });
+
+        // Auto-generate on input change (optional - can be removed if too frequent)
+        // Uncomment the following if you want auto-generation:
+        // let generateTimeout;
+        // document.getElementById('qrText').addEventListener('input', function() {
+        //     clearTimeout(generateTimeout);
+        //     generateTimeout = setTimeout(generateQR, 1000);
+        // });
+    </script>
+</body>
+</html>
