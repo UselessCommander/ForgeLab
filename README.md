@@ -1,6 +1,6 @@
 # ForgeLab
 
-Et samlet værktøjssuite med forskellige online værktøjer.
+Et samlet værktøjssuite med forskellige online værktøjer - bygget med Next.js.
 
 ## 🛠️ Værktøjer
 
@@ -13,14 +13,21 @@ Et samlet værktøjssuite med forskellige online værktøjer.
 
 ```bash
 npm install
-npm start
+npm run dev
 ```
 
 Åbn http://localhost:3000 i din browser.
 
+### Build til production
+
+```bash
+npm run build
+npm start
+```
+
 ### Deployment til Vercel
 
-Projektet er konfigureret til deployment på Vercel.
+Projektet er konfigureret til automatisk deployment på Vercel.
 
 ```bash
 vercel --prod
@@ -30,14 +37,21 @@ vercel --prod
 
 ```
 /
-├── public/                    # Frontend filer
-│   ├── index.html            # Hovedside med navigation
-│   ├── admin.html            # Admin dashboard
-│   └── tools/                # Individuelle værktøjer
-│       └── qr-generator.html # QR Code Generator
-├── server.js                 # Express server med tracking API
-├── package.json              # Dependencies
-└── vercel.json              # Vercel konfiguration
+├── app/                      # Next.js App Router
+│   ├── api/                  # API routes
+│   │   ├── create-tracked/  # Opret tracked QR-kode
+│   │   ├── stats/           # Statistik API
+│   │   └── track/           # Tracking redirect
+│   ├── tools/               # Værktøjssider
+│   │   └── qr-generator/    # QR Code Generator
+│   ├── admin/               # Admin Dashboard
+│   ├── layout.tsx           # Root layout
+│   ├── page.tsx             # Hovedside
+│   └── globals.css          # Global styles
+├── lib/                     # Utility funktioner
+│   └── data.ts             # Data håndtering
+├── package.json            # Dependencies
+└── next.config.js          # Next.js konfiguration
 ```
 
 ## 🔧 Features
