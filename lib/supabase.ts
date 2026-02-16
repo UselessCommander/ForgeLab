@@ -1,24 +1,22 @@
-﻿import { createClient, SupabaseClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
 let supabaseClient: SupabaseClient | null = null
 
 function getSupabaseClient(): SupabaseClient {
-  if (supabaseClient) {
-    return supabaseClient
-  }
-
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-  // During build on Vercel, environment variables might not be available
-  // Create a dummy client that will be replaced at runtime
+  // Check if environment variables are set
   if (!supabaseUrl || !supabaseAnonKey) {
-    // Always create a dummy client if env vars are missing
-    // This allows the build to succeed, but API calls will fail at runtime
-    // which is the desired behavior - users will see errors if env vars are not set
-    const dummyClient = createClient('https://placeholder.supabase.co', 'placeholder-key')
-    supabaseClient = dummyClient
-    return dummyClient
+    console.error('❌ FEJL: Supabase environment variabler mangler!');
+    console.error('NEXT_PUBLIC_SUPABASE_URL:', supabaseUrl ? '✅ Sat' : '❌ Mangler');
+    console.error('NEXT_PUBLIC_SUPABASE_ANON_KEY:', supabaseAnonKey ? '✅ Sat' : '❌ Mangler');
+    throw new Error('Missing Supabase environment variables. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in Vercel.')
+  }
+
+  // Only cache client if we have valid env vars
+  if (supabaseClient) {
+    return supabaseClient
   }
 
   const client = createClient(supabaseUrl, supabaseAnonKey)
