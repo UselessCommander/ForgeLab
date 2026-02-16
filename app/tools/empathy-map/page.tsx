@@ -33,18 +33,11 @@ export default function EmpathyMap() {
     setMap(newMap)
   }
 
-  const sections = [
-    { key: 'says' as const, title: 'Says', icon: '💬', color: 'blue', description: 'Hvad siger kunden højt?' },
-    { key: 'thinks' as const, title: 'Thinks', icon: '🧠', color: 'purple', description: 'Hvad tænker kunden?' },
-    { key: 'feels' as const, title: 'Feels', icon: '❤️', color: 'red', description: 'Hvad føler kunden?' },
-    { key: 'does' as const, title: 'Does', icon: '👤', color: 'green', description: 'Hvad gør kunden?' }
-  ]
-
   return (
     <div className="min-h-screen px-4 py-8 md:py-12 bg-gradient-to-br from-gray-50 to-gray-100">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <header className="mb-8 md:mb-12">
+        <header className="mb-8">
           <div className="bg-white rounded-2xl p-6 md:p-10 shadow-sm border border-gray-200">
             <Link 
               href="/dashboard" 
@@ -62,56 +55,109 @@ export default function EmpathyMap() {
           </div>
         </header>
 
-        {/* Empathy Map Grid - 2x2 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {sections.map((section) => {
-            const colorClasses = {
-              blue: 'border-blue-200 bg-blue-50',
-              purple: 'border-purple-200 bg-purple-50',
-              red: 'border-red-200 bg-red-50',
-              green: 'border-green-200 bg-green-50'
-            }
-            
-            return (
-              <div
-                key={section.key}
-                className={`bg-white rounded-xl p-6 shadow-sm border-2 ${colorClasses[section.color as keyof typeof colorClasses]}`}
-              >
-                <h2 className="text-xl font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                  <span className="text-2xl">{section.icon}</span>
-                  {section.title}
-                </h2>
-                <p className="text-sm text-gray-600 mb-4">{section.description}</p>
-                <div className="space-y-3">
-                  {map[section.key].map((item, index) => (
-                    <div key={index} className="flex gap-2">
-                      <textarea
-                        value={item}
-                        onChange={(e) => updateField(section.key, index, e.target.value)}
-                        placeholder={`Tilføj ${section.title.toLowerCase()}...`}
-                        rows={3}
-                        className="flex-1 px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-900 focus:outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 resize-none"
-                      />
-                      {map[section.key].length > 1 && (
-                        <button
-                          onClick={() => removeItem(section.key, index)}
-                          className="px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors self-start"
-                        >
-                          ✕
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                  <button
-                    onClick={() => addItem(section.key)}
-                    className="w-full px-4 py-3 bg-white text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium border border-gray-300"
-                  >
-                    + Tilføj {section.title}
-                  </button>
-                </div>
+        {/* Classic 2x2 Empathy Map Grid */}
+        <div className="bg-white rounded-xl p-4 md:p-6 shadow-lg border-2 border-gray-300">
+          <div className="grid grid-cols-2 gap-0 border-2 border-gray-400">
+            {/* Top Left - Says */}
+            <div className="border-r-2 border-b-2 border-gray-400 p-4 bg-blue-50">
+              <h2 className="text-lg font-bold text-blue-900 mb-3 uppercase tracking-wide border-b-2 border-blue-300 pb-2">
+                Says
+              </h2>
+              <p className="text-xs text-gray-600 mb-3">Hvad siger kunden højt?</p>
+              <div className="space-y-2">
+                {map.says.map((item, index) => (
+                  <div key={index} className="flex gap-2">
+                    <textarea
+                      value={item}
+                      onChange={(e) => updateField('says', index, e.target.value)}
+                      placeholder="..."
+                      rows={2}
+                      className="flex-1 px-3 py-2 text-sm rounded border border-gray-300 bg-white resize-none focus:outline-none focus:border-blue-600"
+                    />
+                    {map.says.length > 1 && (
+                      <button onClick={() => removeItem('says', index)} className="text-red-500 text-sm">×</button>
+                    )}
+                  </div>
+                ))}
+                <button onClick={() => addItem('says')} className="text-xs text-blue-600 hover:text-blue-800">+ Tilføj</button>
               </div>
-            )
-          })}
+            </div>
+
+            {/* Top Right - Thinks */}
+            <div className="border-b-2 border-gray-400 p-4 bg-purple-50">
+              <h2 className="text-lg font-bold text-purple-900 mb-3 uppercase tracking-wide border-b-2 border-purple-300 pb-2">
+                Thinks
+              </h2>
+              <p className="text-xs text-gray-600 mb-3">Hvad tænker kunden?</p>
+              <div className="space-y-2">
+                {map.thinks.map((item, index) => (
+                  <div key={index} className="flex gap-2">
+                    <textarea
+                      value={item}
+                      onChange={(e) => updateField('thinks', index, e.target.value)}
+                      placeholder="..."
+                      rows={2}
+                      className="flex-1 px-3 py-2 text-sm rounded border border-gray-300 bg-white resize-none focus:outline-none focus:border-purple-600"
+                    />
+                    {map.thinks.length > 1 && (
+                      <button onClick={() => removeItem('thinks', index)} className="text-red-500 text-sm">×</button>
+                    )}
+                  </div>
+                ))}
+                <button onClick={() => addItem('thinks')} className="text-xs text-purple-600 hover:text-purple-800">+ Tilføj</button>
+              </div>
+            </div>
+
+            {/* Bottom Left - Feels */}
+            <div className="border-r-2 border-gray-400 p-4 bg-red-50">
+              <h2 className="text-lg font-bold text-red-900 mb-3 uppercase tracking-wide border-b-2 border-red-300 pb-2">
+                Feels
+              </h2>
+              <p className="text-xs text-gray-600 mb-3">Hvad føler kunden?</p>
+              <div className="space-y-2">
+                {map.feels.map((item, index) => (
+                  <div key={index} className="flex gap-2">
+                    <textarea
+                      value={item}
+                      onChange={(e) => updateField('feels', index, e.target.value)}
+                      placeholder="..."
+                      rows={2}
+                      className="flex-1 px-3 py-2 text-sm rounded border border-gray-300 bg-white resize-none focus:outline-none focus:border-red-600"
+                    />
+                    {map.feels.length > 1 && (
+                      <button onClick={() => removeItem('feels', index)} className="text-red-500 text-sm">×</button>
+                    )}
+                  </div>
+                ))}
+                <button onClick={() => addItem('feels')} className="text-xs text-red-600 hover:text-red-800">+ Tilføj</button>
+              </div>
+            </div>
+
+            {/* Bottom Right - Does */}
+            <div className="border-gray-400 p-4 bg-green-50">
+              <h2 className="text-lg font-bold text-green-900 mb-3 uppercase tracking-wide border-b-2 border-green-300 pb-2">
+                Does
+              </h2>
+              <p className="text-xs text-gray-600 mb-3">Hvad gør kunden?</p>
+              <div className="space-y-2">
+                {map.does.map((item, index) => (
+                  <div key={index} className="flex gap-2">
+                    <textarea
+                      value={item}
+                      onChange={(e) => updateField('does', index, e.target.value)}
+                      placeholder="..."
+                      rows={2}
+                      className="flex-1 px-3 py-2 text-sm rounded border border-gray-300 bg-white resize-none focus:outline-none focus:border-green-600"
+                    />
+                    {map.does.length > 1 && (
+                      <button onClick={() => removeItem('does', index)} className="text-red-500 text-sm">×</button>
+                    )}
+                  </div>
+                ))}
+                <button onClick={() => addItem('does')} className="text-xs text-green-600 hover:text-green-800">+ Tilføj</button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
