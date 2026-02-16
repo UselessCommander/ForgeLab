@@ -45,50 +45,90 @@ export default function LandingPage() {
           </div>
         </nav>
 
-        {/* Hero Section */}
+        {/* Hero Section - CTA venstre, visuelt til højre */}
         <section className="container mx-auto px-6 pt-16 pb-24 md:pt-24 md:pb-32">
-          <div className="max-w-4xl mx-auto text-center">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-50 border border-amber-200/80 text-amber-700 text-sm font-medium mb-8">
-              <Sparkles className="w-4 h-4" />
-              Professionelt værktøjssuite
+          <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+            {/* Venstre: Tekst + CTA */}
+            <div className="text-center lg:text-left order-2 lg:order-1">
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-50 border border-amber-200/80 text-amber-700 text-sm font-medium mb-6">
+                <Sparkles className="w-4 h-4" />
+                Professionelt værktøjssuite
+              </div>
+              <h1 className="text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold text-gray-900 tracking-tight mb-6 leading-[1.1]">
+                ForgeLab
+              </h1>
+              <p className="text-xl md:text-2xl text-gray-600 mb-4 leading-relaxed">
+                Moderne digitale værktøjer til QR-koder, analyser og meget mere
+              </p>
+              <p className="text-lg text-gray-500 mb-10 max-w-lg">
+                Alt samlet ét sted. Opret konto og kom i gang på få minutter.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+                <Link
+                  href="/login"
+                  className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-amber-500 text-white rounded-xl font-semibold text-lg hover:bg-amber-600 transition-all duration-200 shadow-lg shadow-amber-500/25 hover:shadow-xl hover:shadow-amber-500/30 hover:-translate-y-0.5"
+                >
+                  Kom i Gang
+                  <ArrowRight className="w-5 h-5" />
+                </Link>
+                <Link
+                  href="/register"
+                  className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white border-2 border-gray-200 text-gray-700 rounded-xl font-semibold text-lg hover:border-gray-300 hover:bg-gray-50 transition-all duration-200"
+                >
+                  Opret Bruger
+                </Link>
+              </div>
+              <div className="mt-10 flex flex-wrap justify-center lg:justify-start gap-6 md:gap-8 text-sm text-gray-500">
+                <span className="inline-flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                  Gratis at starte
+                </span>
+                <span className="inline-flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                  Ingen kreditkort
+                </span>
+                <span className="inline-flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                  Opmærksom support
+                </span>
+              </div>
             </div>
-            <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold text-gray-900 tracking-tight mb-6 leading-[1.1]">
-              ForgeLab
-            </h1>
-            <p className="text-xl md:text-2xl text-gray-600 mb-4 leading-relaxed max-w-2xl mx-auto">
-              Moderne digitale værktøjer til QR-koder, analyser og meget mere
-            </p>
-            <p className="text-lg text-gray-500 mb-12 max-w-xl mx-auto">
-              Alt samlet ét sted. Opret konto og kom i gang på få minutter.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link
-                href="/login"
-                className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-amber-500 text-white rounded-xl font-semibold text-lg hover:bg-amber-600 transition-all duration-200 shadow-lg shadow-amber-500/25 hover:shadow-xl hover:shadow-amber-500/30 hover:-translate-y-0.5"
-              >
-                Kom i Gang
-                <ArrowRight className="w-5 h-5" />
-              </Link>
-              <Link
-                href="/register"
-                className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white border-2 border-gray-200 text-gray-700 rounded-xl font-semibold text-lg hover:border-gray-300 hover:bg-gray-50 transition-all duration-200"
-              >
-                Opret Bruger
-              </Link>
-            </div>
-            <div className="mt-12 flex flex-wrap justify-center gap-8 text-sm text-gray-500">
-              <span className="inline-flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                Gratis at starte
-              </span>
-              <span className="inline-flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                Ingen kreditkort
-              </span>
-              <span className="inline-flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                Opmærksom support
-              </span>
+
+            {/* Højre: Visuelt element - dashboard-mockup / værktøjs-preview */}
+            <div className="relative order-1 lg:order-2 flex justify-center lg:justify-end">
+              <div className="relative w-full max-w-md">
+                {/* Bageste kort - dybde */}
+                <div className="absolute inset-0 bg-gradient-to-br from-amber-100 to-amber-50 rounded-3xl transform rotate-3 scale-95 opacity-80" />
+                <div className="absolute inset-0 bg-gradient-to-br from-gray-100 to-white rounded-3xl transform -rotate-2 scale-[0.98] border border-gray-200/80 shadow-xl" />
+                {/* Forreste kort - "app preview" */}
+                <div className="relative bg-white rounded-2xl border border-gray-200/80 shadow-2xl shadow-gray-200/50 p-6 md:p-8">
+                  <div className="flex items-center gap-2 mb-6">
+                    <div className="w-2 h-2 rounded-full bg-gray-300" />
+                    <div className="w-2 h-2 rounded-full bg-gray-300" />
+                    <div className="w-2 h-2 rounded-full bg-gray-300" />
+                    <span className="ml-2 text-xs font-medium text-gray-400 uppercase tracking-wider">Dashboard</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3 mb-6">
+                    <div className="aspect-square rounded-xl bg-amber-50 flex items-center justify-center">
+                      <QrCode className="w-8 h-8 text-amber-600" />
+                    </div>
+                    <div className="aspect-square rounded-xl bg-sky-50 flex items-center justify-center">
+                      <BarChart3 className="w-8 h-8 text-sky-600" />
+                    </div>
+                    <div className="aspect-square rounded-xl bg-violet-50 flex items-center justify-center">
+                      <LayoutGrid className="w-8 h-8 text-violet-600" />
+                    </div>
+                  </div>
+                  <div className="h-24 rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 flex items-end justify-around gap-1 p-3">
+                    <div className="w-8 h-[35%] min-h-2 bg-amber-200/80 rounded-t" />
+                    <div className="w-8 h-[60%] min-h-2 bg-amber-300/80 rounded-t" />
+                    <div className="w-8 h-[40%] min-h-2 bg-amber-200/80 rounded-t" />
+                    <div className="w-8 h-[80%] min-h-2 bg-amber-400/80 rounded-t" />
+                    <div className="w-8 h-[50%] min-h-2 bg-amber-200/80 rounded-t" />
+                  </div>
+                  <p className="text-xs text-gray-400 mt-3 text-center">Scanninger · seneste 7 dage</p>
+                </div>
+              </div>
             </div>
           </div>
         </section>
