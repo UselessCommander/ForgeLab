@@ -363,12 +363,13 @@ export default function QRGenerator() {
     }
 
     let finalText = text
-    let trackUrl = null
 
     if (enableTracking) {
       try {
-        if (!text.startsWith('http://') && !text.startsWith('https://')) {
-          finalText = 'http://' + text
+        // Ensure URL has protocol for tracking
+        let urlToTrack = text
+        if (!urlToTrack.startsWith('http://') && !urlToTrack.startsWith('https://')) {
+          urlToTrack = 'https://' + urlToTrack
         }
 
         const response = await fetch(`${API_URL}/api/create-tracked`, {
@@ -376,32 +377,47 @@ export default function QRGenerator() {
           headers: {
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({ url: finalText })
+          body: JSON.stringify({ url: urlToTrack })
         })
 
-        if (response.ok) {
-          const data = await response.json()
-          setCurrentQrId(data.qrId)
-          trackUrl = data.trackUrl
-          const fullTrackUrl = trackUrl.startsWith('http') 
-            ? trackUrl 
-            : `${API_URL}${trackUrl}`
-          finalText = fullTrackUrl
-          refreshStats(data.qrId)
-          startAutoRefreshStats(data.qrId)
-        } else {
-          throw new Error('Kunne ikke oprette tracking. Er serveren startet?')
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          throw new Error(errorData.error || 'Kunne ikke oprette tracking. Er serveren startet?')
+        }
+
+        const data = await response.json()
+        setCurrentQrId(data.qrId)
+        
+        // Construct full tracking URL
+        const trackUrl = data.trackUrl || `/api/track/${data.qrId}`
+        const fullTrackUrl = trackUrl.startsWith('http') 
+          ? trackUrl 
+          : `${API_URL}${trackUrl}`
+        
+        finalText = fullTrackUrl
+        refreshStats(data.qrId)
+        startAutoRefreshStats(data.qrId)
+        
+        // Generate QR code with tracking URL
+        try {
+          const imageData = await generateQRCode(finalText, false)
+          setFinalQRImage(imageData)
+        } catch (err: any) {
+          setError('Fejl ved generering af QR kode: ' + err.message)
         }
       } catch (err: any) {
         setError('Tracking fejl: ' + err.message)
+        // Don't generate QR code if tracking fails
+        return
       }
-    }
-
-    try {
-      const imageData = await generateQRCode(finalText, false)
-      setFinalQRImage(imageData)
-    } catch (err: any) {
-      setError('Fejl ved generering af QR kode: ' + err.message)
+    } else {
+      // Generate QR code without tracking
+      try {
+        const imageData = await generateQRCode(finalText, false)
+        setFinalQRImage(imageData)
+      } catch (err: any) {
+        setError('Fejl ved generering af QR kode: ' + err.message)
+      }
     }
   }
 
