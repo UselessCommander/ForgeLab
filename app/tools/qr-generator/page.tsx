@@ -54,6 +54,19 @@ export default function QRGenerator() {
     }
   }, [])
 
+  // Live preview effect with debouncing
+  useEffect(() => {
+    if (!qrCodeLoaded || !qrText.trim()) {
+      return
+    }
+
+    const timeoutId = setTimeout(() => {
+      generateQRPreview()
+    }, 500) // Debounce 500ms
+
+    return () => clearTimeout(timeoutId)
+  }, [qrText, qrSize, errorLevel, foregroundColor, backgroundColor, patternStyle, cornerStyle, logoPreview, centerText, textBelow, qrCodeLoaded])
+
   const API_URL = typeof window !== 'undefined' 
     ? window.location.origin 
     : 'http://localhost:3000'
@@ -175,6 +188,179 @@ export default function QRGenerator() {
     }
   }
 
+  // Core QR code generation function (used by both preview and full generation)
+  const generateQRCode = (text: string, skipTracking: boolean = false) => {
+    return new Promise<string>((resolve, reject) => {
+      try {
+        const container = document.createElement('div')
+        const errorLevelMap: { [key: string]: number } = {
+          'L': 0,
+          'M': 1,
+          'Q': 2,
+          'H': 3
+        }
+        const correctLevel = errorLevelMap[errorLevel] || 1
+
+        new window.QRCode(container, {
+          text: text,
+          width: qrSize,
+          height: qrSize,
+          colorDark: '#000000',
+          colorLight: '#FFFFFF',
+          correctLevel: correctLevel
+        })
+
+        setTimeout(() => {
+          const canvas = container.querySelector('canvas')
+          if (!canvas) {
+            reject(new Error('Kunne ikke generere QR kode canvas'))
+            return
+          }
+
+          const tempCtx = canvas.getContext('2d')
+          if (!tempCtx) {
+            reject(new Error('Kunne ikke få canvas context'))
+            return
+          }
+          
+          const imageData = tempCtx.getImageData(0, 0, canvas.width, canvas.height)
+          const modules = canvas.width
+          const moduleSize = canvas.width / modules
+
+          const finalCanvas = document.createElement('canvas')
+          const ctx = finalCanvas.getContext('2d')
+          if (!ctx) {
+            reject(new Error('Kunne ikke få final canvas context'))
+            return
+          }
+
+          const padding = 20
+          const textHeight = textBelow.trim() ? 60 : 0
+          finalCanvas.width = qrSize + (padding * 2)
+          finalCanvas.height = qrSize + (padding * 2) + textHeight
+
+          ctx.fillStyle = backgroundColor
+          ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height)
+
+          const qrStartX = padding
+          const qrStartY = padding
+          
+          for (let y = 0; y < modules; y++) {
+            for (let x = 0; x < modules; x++) {
+              const index = (y * modules + x) * 4
+              const r = imageData.data[index]
+              const isDark = r < 128
+
+              if (isDark) {
+                const pixelX = qrStartX + x * moduleSize
+                const pixelY = qrStartY + y * moduleSize
+                
+                const isCorner = (
+                  (x < 7 && y < 7) ||
+                  (x >= modules - 7 && y < 7) ||
+                  (x < 7 && y >= modules - 7)
+                )
+
+                if (isCorner) {
+                  drawCorner(ctx, pixelX, pixelY, moduleSize, cornerStyle, foregroundColor)
+                } else {
+                  drawPattern(ctx, pixelX, pixelY, moduleSize, patternStyle, foregroundColor)
+                }
+              }
+            }
+          }
+
+          const addLogoAndText = () => {
+            if (logoPreview || centerText) {
+              const centerX = qrStartX + qrSize / 2
+              const centerY = qrStartY + qrSize / 2
+              const logoSize = qrSize * 0.2
+
+              if (logoPreview) {
+                const logoImg = new Image()
+                logoImg.onload = () => {
+                  ctx.save()
+                  ctx.globalCompositeOperation = 'destination-over'
+                  ctx.drawImage(logoImg, centerX - logoSize / 2, centerY - logoSize / 2, logoSize, logoSize)
+                  ctx.restore()
+                  finalizeQR()
+                }
+                logoImg.onerror = () => finalizeQR()
+                logoImg.src = logoPreview
+              } else if (centerText) {
+                ctx.fillStyle = foregroundColor
+                ctx.font = `bold ${logoSize * 0.3}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`
+                ctx.textAlign = 'center'
+                ctx.textBaseline = 'middle'
+                ctx.fillText(centerText, centerX, centerY)
+                finalizeQR()
+              }
+            } else {
+              finalizeQR()
+            }
+          }
+
+          const finalizeQR = () => {
+            if (!ctx) return
+            
+            if (textBelow.trim()) {
+              ctx.fillStyle = '#1a1a1a'
+              ctx.font = 'bold 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+              ctx.textAlign = 'center'
+              ctx.textBaseline = 'top'
+              
+              const maxWidth = qrSize - 20
+              const words = textBelow.split(' ')
+              let line = ''
+              let y = qrSize + padding + 10
+              
+              for (let i = 0; i < words.length; i++) {
+                const testLine = line + words[i] + ' '
+                const metrics = ctx.measureText(testLine)
+                if (metrics.width > maxWidth && i > 0) {
+                  ctx.fillText(line, finalCanvas.width / 2, y)
+                  line = words[i] + ' '
+                  y += 22
+                } else {
+                  line = testLine
+                }
+              }
+              ctx.fillText(line, finalCanvas.width / 2, y)
+            }
+            
+            resolve(finalCanvas.toDataURL('image/png'))
+          }
+
+          addLogoAndText()
+        }, 200)
+      } catch (err: any) {
+        reject(err)
+      }
+    })
+  }
+
+  // Preview generation (without tracking)
+  const generateQRPreview = async () => {
+    if (typeof window === 'undefined' || !window.QRCode) {
+      return
+    }
+
+    const text = qrText.trim()
+    if (!text) {
+      setFinalQRImage(null)
+      return
+    }
+
+    try {
+      const imageData = await generateQRCode(text, true)
+      setFinalQRImage(imageData)
+    } catch (err: any) {
+      // Silently fail for preview
+      console.error('Preview generation error:', err)
+    }
+  }
+
+  // Full generation with tracking
   const generateQR = async () => {
     if (typeof window === 'undefined' || !window.QRCode) {
       setError('QRCode biblioteket kunne ikke indlæses. Genindlæs siden.')
@@ -190,7 +376,6 @@ export default function QRGenerator() {
     setError('')
     setCurrentQrId(null)
     setScanCount(0)
-    setFinalQRImage(null)
 
     let finalText = text
     let trackUrl = null
@@ -228,144 +413,8 @@ export default function QRGenerator() {
     }
 
     try {
-      // Generate QR code data using qrcodejs
-      const container = document.createElement('div')
-      const errorLevelMap: { [key: string]: number } = {
-        'L': 0,
-        'M': 1,
-        'Q': 2,
-        'H': 3
-      }
-      const correctLevel = errorLevelMap[errorLevel] || 1
-
-      new window.QRCode(container, {
-        text: finalText,
-        width: qrSize,
-        height: qrSize,
-        colorDark: '#000000',
-        colorLight: '#FFFFFF',
-        correctLevel: correctLevel
-      })
-
-      setTimeout(() => {
-        const canvas = container.querySelector('canvas')
-        if (!canvas) return
-
-        // Get QR code module data
-        const tempCtx = canvas.getContext('2d')
-        if (!tempCtx) return
-        
-        const imageData = tempCtx.getImageData(0, 0, canvas.width, canvas.height)
-        const modules = canvas.width // QR code modules (usually 21x21, 25x25, etc.)
-        const moduleSize = canvas.width / modules
-
-        // Create custom canvas
-        const finalCanvas = document.createElement('canvas')
-        const ctx = finalCanvas.getContext('2d')
-        if (!ctx) return
-
-        const padding = 20
-        const textHeight = textBelow.trim() ? 60 : 0
-        finalCanvas.width = qrSize + (padding * 2)
-        finalCanvas.height = qrSize + (padding * 2) + textHeight
-
-        // Draw background
-        ctx.fillStyle = backgroundColor
-        ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height)
-
-        // Draw QR code with custom patterns and corners
-        const qrStartX = padding
-        const qrStartY = padding
-        const qrModules = Math.sqrt(imageData.data.length / 4) // Approximate module count
-        
-        for (let y = 0; y < modules; y++) {
-          for (let x = 0; x < modules; x++) {
-            const index = (y * modules + x) * 4
-            const r = imageData.data[index]
-            const isDark = r < 128
-
-            if (isDark) {
-              const pixelX = qrStartX + x * moduleSize
-              const pixelY = qrStartY + y * moduleSize
-              
-              // Check if this is part of corner squares (top-left, top-right, bottom-left)
-              const isCorner = (
-                (x < 7 && y < 7) || // Top-left corner
-                (x >= modules - 7 && y < 7) || // Top-right corner
-                (x < 7 && y >= modules - 7) // Bottom-left corner
-              )
-
-              if (isCorner) {
-                // Draw corner pattern
-                drawCorner(ctx, pixelX, pixelY, moduleSize, cornerStyle, foregroundColor)
-              } else {
-                // Draw regular pattern
-                drawPattern(ctx, pixelX, pixelY, moduleSize, patternStyle, foregroundColor)
-              }
-            }
-          }
-        }
-
-        // Add logo or center text
-        if (logoPreview || centerText) {
-          const centerX = qrStartX + qrSize / 2
-          const centerY = qrStartY + qrSize / 2
-          const logoSize = qrSize * 0.2
-
-          if (logoPreview) {
-            const logoImg = new Image()
-            logoImg.onload = () => {
-              ctx.save()
-              ctx.globalCompositeOperation = 'destination-over'
-              ctx.drawImage(logoImg, centerX - logoSize / 2, centerY - logoSize / 2, logoSize, logoSize)
-              ctx.restore()
-              finalizeQR()
-            }
-            logoImg.src = logoPreview
-          } else if (centerText) {
-            ctx.fillStyle = foregroundColor
-            ctx.font = `bold ${logoSize * 0.3}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`
-            ctx.textAlign = 'center'
-            ctx.textBaseline = 'middle'
-            ctx.fillText(centerText, centerX, centerY)
-            finalizeQR()
-          }
-        } else {
-          finalizeQR()
-        }
-
-        function finalizeQR() {
-          if (!ctx) return
-          
-          // Add text below if provided
-          if (textBelow.trim()) {
-            ctx.fillStyle = '#1a1a1a'
-            ctx.font = 'bold 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-            ctx.textAlign = 'center'
-            ctx.textBaseline = 'top'
-            
-            const maxWidth = qrSize - 20
-            const words = textBelow.split(' ')
-            let line = ''
-            let y = qrSize + padding + 10
-            
-            for (let i = 0; i < words.length; i++) {
-              const testLine = line + words[i] + ' '
-              const metrics = ctx.measureText(testLine)
-              if (metrics.width > maxWidth && i > 0) {
-                ctx.fillText(line, finalCanvas.width / 2, y)
-                line = words[i] + ' '
-                y += 22
-              } else {
-                line = testLine
-              }
-            }
-            ctx.fillText(line, finalCanvas.width / 2, y)
-          }
-          
-          setFinalQRImage(finalCanvas.toDataURL('image/png'))
-        }
-      }, 200)
+      const imageData = await generateQRCode(finalText, false)
+      setFinalQRImage(imageData)
     } catch (err: any) {
       setError('Fejl ved generering af QR kode: ' + err.message)
     }
@@ -734,12 +783,17 @@ export default function QRGenerator() {
             {/* QR Code Display */}
             {finalQRImage && (
               <div className="mb-6 p-6 rounded-xl bg-gray-50 border border-gray-200">
-                <div className="flex justify-center items-center">
-                  <img 
-                    src={finalQRImage} 
-                    alt="QR Code" 
-                    className="max-w-full h-auto rounded-lg shadow-sm"
-                  />
+                <div className="flex flex-col items-center">
+                  <div className="mb-2 text-sm text-gray-500">
+                    {qrText.trim() ? 'Live Preview' : 'Generer QR kode for at se preview'}
+                  </div>
+                  <div className="flex justify-center items-center">
+                    <img 
+                      src={finalQRImage} 
+                      alt="QR Code" 
+                      className="max-w-full h-auto rounded-lg shadow-sm"
+                    />
+                  </div>
                 </div>
               </div>
             )}
