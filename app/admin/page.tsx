@@ -213,10 +213,6 @@ export default function AdminDashboard() {
                   {/* Stats */}
                   <div className="space-y-3 mb-4">
                     <div className="flex justify-between items-center text-sm">
-                      <span className="text-gray-600 font-medium">Oprettet:</span>
-                      <span className="text-gray-900 font-medium">{createdAt}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-sm">
                       <span className="text-gray-600 font-medium">Sidste scan:</span>
                       <span className="text-gray-900 font-medium">{lastScan}</span>
                     </div>

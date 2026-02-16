@@ -15,11 +15,13 @@ export default function QRGenerator() {
   const [qrSize, setQrSize] = useState(200)
   const [errorLevel, setErrorLevel] = useState('M')
   const [enableTracking, setEnableTracking] = useState(false)
+  const [textBelow, setTextBelow] = useState('')
   const [qrCodeLoaded, setQrCodeLoaded] = useState(false)
   const [currentQrId, setCurrentQrId] = useState<string | null>(null)
   const [scanCount, setScanCount] = useState(0)
   const [error, setError] = useState('')
   const [qrImageSrc, setQrImageSrc] = useState<string | null>(null)
+  const [finalQRImage, setFinalQRImage] = useState<string | null>(null)
 
   useEffect(() => {
     if (typeof window !== 'undefined' && window.QRCode) {
@@ -106,7 +108,60 @@ export default function QRGenerator() {
       setTimeout(() => {
         const canvas = container.querySelector('canvas')
         if (canvas) {
-          setQrImageSrc(canvas.toDataURL('image/png'))
+          const qrImageData = canvas.toDataURL('image/png')
+          setQrImageSrc(qrImageData)
+          
+          // Add text below if provided
+          if (textBelow.trim()) {
+            const finalCanvas = document.createElement('canvas')
+            const ctx = finalCanvas.getContext('2d')
+            const img = new Image()
+            
+            img.onload = () => {
+              const padding = 20
+              const textHeight = 50
+              finalCanvas.width = qrSize + (padding * 2)
+              finalCanvas.height = qrSize + (padding * 2) + textHeight
+              
+              // White background
+              ctx!.fillStyle = '#FFFFFF'
+              ctx!.fillRect(0, 0, finalCanvas.width, finalCanvas.height)
+              
+              // Draw QR code
+              ctx!.drawImage(img, padding, padding, qrSize, qrSize)
+              
+              // Draw text below
+              ctx!.fillStyle = '#1a1a1a'
+              ctx!.font = 'bold 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+              ctx!.textAlign = 'center'
+              ctx!.textBaseline = 'top'
+              
+              // Word wrap text
+              const maxWidth = qrSize - 20
+              const words = textBelow.split(' ')
+              let line = ''
+              let y = qrSize + padding + 10
+              
+              for (let i = 0; i < words.length; i++) {
+                const testLine = line + words[i] + ' '
+                const metrics = ctx!.measureText(testLine)
+                if (metrics.width > maxWidth && i > 0) {
+                  ctx!.fillText(line, finalCanvas.width / 2, y)
+                  line = words[i] + ' '
+                  y += 22
+                } else {
+                  line = testLine
+                }
+              }
+              ctx!.fillText(line, finalCanvas.width / 2, y)
+              
+              setFinalQRImage(finalCanvas.toDataURL('image/png'))
+            }
+            
+            img.src = qrImageData
+          } else {
+            setFinalQRImage(qrImageData)
+          }
         }
       }, 200)
     } catch (err: any) {
@@ -134,14 +189,15 @@ export default function QRGenerator() {
   }
 
   const downloadQR = () => {
-    if (!qrImageSrc) {
+    const imageToDownload = finalQRImage || qrImageSrc
+    if (!imageToDownload) {
       alert('Generer venligst en QR kode først!')
       return
     }
 
     const link = document.createElement('a')
     link.download = 'qr-kode.png'
-    link.href = qrImageSrc
+    link.href = imageToDownload
     link.click()
   }
 
@@ -230,6 +286,20 @@ export default function QRGenerator() {
               </div>
             </div>
 
+            {/* Text Below Input */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Tekst nedenunder QR-koden (valgfrit)
+              </label>
+              <input
+                type="text"
+                value={textBelow}
+                onChange={(e) => setTextBelow(e.target.value)}
+                placeholder="F.eks. Scan mig for at besøge hjemmesiden"
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-900 focus:outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-all duration-200"
+              />
+            </div>
+
             {/* Generate Button */}
             <button
               onClick={generateQR}
@@ -246,11 +316,11 @@ export default function QRGenerator() {
             )}
             
             {/* QR Code Display */}
-            {qrImageSrc && (
+            {(finalQRImage || qrImageSrc) && (
               <div className="mb-6 p-6 rounded-xl bg-gray-50 border border-gray-200">
-                <div className="flex justify-center items-center min-h-[200px]">
+                <div className="flex justify-center items-center">
                   <img 
-                    src={qrImageSrc} 
+                    src={finalQRImage || qrImageSrc} 
                     alt="QR Code" 
                     className="max-w-full h-auto rounded-lg shadow-sm"
                   />
