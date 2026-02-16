@@ -100,131 +100,86 @@ export default function AdminDashboard() {
   const totalScans = qrCodes.reduce((sum, id) => sum + (data[id]?.count || 0), 0)
 
   return (
-    <div style={{ minHeight: '100vh', padding: '20px' }}>
-      <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-        <header style={{
-          background: 'white',
-          borderRadius: '20px',
-          padding: '30px',
-          marginBottom: '30px',
-          boxShadow: '0 10px 30px rgba(0, 0, 0, 0.2)'
-        }}>
-          <Link href="/" style={{ display: 'inline-block', color: '#667eea', textDecoration: 'none', marginBottom: '20px', fontWeight: '600' }}>
-            ← Tilbage til ForgeLab
-          </Link>
-          <h1 style={{ color: '#333', fontSize: '2em', marginBottom: '10px' }}>📊 Admin Dashboard</h1>
-          <p style={{ color: '#666' }}>Oversigt over alle QR-koder og scanninger</p>
+    <div className="min-h-screen px-4 py-8 md:py-12">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <header className="mb-8 md:mb-12">
+          <div className="backdrop-blur-xl bg-white/80 dark:bg-slate-900/80 rounded-3xl p-6 md:p-10 shadow-xl border border-white/20">
+            <Link 
+              href="/" 
+              className="inline-flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-semibold mb-6 hover:gap-3 transition-all duration-200"
+            >
+              <span>←</span>
+              <span>Tilbage til ForgeLab</span>
+            </Link>
+            <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-2">
+              Admin Dashboard
+            </h1>
+            <p className="text-slate-600 dark:text-slate-300">
+              Oversigt over alle QR-koder og scanninger
+            </p>
+          </div>
         </header>
 
-        <div style={{
-          background: 'white',
-          borderRadius: '15px',
-          padding: '20px',
-          marginBottom: '20px',
-          boxShadow: '0 10px 30px rgba(0, 0, 0, 0.2)',
-          display: 'flex',
-          gap: '15px',
-          flexWrap: 'wrap',
-          alignItems: 'center'
-        }}>
-          <button
-            onClick={loadData}
-            style={{
-              padding: '10px 20px',
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              fontWeight: '600',
-              cursor: 'pointer'
-            }}
-          >
-            🔄 Opdater
-          </button>
-          <button
-            onClick={deleteAllQR}
-            style={{
-              padding: '10px 20px',
-              background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              fontWeight: '600',
-              cursor: 'pointer'
-            }}
-          >
-            🗑️ Slet Alle
-          </button>
-          <div style={{ color: '#666', fontSize: '0.9em', marginLeft: 'auto' }}>
-            Sidst opdateret: {lastUpdate}
+        {/* Controls */}
+        <div className="backdrop-blur-xl bg-white/80 dark:bg-slate-900/80 rounded-2xl p-4 md:p-6 shadow-lg border border-white/20 mb-6 md:mb-8">
+          <div className="flex flex-wrap items-center gap-4">
+            <button
+              onClick={loadData}
+              className="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-200 hover:scale-105"
+            >
+              🔄 Opdater
+            </button>
+            <button
+              onClick={deleteAllQR}
+              className="px-5 py-2.5 bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-200 hover:scale-105"
+            >
+              🗑️ Slet Alle
+            </button>
+            <div className="ml-auto text-sm text-slate-600 dark:text-slate-400">
+              Sidst opdateret: <span className="font-semibold">{lastUpdate}</span>
+            </div>
           </div>
         </div>
 
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-          gap: '20px',
-          marginBottom: '30px'
-        }}>
-          <div style={{
-            background: 'white',
-            borderRadius: '15px',
-            padding: '25px',
-            boxShadow: '0 10px 30px rgba(0, 0, 0, 0.2)',
-            textAlign: 'center'
-          }}>
-            <div style={{ fontSize: '2.5em', fontWeight: 'bold', color: '#667eea', marginBottom: '10px' }}>
+        {/* Stats Summary */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6 mb-8">
+          <div className="backdrop-blur-xl bg-white/80 dark:bg-slate-900/80 rounded-2xl p-6 md:p-8 shadow-lg border border-white/20 text-center">
+            <div className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-2">
               {qrCodes.length}
             </div>
-            <div style={{ color: '#666', fontSize: '1em' }}>QR Koder</div>
+            <div className="text-slate-600 dark:text-slate-300 font-medium">QR Koder</div>
           </div>
-          <div style={{
-            background: 'white',
-            borderRadius: '15px',
-            padding: '25px',
-            boxShadow: '0 10px 30px rgba(0, 0, 0, 0.2)',
-            textAlign: 'center'
-          }}>
-            <div style={{ fontSize: '2.5em', fontWeight: 'bold', color: '#667eea', marginBottom: '10px' }}>
+          <div className="backdrop-blur-xl bg-white/80 dark:bg-slate-900/80 rounded-2xl p-6 md:p-8 shadow-lg border border-white/20 text-center">
+            <div className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-2">
               {totalScans}
             </div>
-            <div style={{ color: '#666', fontSize: '1em' }}>Total Scanninger</div>
+            <div className="text-slate-600 dark:text-slate-300 font-medium">Total Scanninger</div>
           </div>
         </div>
 
+        {/* Content */}
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '40px', color: 'white', fontSize: '1.2em' }}>
-            Indlæser data...
+          <div className="backdrop-blur-xl bg-white/80 dark:bg-slate-900/80 rounded-2xl p-12 shadow-lg border border-white/20 text-center">
+            <div className="text-slate-600 dark:text-slate-300 text-lg">Indlæser data...</div>
           </div>
         ) : qrCodes.length === 0 ? (
-          <div style={{
-            background: 'white',
-            borderRadius: '15px',
-            padding: '60px 20px',
-            textAlign: 'center',
-            boxShadow: '0 10px 30px rgba(0, 0, 0, 0.2)'
-          }}>
-            <h2 style={{ color: '#666', marginBottom: '10px' }}>Ingen QR-koder endnu</h2>
-            <p style={{ color: '#999' }}>Generer din første QR-kode med tracking for at se statistikker her.</p>
-            <Link href="/tools/qr-generator" style={{
-              display: 'inline-block',
-              marginTop: '20px',
-              padding: '12px 25px',
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              color: 'white',
-              textDecoration: 'none',
-              borderRadius: '8px',
-              fontWeight: '600'
-            }}>
+          <div className="backdrop-blur-xl bg-white/80 dark:bg-slate-900/80 rounded-2xl p-12 md:p-16 shadow-lg border border-white/20 text-center">
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-3">
+              Ingen QR-koder endnu
+            </h2>
+            <p className="text-slate-600 dark:text-slate-300 mb-8">
+              Generer din første QR-kode med tracking for at se statistikker her.
+            </p>
+            <Link 
+              href="/tools/qr-generator"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-200 hover:scale-105"
+            >
               Gå til QR Generator
             </Link>
           </div>
         ) : (
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-            gap: '20px'
-          }}>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
             {qrCodes.map(qrId => {
               const qrData = data[qrId]
               const createdAt = qrData.createdAt ? new Date(qrData.createdAt).toLocaleString('da-DK') : 'Ukendt'
@@ -233,97 +188,59 @@ export default function AdminDashboard() {
                 : 'Ingen scanninger endnu'
 
               return (
-                <div key={qrId} style={{
-                  background: 'white',
-                  borderRadius: '15px',
-                  padding: '25px',
-                  boxShadow: '0 10px 30px rgba(0, 0, 0, 0.2)'
-                }}>
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: '15px',
-                    paddingBottom: '15px',
-                    borderBottom: '2px solid #f0f0f0'
-                  }}>
-                    <h3 style={{ color: '#333', fontSize: '1.2em' }}>QR Kode</h3>
-                    <span style={{
-                      fontFamily: 'monospace',
-                      background: '#f8f9fa',
-                      padding: '5px 10px',
-                      borderRadius: '5px',
-                      fontSize: '0.85em',
-                      color: '#666'
-                    }}>
+                <div 
+                  key={qrId} 
+                  className="backdrop-blur-xl bg-white/80 dark:bg-slate-900/80 rounded-2xl p-6 shadow-lg border border-white/20 hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+                >
+                  {/* Header */}
+                  <div className="flex justify-between items-center mb-4 pb-4 border-b border-slate-200 dark:border-slate-700">
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">QR Kode</h3>
+                    <span className="px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs font-mono text-slate-600 dark:text-slate-400">
                       {qrId.substring(0, 12)}...
                     </span>
                   </div>
-                  <div style={{
-                    fontSize: '2.5em',
-                    color: '#667eea',
-                    fontWeight: 'bold',
-                    textAlign: 'center',
-                    padding: '15px',
-                    background: '#f8f9fa',
-                    borderRadius: '10px',
-                    margin: '15px 0'
-                  }}>
-                    {qrData.count || 0}
-                  </div>
-                  <div style={{ textAlign: 'center', color: '#666', marginBottom: '15px' }}>
-                    scanninger
-                  </div>
-                  <div style={{ marginBottom: '15px' }}>
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      padding: '8px 0',
-                      borderBottom: '1px solid #f0f0f0'
-                    }}>
-                      <span style={{ color: '#666', fontWeight: '600' }}>Oprettet:</span>
-                      <span style={{ color: '#333', fontWeight: 'bold' }}>{createdAt}</span>
+
+                  {/* Scan Count */}
+                  <div className="text-center mb-4">
+                    <div className="text-5xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-2">
+                      {qrData.count || 0}
                     </div>
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      padding: '8px 0'
-                    }}>
-                      <span style={{ color: '#666', fontWeight: '600' }}>Sidste scan:</span>
-                      <span style={{ color: '#333', fontWeight: 'bold' }}>{lastScan}</span>
+                    <div className="text-sm text-slate-600 dark:text-slate-400 font-medium">
+                      scanninger
                     </div>
                   </div>
+
+                  {/* Stats */}
+                  <div className="space-y-3 mb-4">
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-slate-600 dark:text-slate-400 font-medium">Oprettet:</span>
+                      <span className="text-slate-900 dark:text-slate-100 font-semibold">{createdAt}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-slate-600 dark:text-slate-400 font-medium">Sidste scan:</span>
+                      <span className="text-slate-900 dark:text-slate-100 font-semibold">{lastScan}</span>
+                    </div>
+                  </div>
+
+                  {/* Original URL */}
                   {qrData.originalUrl && (
-                    <div style={{
-                      wordBreak: 'break-all',
-                      color: '#667eea',
-                      fontSize: '0.9em',
-                      marginTop: '10px',
-                      padding: '10px',
-                      background: '#f8f9fa',
-                      borderRadius: '5px'
-                    }}>
-                      <strong>Original URL:</strong><br />
-                      {qrData.originalUrl}
+                    <div className="mb-4 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                      <div className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                        Original URL:
+                      </div>
+                      <div className="text-sm text-indigo-600 dark:text-indigo-400 break-all">
+                        {qrData.originalUrl}
+                      </div>
                     </div>
                   )}
-                  <div style={{ marginTop: '15px' }}>
-                    <button
-                      onClick={() => deleteQR(qrId)}
-                      style={{
-                        width: '100%',
-                        padding: '10px',
-                        background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '8px',
-                        fontWeight: '600',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      🗑️ Slet
-                    </button>
-                  </div>
+
+                  {/* Delete Button */}
+                  <button
+                    onClick={() => deleteQR(qrId)}
+                    className="w-full px-4 py-2.5 bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-200 hover:scale-105"
+                  >
+                    🗑️ Slet
+                  </button>
                 </div>
               )
             })}

@@ -147,177 +147,144 @@ export default function QRGenerator() {
         src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"
         onLoad={() => setQrCodeLoaded(true)}
       />
-      <div style={{ minHeight: '100vh', padding: '20px' }}>
-        <div style={{ maxWidth: '600px', margin: '0 auto', background: 'white', borderRadius: '20px', boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)', padding: '40px' }}>
-          <Link href="/" style={{ display: 'inline-block', color: '#667eea', textDecoration: 'none', marginBottom: '20px', fontWeight: '600' }}>
-            ← Tilbage til ForgeLab
-          </Link>
-          
-          <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-            <h1 style={{ color: '#333', fontSize: '2em', marginBottom: '10px' }}>🔲 QR Code Generator</h1>
-          </div>
-          
-          <div style={{ marginBottom: '25px' }}>
-            <label style={{ display: 'block', marginBottom: '8px', color: '#555', fontWeight: '600' }}>
-              Indtast tekst eller URL:
-            </label>
-            <textarea
-              value={qrText}
-              onChange={(e) => setQrText(e.target.value)}
-              placeholder="Skriv din tekst eller URL her..."
-              style={{
-                width: '100%',
-                padding: '12px',
-                border: '2px solid #e0e0e0',
-                borderRadius: '8px',
-                fontSize: '16px',
-                minHeight: '100px',
-                fontFamily: 'inherit'
-              }}
-            />
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '25px' }}>
-            <input
-              type="checkbox"
-              id="enableTracking"
-              checked={enableTracking}
-              onChange={(e) => setEnableTracking(e.target.checked)}
-              style={{ width: '20px', height: '20px', marginRight: '10px', cursor: 'pointer' }}
-            />
-            <label htmlFor="enableTracking" style={{ cursor: 'pointer', margin: 0 }}>
-              Aktiver scanning tracking
-            </label>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '25px' }}>
-            <div>
-              <label style={{ display: 'block', marginBottom: '8px', color: '#555', fontWeight: '600' }}>
-                Størrelse:
+      <div className="min-h-screen px-4 py-8 md:py-12">
+        <div className="max-w-2xl mx-auto">
+          <div className="backdrop-blur-xl bg-white/80 dark:bg-slate-900/80 rounded-3xl p-6 md:p-10 shadow-xl border border-white/20">
+            {/* Back Link */}
+            <Link 
+              href="/" 
+              className="inline-flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-semibold mb-8 hover:gap-3 transition-all duration-200"
+            >
+              <span>←</span>
+              <span>Tilbage til ForgeLab</span>
+            </Link>
+            
+            {/* Header */}
+            <div className="text-center mb-8">
+              <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-2">
+                QR Code Generator
+              </h1>
+            </div>
+            
+            {/* Input */}
+            <div className="mb-6">
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                Indtast tekst eller URL
               </label>
-              <input
-                type="number"
-                value={qrSize}
-                onChange={(e) => setQrSize(parseInt(e.target.value))}
-                min="100"
-                max="500"
-                step="50"
-                style={{
-                  width: '100%',
-                  padding: '10px',
-                  border: '2px solid #e0e0e0',
-                  borderRadius: '8px',
-                  fontSize: '14px'
-                }}
+              <textarea
+                value={qrText}
+                onChange={(e) => setQrText(e.target.value)}
+                placeholder="Skriv din tekst eller URL her..."
+                className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all duration-200 resize-none min-h-[100px]"
               />
             </div>
-            <div>
-              <label style={{ display: 'block', marginBottom: '8px', color: '#555', fontWeight: '600' }}>
-                Fejlkorrektion:
-              </label>
-              <select
-                value={errorLevel}
-                onChange={(e) => setErrorLevel(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '10px',
-                  border: '2px solid #e0e0e0',
-                  borderRadius: '8px',
-                  fontSize: '14px'
-                }}
-              >
-                <option value="L">Lav</option>
-                <option value="M">Medium</option>
-                <option value="Q">Høj</option>
-                <option value="H">Meget høj</option>
-              </select>
-            </div>
-          </div>
 
-          <button
-            onClick={generateQR}
-            style={{
-              width: '100%',
-              padding: '15px',
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              fontSize: '18px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              marginBottom: '20px'
-            }}
-          >
-            Generer QR Kode
-          </button>
-          
-          {error && (
-            <div style={{
-              color: '#dc3545',
-              textAlign: 'center',
-              marginTop: '10px',
-              padding: '10px',
-              background: '#f8d7da',
-              borderRadius: '5px',
-              marginBottom: '20px'
-            }}>
-              {error}
+            {/* Tracking Checkbox */}
+            <div className="flex items-center gap-3 mb-6 p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+              <input
+                type="checkbox"
+                id="enableTracking"
+                checked={enableTracking}
+                onChange={(e) => setEnableTracking(e.target.checked)}
+                className="w-5 h-5 rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+              />
+              <label htmlFor="enableTracking" className="text-slate-700 dark:text-slate-300 font-medium cursor-pointer">
+                Aktiver scanning tracking
+              </label>
             </div>
-          )}
-          
-          {qrImageSrc && (
-            <div style={{
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              minHeight: '200px',
-              background: '#f9f9f9',
-              borderRadius: '10px',
-              padding: '20px',
-              marginTop: '20px'
-            }}>
-              <img src={qrImageSrc} alt="QR Code" style={{ maxWidth: '100%', height: 'auto' }} />
+
+            {/* Options */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                  Størrelse
+                </label>
+                <input
+                  type="number"
+                  value={qrSize}
+                  onChange={(e) => setQrSize(parseInt(e.target.value))}
+                  min="100"
+                  max="500"
+                  step="50"
+                  className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all duration-200"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                  Fejlkorrektion
+                </label>
+                <select
+                  value={errorLevel}
+                  onChange={(e) => setErrorLevel(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all duration-200"
+                >
+                  <option value="L">Lav</option>
+                  <option value="M">Medium</option>
+                  <option value="Q">Høj</option>
+                  <option value="H">Meget høj</option>
+                </select>
+              </div>
             </div>
-          )}
-          
-          {currentQrId && (
-            <div style={{
-              background: '#e7f3ff',
-              border: '2px solid #2196F3',
-              borderRadius: '8px',
-              padding: '15px',
-              marginTop: '15px'
-            }}>
-              <h3 style={{ margin: '0 0 10px 0', color: '#1976D2', fontSize: '16px' }}>📊 Tracking Information</h3>
-              <p style={{ margin: '5px 0', color: '#555', fontSize: '14px' }}>
-                <strong>QR ID:</strong> <code style={{ background: '#fff', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>{currentQrId}</code>
-              </p>
-              <p style={{ margin: '5px 0', color: '#555', fontSize: '14px' }}>
-                <strong>Antal scanninger:</strong> {scanCount}
-              </p>
-            </div>
-          )}
-          
-          {qrImageSrc && (
+
+            {/* Generate Button */}
             <button
-              onClick={downloadQR}
-              style={{
-                width: '100%',
-                padding: '15px',
-                background: '#28a745',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                fontSize: '18px',
-                fontWeight: '600',
-                cursor: 'pointer',
-                marginTop: '15px'
-              }}
+              onClick={generateQR}
+              className="w-full px-6 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold text-lg hover:shadow-xl transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] mb-6"
             >
-              Download QR Kode
+              Generer QR Kode
             </button>
-          )}
+            
+            {/* Error Message */}
+            {error && (
+              <div className="mb-6 p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                <p className="text-red-700 dark:text-red-400 text-sm">{error}</p>
+              </div>
+            )}
+            
+            {/* QR Code Display */}
+            {qrImageSrc && (
+              <div className="mb-6 p-6 rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900 border border-slate-200 dark:border-slate-700">
+                <div className="flex justify-center items-center min-h-[200px]">
+                  <img 
+                    src={qrImageSrc} 
+                    alt="QR Code" 
+                    className="max-w-full h-auto rounded-xl shadow-lg"
+                  />
+                </div>
+              </div>
+            )}
+            
+            {/* Tracking Info */}
+            {currentQrId && (
+              <div className="mb-6 p-5 rounded-xl bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 border border-indigo-200 dark:border-indigo-800">
+                <h3 className="text-lg font-semibold text-indigo-900 dark:text-indigo-300 mb-3">
+                  📊 Tracking Information
+                </h3>
+                <div className="space-y-2 text-sm">
+                  <p className="text-slate-700 dark:text-slate-300">
+                    <span className="font-semibold">QR ID:</span>{' '}
+                    <code className="px-2 py-1 rounded bg-white dark:bg-slate-800 text-xs font-mono">
+                      {currentQrId}
+                    </code>
+                  </p>
+                  <p className="text-slate-700 dark:text-slate-300">
+                    <span className="font-semibold">Antal scanninger:</span>{' '}
+                    <span className="text-indigo-600 dark:text-indigo-400 font-bold text-lg">{scanCount}</span>
+                  </p>
+                </div>
+              </div>
+            )}
+            
+            {/* Download Button */}
+            {qrImageSrc && (
+              <button
+                onClick={downloadQR}
+                className="w-full px-6 py-4 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-semibold text-lg hover:shadow-xl transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+              >
+                Download QR Kode
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </>
