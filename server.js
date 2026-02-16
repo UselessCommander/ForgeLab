@@ -35,16 +35,21 @@ function getLocalIP() {
 const LOCAL_IP = getLocalIP();
 // Use environment variable for production, otherwise use local IP
 const BASE_URL = (function() {
-    // Custom domain override
+    // Custom domain override (highest priority)
     if (process.env.BASE_URL) {
         return process.env.BASE_URL;
     }
-    // Vercel production
-    if (process.env.VERCEL_URL) {
-        // Use custom domain if available, otherwise Vercel URL
-        return process.env.VERCEL_ENV === 'production' 
-            ? 'https://qr.floweffekt.dk'
-            : `https://${process.env.VERCEL_URL}`;
+    // Vercel production - check for custom domain first
+    if (process.env.VERCEL) {
+        // Production environment with custom domain
+        if (process.env.VERCEL_ENV === 'production') {
+            // Check if custom domain is configured
+            return 'https://qr.floweffekt.dk';
+        }
+        // Preview/deployment URLs
+        if (process.env.VERCEL_URL) {
+            return `https://${process.env.VERCEL_URL}`;
+        }
     }
     // Local development
     return `http://${LOCAL_IP}:${PORT}`;
@@ -84,8 +89,23 @@ function generateId() {
 }
 
 // Middleware
-app.use(cors());
+// CORS configuration - allow all origins for production (can be restricted if needed)
+app.use(cors({
+    origin: '*', // Allow all origins for QR code scanning from any device
+    methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
+
+// Security headers
+app.use((req, res, next) => {
+    // Set security headers
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    next();
+});
 
 // ============================================
 // API ROUTES - MUST come before static files!
@@ -223,20 +243,34 @@ app.get('/api/stats', (req, res) => {
 app.get('/track/:qrId', (req, res) => {
     const { qrId } = req.params;
     const scans = readScans();
+    const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress || 'unknown';
 
     console.log(`\n📱 QR-kode scannet! ID: ${qrId}`);
-    console.log(`IP: ${req.ip || req.connection.remoteAddress}`);
+    console.log(`📍 IP: ${clientIP}`);
+    console.log(`🌐 User-Agent: ${req.headers['user-agent'] || 'unknown'}`);
+    console.log(`🔗 Referer: ${req.headers['referer'] || 'direct'}`);
 
     if (!scans[qrId]) {
         console.log(`❌ QR-kode ${qrId} ikke fundet i database`);
-        return res.status(404).send('QR kode ikke fundet');
+        return res.status(404).send(`
+            <html>
+                <head><title>QR Kode Ikke Fundet</title></head>
+                <body style="font-family: Arial; text-align: center; padding: 50px;">
+                    <h1>QR Kode Ikke Fundet</h1>
+                    <p>Denne QR-kode eksisterer ikke eller er blevet slettet.</p>
+                    <p><a href="/">Tilbage til Generator</a></p>
+                </body>
+            </html>
+        `);
     }
 
     // Track the scan
     scans[qrId].count++;
     scans[qrId].scans.push({
         timestamp: new Date().toISOString(),
-        ip: req.ip || req.connection.remoteAddress
+        ip: clientIP,
+        userAgent: req.headers['user-agent'] || 'unknown',
+        referer: req.headers['referer'] || 'direct'
     });
     writeScans(scans);
 
@@ -246,9 +280,22 @@ app.get('/track/:qrId', (req, res) => {
     // Redirect to original URL
     const originalUrl = scans[qrId].originalUrl;
     if (originalUrl) {
-        res.redirect(originalUrl);
+        // Ensure URL has protocol
+        const redirectUrl = originalUrl.startsWith('http://') || originalUrl.startsWith('https://') 
+            ? originalUrl 
+            : `https://${originalUrl}`;
+        res.redirect(302, redirectUrl);
     } else {
-        res.send('QR kode scannet! Antal scanninger: ' + scans[qrId].count);
+        res.send(`
+            <html>
+                <head><title>QR Kode Scannet</title></head>
+                <body style="font-family: Arial; text-align: center; padding: 50px;">
+                    <h1>QR Kode Scannet!</h1>
+                    <p>Antal scanninger: ${scans[qrId].count}</p>
+                    <p><a href="/">Tilbage til Generator</a></p>
+                </body>
+            </html>
+        `);
     }
 });
 
@@ -260,24 +307,35 @@ app.post('/api/create-tracked', (req, res) => {
         return res.status(400).json({ error: 'URL mangler' });
     }
 
+    // Validate URL format
+    let validatedUrl = url.trim();
+    if (!validatedUrl.startsWith('http://') && !validatedUrl.startsWith('https://')) {
+        validatedUrl = `https://${validatedUrl}`;
+    }
+
     const id = qrId || generateId();
     const scans = readScans();
 
     scans[id] = {
         count: 0,
         createdAt: new Date().toISOString(),
-        originalUrl: url,
+        originalUrl: validatedUrl,
         scans: []
     };
 
     writeScans(scans);
+
+    console.log(`\n✨ Ny tracked QR-kode oprettet:`);
+    console.log(`   QR ID: ${id}`);
+    console.log(`   Original URL: ${validatedUrl}`);
+    console.log(`   Track URL: ${BASE_URL}/track/${id}\n`);
 
     res.json({
         success: true,
         qrId: id,
         trackUrl: `${BASE_URL}/track/${id}`,
         statsUrl: `${BASE_URL}/api/stats/${id}`,
-        localhostUrl: `http://localhost:${PORT}/track/${id}` // For local testing
+        originalUrl: validatedUrl
     });
 });
 

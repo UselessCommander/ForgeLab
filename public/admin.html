@@ -311,19 +311,24 @@
         const API_URL = (function() {
             const hostname = window.location.hostname;
             const protocol = window.location.protocol;
+            const port = window.location.port;
             
-            // Production domain
-            if (hostname === 'qr.floweffekt.dk' || hostname.includes('vercel.app')) {
-                return `${protocol}//${hostname}`;
+            // Production domain (custom domain or Vercel)
+            if (hostname === 'qr.floweffekt.dk' || hostname.includes('vercel.app') || hostname.includes('vercel.com')) {
+                // Always use HTTPS for production
+                return `https://${hostname}`;
             }
+            
             // Local development
             if (hostname === 'localhost' || hostname === '127.0.0.1') {
-                return 'http://localhost:3000';
+                return `http://localhost:${port || '3000'}`;
             }
-            // Local network (IP address)
-            return `${protocol}//${hostname}${window.location.port ? ':' + window.location.port : ''}`;
+            
+            // Local network (IP address) - use current protocol and port
+            return `${protocol}//${hostname}${port ? ':' + port : ''}`;
         })();
-        console.log('API URL:', API_URL);
+        console.log('🌐 API URL detected:', API_URL);
+        console.log('📍 Current location:', window.location.href);
         let autoRefreshInterval = null;
         let data = {}; // Store current data globally for delete functions
 
