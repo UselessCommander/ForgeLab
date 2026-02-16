@@ -548,8 +548,10 @@ export default function QRGenerator() {
         onLoad={() => setQrCodeLoaded(true)}
       />
       <div className="min-h-screen px-4 py-8 md:py-12 bg-gradient-to-br from-gray-50 to-gray-100">
-        <div className="max-w-4xl mx-auto">
-          <div className="bg-white rounded-2xl p-6 md:p-10 shadow-sm border border-gray-200">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Left Column - Controls */}
+            <div className="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-gray-200">
             {/* Back Link */}
             <Link 
               href="/dashboard" 
@@ -639,22 +641,18 @@ export default function QRGenerator() {
 
             {/* Advanced Options */}
             {showAdvanced && (
-              <div className="space-y-6 mb-6 p-6 bg-gray-50 rounded-xl border border-gray-200">
-                {/* Colors */}
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Vælg Farver</h3>
-                  
+              <div className="space-y-4 mb-6 p-4 bg-gray-50 rounded-xl border border-gray-200 max-h-[calc(100vh-300px)] overflow-y-auto">
+                {/* Colors - Side by side layout */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Color Presets */}
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Preset Farver
-                    </label>
+                  <div>
+                    <h3 className="text-base font-semibold text-gray-900 mb-2">Preset Farver</h3>
                     <div className="flex flex-wrap gap-2">
                       {COLOR_PRESETS.map((preset) => (
                         <button
                           key={preset.value}
                           onClick={() => setForegroundColor(preset.value)}
-                          className={`w-10 h-10 rounded-full border-2 transition-all ${
+                          className={`w-8 h-8 rounded-full border-2 transition-all ${
                             foregroundColor === preset.value 
                               ? 'border-gray-900 scale-110' 
                               : 'border-gray-300 hover:border-gray-500'
@@ -666,55 +664,55 @@ export default function QRGenerator() {
                     </div>
                   </div>
 
-                  {/* Foreground Color */}
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      QR Kode Farve (Hex)
-                    </label>
-                    <div className="flex gap-2">
-                      <input
-                        type="color"
-                        value={foregroundColor}
-                        onChange={(e) => setForegroundColor(e.target.value)}
-                        className="w-16 h-10 rounded-lg border border-gray-300 cursor-pointer"
-                      />
-                      <input
-                        type="text"
-                        value={foregroundColor}
-                        onChange={(e) => setForegroundColor(e.target.value)}
-                        placeholder="#000000"
-                        className="flex-1 px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-900 focus:outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
-                      />
+                  {/* Foreground & Background Colors - Side by side */}
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        QR Kode Farve
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="color"
+                          value={foregroundColor}
+                          onChange={(e) => setForegroundColor(e.target.value)}
+                          className="w-12 h-8 rounded border border-gray-300 cursor-pointer"
+                        />
+                        <input
+                          type="text"
+                          value={foregroundColor}
+                          onChange={(e) => setForegroundColor(e.target.value)}
+                          placeholder="#000000"
+                          className="flex-1 px-2 py-1 text-sm rounded border border-gray-300 bg-white text-gray-900 focus:outline-none focus:border-gray-900"
+                        />
+                      </div>
                     </div>
-                  </div>
-
-                  {/* Background Color */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Baggrund Farve (Hex)
-                    </label>
-                    <div className="flex gap-2">
-                      <input
-                        type="color"
-                        value={backgroundColor}
-                        onChange={(e) => setBackgroundColor(e.target.value)}
-                        className="w-16 h-10 rounded-lg border border-gray-300 cursor-pointer"
-                      />
-                      <input
-                        type="text"
-                        value={backgroundColor}
-                        onChange={(e) => setBackgroundColor(e.target.value)}
-                        placeholder="#FFFFFF"
-                        className="flex-1 px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-900 focus:outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
-                      />
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Baggrund Farve
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="color"
+                          value={backgroundColor}
+                          onChange={(e) => setBackgroundColor(e.target.value)}
+                          className="w-12 h-8 rounded border border-gray-300 cursor-pointer"
+                        />
+                        <input
+                          type="text"
+                          value={backgroundColor}
+                          onChange={(e) => setBackgroundColor(e.target.value)}
+                          placeholder="#FFFFFF"
+                          className="flex-1 px-2 py-1 text-sm rounded border border-gray-300 bg-white text-gray-900 focus:outline-none focus:border-gray-900"
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Pattern Styles */}
+                {/* Pattern Styles - Smaller buttons, more per row */}
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Pattern Styles</h3>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+                  <h3 className="text-base font-semibold text-gray-900 mb-2">Pattern Styles</h3>
+                  <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-2">
                     {([
                       'square', 'dots', 'rounded', 'extra-rounded', 
                       'star', 'diamond', 'lines', 'blob', 
@@ -723,14 +721,27 @@ export default function QRGenerator() {
                       <button
                         key={pattern}
                         onClick={() => setPatternStyle(pattern)}
-                        className={`p-3 rounded-lg border-2 transition-all ${
+                        className={`p-2 rounded border-2 transition-all ${
                           patternStyle === pattern
                             ? 'border-gray-900 bg-gray-100'
                             : 'border-gray-200 hover:border-gray-400'
                         }`}
+                        title={pattern === 'square' ? 'Firkant' :
+                               pattern === 'dots' ? 'Prikker' :
+                               pattern === 'rounded' ? 'Afrundet' :
+                               pattern === 'extra-rounded' ? 'Meget Afrundet' :
+                               pattern === 'star' ? 'Stjerne' :
+                               pattern === 'diamond' ? 'Diamant' :
+                               pattern === 'lines' ? 'Linjer' :
+                               pattern === 'blob' ? 'Blob' :
+                               pattern === 'pixel' ? 'Pixel' :
+                               pattern === 'wave' ? 'Bølge' :
+                               pattern === 'cross' ? 'Kors' :
+                               pattern === 'heart' ? 'Hjerte' :
+                               pattern}
                       >
-                        <div className="flex justify-center mb-2">
-                          <div className={`w-10 h-10 ${
+                        <div className="flex justify-center mb-1">
+                          <div className={`w-6 h-6 ${
                             pattern === 'square' ? 'bg-gray-900' :
                             pattern === 'dots' ? 'bg-gray-900 rounded-full' :
                             pattern === 'rounded' ? 'bg-gray-900 rounded-lg' :
@@ -746,11 +757,11 @@ export default function QRGenerator() {
                             'bg-gray-900'
                           }`} />
                         </div>
-                        <p className="text-xs font-medium text-gray-700 capitalize text-center">
+                        <p className="text-[10px] font-medium text-gray-700 capitalize text-center leading-tight">
                           {pattern === 'square' ? 'Firkant' :
                            pattern === 'dots' ? 'Prikker' :
                            pattern === 'rounded' ? 'Afrundet' :
-                           pattern === 'extra-rounded' ? 'Meget Afrundet' :
+                           pattern === 'extra-rounded' ? 'Meget' :
                            pattern === 'star' ? 'Stjerne' :
                            pattern === 'diamond' ? 'Diamant' :
                            pattern === 'lines' ? 'Linjer' :
@@ -766,29 +777,29 @@ export default function QRGenerator() {
                   </div>
                 </div>
 
-                {/* Corner Styles */}
+                {/* Corner Styles - Smaller */}
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Hjørne Styles</h3>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <h3 className="text-base font-semibold text-gray-900 mb-2">Hjørne Styles</h3>
+                  <div className="grid grid-cols-4 gap-2">
                     {(['square', 'rounded', 'dot', 'classic'] as CornerStyle[]).map((corner) => (
                       <button
                         key={corner}
                         onClick={() => setCornerStyle(corner)}
-                        className={`p-4 rounded-lg border-2 transition-all ${
+                        className={`p-2 rounded border-2 transition-all ${
                           cornerStyle === corner
                             ? 'border-gray-900 bg-gray-100'
                             : 'border-gray-200 hover:border-gray-400'
                         }`}
                       >
-                        <div className="flex justify-center mb-2">
-                          <div className={`w-12 h-12 bg-gray-900 ${
+                        <div className="flex justify-center mb-1">
+                          <div className={`w-6 h-6 bg-gray-900 ${
                             corner === 'square' ? '' :
                             corner === 'rounded' ? 'rounded-lg' :
                             corner === 'dot' ? 'rounded-full' :
                             'rounded-lg'
                           }`} />
                         </div>
-                        <p className="text-xs font-medium text-gray-700 capitalize">
+                        <p className="text-[10px] font-medium text-gray-700 capitalize text-center">
                           {corner === 'square' ? 'Firkant' :
                            corner === 'rounded' ? 'Afrundet' :
                            corner === 'dot' ? 'Prik' :
@@ -801,26 +812,26 @@ export default function QRGenerator() {
 
                 {/* Logo / Center Text */}
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Tilføj Logo eller Center Tekst</h3>
+                  <h3 className="text-base font-semibold text-gray-900 mb-2">Logo eller Center Tekst</h3>
                   
-                  <div className="flex flex-wrap gap-3 mb-4">
+                  <div className="flex flex-wrap gap-2 mb-3">
                     <button
                       onClick={removeLogo}
-                      className={`px-4 py-2 rounded-lg border-2 transition-all ${
+                      className={`px-3 py-1.5 rounded border-2 transition-all text-sm ${
                         !logoPreview && !centerText
                           ? 'border-gray-900 bg-gray-100'
                           : 'border-gray-200 hover:border-gray-400'
                       }`}
                     >
-                      <span className="text-2xl">✕</span>
+                      <span className="text-lg">✕</span>
                     </button>
                     
                     <button
                       onClick={() => logoInputRef.current?.click()}
-                      className="px-4 py-2 rounded-lg border-2 border-gray-200 hover:border-gray-400 transition-all"
+                      className="px-3 py-1.5 rounded border-2 border-gray-200 hover:border-gray-400 transition-all text-sm"
                     >
-                      <span className="text-2xl">📷</span>
-                      <span className="ml-2 text-sm font-medium text-gray-700">Upload Logo</span>
+                      <span className="text-lg">📷</span>
+                      <span className="ml-1 text-xs font-medium text-gray-700">Upload</span>
                     </button>
                     
                     <input
@@ -833,18 +844,18 @@ export default function QRGenerator() {
                   </div>
 
                   {logoPreview && (
-                    <div className="mb-4">
+                    <div className="mb-3">
                       <img 
                         src={logoPreview} 
                         alt="Logo preview" 
-                        className="w-20 h-20 object-contain rounded-lg border border-gray-200"
+                        className="w-16 h-16 object-contain rounded border border-gray-200"
                       />
                     </div>
                   )}
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Eller indtast center tekst
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Center tekst
                     </label>
                     <input
                       type="text"
@@ -855,9 +866,9 @@ export default function QRGenerator() {
                       }}
                       placeholder="F.eks. Logo"
                       maxLength={10}
-                      className="w-full px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-900 focus:outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
+                      className="w-full px-3 py-2 text-sm rounded border border-gray-300 bg-white text-gray-900 focus:outline-none focus:border-gray-900"
                     />
-                    <p className="text-xs text-gray-500 mt-1">PNG format, 1:1 forhold, maks 5MB</p>
+                    <p className="text-[10px] text-gray-500 mt-1">PNG, 1:1, max 5MB</p>
                   </div>
                 </div>
               </div>
@@ -894,7 +905,7 @@ export default function QRGenerator() {
             
             {/* QR Code Display */}
             {finalQRImage && (
-              <div className="mb-6 p-6 rounded-xl bg-gray-50 border border-gray-200">
+              <div className="mb-6 p-4 rounded-xl bg-gray-50 border border-gray-200">
                 <div className="flex flex-col items-center">
                   <div className="mb-2 text-sm text-gray-500">
                     {qrText.trim() ? 'Live Preview' : 'Generer QR kode for at se preview'}
@@ -912,8 +923,8 @@ export default function QRGenerator() {
             
             {/* Tracking Info */}
             {currentQrId && (
-              <div className="mb-6 p-5 rounded-lg bg-gray-50 border border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900 mb-3">
+              <div className="mb-6 p-4 rounded-lg bg-gray-50 border border-gray-200">
+                <h3 className="text-base font-semibold text-gray-900 mb-2">
                   📊 Tracking Information
                 </h3>
                 <div className="space-y-2 text-sm">
@@ -940,6 +951,37 @@ export default function QRGenerator() {
                 Download QR Kode
               </button>
             )}
+          </div>
+
+          {/* Right Column - QR Preview (on larger screens) */}
+          <div className="lg:sticky lg:top-6 lg:self-start">
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
+              {finalQRImage ? (
+                <div className="flex flex-col items-center">
+                  <div className="mb-3 text-sm font-medium text-gray-700">
+                    Live Preview
+                  </div>
+                  <div className="flex justify-center items-center bg-gray-50 p-4 rounded-lg">
+                    <img 
+                      src={finalQRImage} 
+                      alt="QR Code Preview" 
+                      className="max-w-full h-auto rounded-lg shadow-md"
+                    />
+                  </div>
+                  {currentQrId && (
+                    <div className="mt-4 p-3 rounded-lg bg-gray-50 border border-gray-200 w-full">
+                      <p className="text-xs text-gray-600 mb-1">Scanninger:</p>
+                      <p className="text-2xl font-bold text-gray-900">{scanCount}</p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full min-h-[300px] text-gray-400">
+                  <div className="text-4xl mb-2">🔲</div>
+                  <p className="text-sm">Indtast tekst for at se preview</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
