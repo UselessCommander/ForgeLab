@@ -221,6 +221,23 @@ export default async function Dashboard() {
               <span>→</span>
             </Link>
           </div>
+
+          <div className="group bg-white rounded-xl p-8 shadow-sm border border-gray-200 hover:shadow-md transition-all duration-300 hover:-translate-y-1">
+            <div className="text-4xl mb-4">🃏</div>
+            <h2 className="text-2xl font-semibold text-gray-900 mb-3">
+              Card Sorting Test
+            </h2>
+            <p className="text-gray-600 mb-6 leading-relaxed">
+              Test informationsarkitektur med kort sortering. Open, Closed eller Hybrid sortering.
+            </p>
+            <Link 
+              href="/tools/card-sorting"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-all duration-200"
+            >
+              Brug Værktøj
+              <span>→</span>
+            </Link>
+          </div>
         </div>
 
         {/* Footer */}
