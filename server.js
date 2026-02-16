@@ -310,6 +310,7 @@ app.get('/track/:qrId', (req, res) => {
 // ============================================
 // STATIC FILES
 // ============================================
+// Serve static files from public directory
 app.use(express.static('public', {
     setHeaders: (res, filePath) => {
         if (filePath.endsWith('.js')) {
@@ -317,10 +318,31 @@ app.use(express.static('public', {
         } else if (filePath.endsWith('.css')) {
             res.setHeader('Content-Type', 'text/css');
         } else if (filePath.endsWith('.html')) {
-            res.setHeader('Content-Type', 'text/html');
+            res.setHeader('Content-Type', 'text/html; charset=utf-8');
         }
     }
 }));
+
+// Serve index.html for root
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Serve admin.html
+app.get('/admin.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
+// Serve tools pages
+app.get('/tools/:tool', (req, res) => {
+    const tool = req.params.tool;
+    const toolPath = path.join(__dirname, 'public', 'tools', tool);
+    if (fs.existsSync(toolPath)) {
+        res.sendFile(toolPath);
+    } else {
+        res.status(404).send('Tool not found');
+    }
+});
 
 // Start server
 if (!process.env.VERCEL) {
