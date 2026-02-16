@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import Script from 'next/script'
 
@@ -9,6 +9,20 @@ declare global {
     QRCode: any
   }
 }
+
+type PatternStyle = 'square' | 'dots' | 'rounded' | 'extra-rounded'
+type CornerStyle = 'square' | 'rounded' | 'dot' | 'classic'
+
+const COLOR_PRESETS = [
+  { name: 'Sort', value: '#000000' },
+  { name: 'Rød', value: '#EF4444' },
+  { name: 'Orange', value: '#F97316' },
+  { name: 'Grøn', value: '#10B981' },
+  { name: 'Lyseblå', value: '#3B82F6' },
+  { name: 'Mørkeblå', value: '#1E40AF' },
+  { name: 'Lilla', value: '#8B5CF6' },
+  { name: 'Pink', value: '#EC4899' },
+]
 
 export default function QRGenerator() {
   const [qrText, setQrText] = useState('')
@@ -20,8 +34,19 @@ export default function QRGenerator() {
   const [currentQrId, setCurrentQrId] = useState<string | null>(null)
   const [scanCount, setScanCount] = useState(0)
   const [error, setError] = useState('')
-  const [qrImageSrc, setQrImageSrc] = useState<string | null>(null)
   const [finalQRImage, setFinalQRImage] = useState<string | null>(null)
+  
+  // Customization states
+  const [foregroundColor, setForegroundColor] = useState('#000000')
+  const [backgroundColor, setBackgroundColor] = useState('#FFFFFF')
+  const [patternStyle, setPatternStyle] = useState<PatternStyle>('square')
+  const [cornerStyle, setCornerStyle] = useState<CornerStyle>('square')
+  const [logoFile, setLogoFile] = useState<File | null>(null)
+  const [logoPreview, setLogoPreview] = useState<string | null>(null)
+  const [centerText, setCenterText] = useState('')
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  
+  const logoInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (typeof window !== 'undefined' && window.QRCode) {
@@ -32,6 +57,123 @@ export default function QRGenerator() {
   const API_URL = typeof window !== 'undefined' 
     ? window.location.origin 
     : 'http://localhost:3000'
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        setError('Logo filen er for stor. Maks størrelse: 5MB')
+        return
+      }
+      if (!file.type.includes('image')) {
+        setError('Logo skal være et billede')
+        return
+      }
+      setLogoFile(file)
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        setLogoPreview(e.target?.result as string)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const removeLogo = () => {
+    setLogoFile(null)
+    setLogoPreview(null)
+    if (logoInputRef.current) {
+      logoInputRef.current.value = ''
+    }
+  }
+
+  const drawPattern = (
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    size: number,
+    pattern: PatternStyle,
+    color: string
+  ) => {
+    ctx.fillStyle = color
+    
+    switch (pattern) {
+      case 'square':
+        ctx.fillRect(x, y, size, size)
+        break
+      case 'dots':
+        const radius = size / 2
+        ctx.beginPath()
+        ctx.arc(x + size / 2, y + size / 2, radius * 0.8, 0, Math.PI * 2)
+        ctx.fill()
+        break
+      case 'rounded':
+        const cornerRadius = size * 0.2
+        ctx.beginPath()
+        ctx.moveTo(x + cornerRadius, y)
+        ctx.lineTo(x + size - cornerRadius, y)
+        ctx.quadraticCurveTo(x + size, y, x + size, y + cornerRadius)
+        ctx.lineTo(x + size, y + size - cornerRadius)
+        ctx.quadraticCurveTo(x + size, y + size, x + size - cornerRadius, y + size)
+        ctx.lineTo(x + cornerRadius, y + size)
+        ctx.quadraticCurveTo(x, y + size, x, y + size - cornerRadius)
+        ctx.lineTo(x, y + cornerRadius)
+        ctx.quadraticCurveTo(x, y, x + cornerRadius, y)
+        ctx.closePath()
+        ctx.fill()
+        break
+      case 'extra-rounded':
+        ctx.beginPath()
+        ctx.arc(x + size / 2, y + size / 2, size / 2, 0, Math.PI * 2)
+        ctx.fill()
+        break
+    }
+  }
+
+  const drawCorner = (
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    size: number,
+    corner: CornerStyle,
+    color: string
+  ) => {
+    ctx.fillStyle = color
+    
+    switch (corner) {
+      case 'square':
+        ctx.fillRect(x, y, size, size)
+        break
+      case 'rounded':
+        const cornerRadius = size * 0.3
+        ctx.beginPath()
+        ctx.moveTo(x + cornerRadius, y)
+        ctx.lineTo(x + size - cornerRadius, y)
+        ctx.quadraticCurveTo(x + size, y, x + size, y + cornerRadius)
+        ctx.lineTo(x + size, y + size - cornerRadius)
+        ctx.quadraticCurveTo(x + size, y + size, x + size - cornerRadius, y + size)
+        ctx.lineTo(x + cornerRadius, y + size)
+        ctx.quadraticCurveTo(x, y + size, x, y + size - cornerRadius)
+        ctx.lineTo(x, y + cornerRadius)
+        ctx.quadraticCurveTo(x, y, x + cornerRadius, y)
+        ctx.closePath()
+        ctx.fill()
+        break
+      case 'dot':
+        ctx.beginPath()
+        ctx.arc(x + size / 2, y + size / 2, size / 2, 0, Math.PI * 2)
+        ctx.fill()
+        break
+      case 'classic':
+        // Classic QR code corner with inner square
+        ctx.fillRect(x, y, size, size)
+        ctx.fillStyle = backgroundColor
+        const innerSize = size * 0.4
+        const innerOffset = size * 0.3
+        ctx.fillRect(x + innerOffset, y + innerOffset, innerSize, innerSize)
+        ctx.fillStyle = color
+        break
+    }
+  }
 
   const generateQR = async () => {
     if (typeof window === 'undefined' || !window.QRCode) {
@@ -48,7 +190,7 @@ export default function QRGenerator() {
     setError('')
     setCurrentQrId(null)
     setScanCount(0)
-    setQrImageSrc(null)
+    setFinalQRImage(null)
 
     let finalText = text
     let trackUrl = null
@@ -71,7 +213,6 @@ export default function QRGenerator() {
           const data = await response.json()
           setCurrentQrId(data.qrId)
           trackUrl = data.trackUrl
-          // Use full URL for QR code
           const fullTrackUrl = trackUrl.startsWith('http') 
             ? trackUrl 
             : `${API_URL}${trackUrl}`
@@ -87,6 +228,7 @@ export default function QRGenerator() {
     }
 
     try {
+      // Generate QR code data using qrcodejs
       const container = document.createElement('div')
       const errorLevelMap: { [key: string]: number } = {
         'L': 0,
@@ -107,61 +249,119 @@ export default function QRGenerator() {
 
       setTimeout(() => {
         const canvas = container.querySelector('canvas')
-        if (canvas) {
-          const qrImageData = canvas.toDataURL('image/png')
-          setQrImageSrc(qrImageData)
-          
+        if (!canvas) return
+
+        // Get QR code module data
+        const tempCtx = canvas.getContext('2d')
+        if (!tempCtx) return
+        
+        const imageData = tempCtx.getImageData(0, 0, canvas.width, canvas.height)
+        const modules = canvas.width // QR code modules (usually 21x21, 25x25, etc.)
+        const moduleSize = canvas.width / modules
+
+        // Create custom canvas
+        const finalCanvas = document.createElement('canvas')
+        const ctx = finalCanvas.getContext('2d')
+        if (!ctx) return
+
+        const padding = 20
+        const textHeight = textBelow.trim() ? 60 : 0
+        finalCanvas.width = qrSize + (padding * 2)
+        finalCanvas.height = qrSize + (padding * 2) + textHeight
+
+        // Draw background
+        ctx.fillStyle = backgroundColor
+        ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height)
+
+        // Draw QR code with custom patterns and corners
+        const qrStartX = padding
+        const qrStartY = padding
+        const qrModules = Math.sqrt(imageData.data.length / 4) // Approximate module count
+        
+        for (let y = 0; y < modules; y++) {
+          for (let x = 0; x < modules; x++) {
+            const index = (y * modules + x) * 4
+            const r = imageData.data[index]
+            const isDark = r < 128
+
+            if (isDark) {
+              const pixelX = qrStartX + x * moduleSize
+              const pixelY = qrStartY + y * moduleSize
+              
+              // Check if this is part of corner squares (top-left, top-right, bottom-left)
+              const isCorner = (
+                (x < 7 && y < 7) || // Top-left corner
+                (x >= modules - 7 && y < 7) || // Top-right corner
+                (x < 7 && y >= modules - 7) // Bottom-left corner
+              )
+
+              if (isCorner) {
+                // Draw corner pattern
+                drawCorner(ctx, pixelX, pixelY, moduleSize, cornerStyle, foregroundColor)
+              } else {
+                // Draw regular pattern
+                drawPattern(ctx, pixelX, pixelY, moduleSize, patternStyle, foregroundColor)
+              }
+            }
+          }
+        }
+
+        // Add logo or center text
+        if (logoPreview || centerText) {
+          const centerX = qrStartX + qrSize / 2
+          const centerY = qrStartY + qrSize / 2
+          const logoSize = qrSize * 0.2
+
+          if (logoPreview) {
+            const logoImg = new Image()
+            logoImg.onload = () => {
+              ctx.save()
+              ctx.globalCompositeOperation = 'destination-over'
+              ctx.drawImage(logoImg, centerX - logoSize / 2, centerY - logoSize / 2, logoSize, logoSize)
+              ctx.restore()
+              finalizeQR()
+            }
+            logoImg.src = logoPreview
+          } else if (centerText) {
+            ctx.fillStyle = foregroundColor
+            ctx.font = `bold ${logoSize * 0.3}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`
+            ctx.textAlign = 'center'
+            ctx.textBaseline = 'middle'
+            ctx.fillText(centerText, centerX, centerY)
+            finalizeQR()
+          }
+        } else {
+          finalizeQR()
+        }
+
+        function finalizeQR() {
           // Add text below if provided
           if (textBelow.trim()) {
-            const finalCanvas = document.createElement('canvas')
-            const ctx = finalCanvas.getContext('2d')
-            const img = new Image()
+            ctx.fillStyle = '#1a1a1a'
+            ctx.font = 'bold 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+            ctx.textAlign = 'center'
+            ctx.textBaseline = 'top'
             
-            img.onload = () => {
-              const padding = 20
-              const textHeight = 50
-              finalCanvas.width = qrSize + (padding * 2)
-              finalCanvas.height = qrSize + (padding * 2) + textHeight
-              
-              // White background
-              ctx!.fillStyle = '#FFFFFF'
-              ctx!.fillRect(0, 0, finalCanvas.width, finalCanvas.height)
-              
-              // Draw QR code
-              ctx!.drawImage(img, padding, padding, qrSize, qrSize)
-              
-              // Draw text below
-              ctx!.fillStyle = '#1a1a1a'
-              ctx!.font = 'bold 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-              ctx!.textAlign = 'center'
-              ctx!.textBaseline = 'top'
-              
-              // Word wrap text
-              const maxWidth = qrSize - 20
-              const words = textBelow.split(' ')
-              let line = ''
-              let y = qrSize + padding + 10
-              
-              for (let i = 0; i < words.length; i++) {
-                const testLine = line + words[i] + ' '
-                const metrics = ctx!.measureText(testLine)
-                if (metrics.width > maxWidth && i > 0) {
-                  ctx!.fillText(line, finalCanvas.width / 2, y)
-                  line = words[i] + ' '
-                  y += 22
-                } else {
-                  line = testLine
-                }
+            const maxWidth = qrSize - 20
+            const words = textBelow.split(' ')
+            let line = ''
+            let y = qrSize + padding + 10
+            
+            for (let i = 0; i < words.length; i++) {
+              const testLine = line + words[i] + ' '
+              const metrics = ctx.measureText(testLine)
+              if (metrics.width > maxWidth && i > 0) {
+                ctx.fillText(line, finalCanvas.width / 2, y)
+                line = words[i] + ' '
+                y += 22
+              } else {
+                line = testLine
               }
-              ctx!.fillText(line, finalCanvas.width / 2, y)
-              
-              setFinalQRImage(finalCanvas.toDataURL('image/png'))
             }
-            
-            img.src = qrImageData
-          } else {
-            setFinalQRImage(qrImageData)
+            ctx.fillText(line, finalCanvas.width / 2, y)
           }
+          
+          setFinalQRImage(finalCanvas.toDataURL('image/png'))
         }
       }, 200)
     } catch (err: any) {
@@ -189,15 +389,14 @@ export default function QRGenerator() {
   }
 
   const downloadQR = () => {
-    const imageToDownload = finalQRImage ?? qrImageSrc ?? ''
-    if (!imageToDownload) {
+    if (!finalQRImage) {
       alert('Generer venligst en QR kode først!')
       return
     }
 
     const link = document.createElement('a')
     link.download = 'qr-kode.png'
-    link.href = imageToDownload
+    link.href = finalQRImage
     link.click()
   }
 
@@ -208,7 +407,7 @@ export default function QRGenerator() {
         onLoad={() => setQrCodeLoaded(true)}
       />
       <div className="min-h-screen px-4 py-8 md:py-12 bg-gradient-to-br from-gray-50 to-gray-100">
-        <div className="max-w-2xl mx-auto">
+        <div className="max-w-4xl mx-auto">
           <div className="bg-white rounded-2xl p-6 md:p-10 shadow-sm border border-gray-200">
             {/* Back Link */}
             <Link 
@@ -253,7 +452,7 @@ export default function QRGenerator() {
               </label>
             </div>
 
-            {/* Options */}
+            {/* Basic Options */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -286,6 +485,221 @@ export default function QRGenerator() {
               </div>
             </div>
 
+            {/* Advanced Options Toggle */}
+            <div className="mb-6">
+              <button
+                onClick={() => setShowAdvanced(!showAdvanced)}
+                className="w-full px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium text-gray-700 transition-all duration-200 flex items-center justify-between"
+              >
+                <span>Avancerede Indstillinger</span>
+                <span className={showAdvanced ? 'rotate-180' : ''}>▼</span>
+              </button>
+            </div>
+
+            {/* Advanced Options */}
+            {showAdvanced && (
+              <div className="space-y-6 mb-6 p-6 bg-gray-50 rounded-xl border border-gray-200">
+                {/* Colors */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Vælg Farver</h3>
+                  
+                  {/* Color Presets */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Preset Farver
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {COLOR_PRESETS.map((preset) => (
+                        <button
+                          key={preset.value}
+                          onClick={() => setForegroundColor(preset.value)}
+                          className={`w-10 h-10 rounded-full border-2 transition-all ${
+                            foregroundColor === preset.value 
+                              ? 'border-gray-900 scale-110' 
+                              : 'border-gray-300 hover:border-gray-500'
+                          }`}
+                          style={{ backgroundColor: preset.value }}
+                          title={preset.name}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Foreground Color */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      QR Kode Farve (Hex)
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="color"
+                        value={foregroundColor}
+                        onChange={(e) => setForegroundColor(e.target.value)}
+                        className="w-16 h-10 rounded-lg border border-gray-300 cursor-pointer"
+                      />
+                      <input
+                        type="text"
+                        value={foregroundColor}
+                        onChange={(e) => setForegroundColor(e.target.value)}
+                        placeholder="#000000"
+                        className="flex-1 px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-900 focus:outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Background Color */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Baggrund Farve (Hex)
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="color"
+                        value={backgroundColor}
+                        onChange={(e) => setBackgroundColor(e.target.value)}
+                        className="w-16 h-10 rounded-lg border border-gray-300 cursor-pointer"
+                      />
+                      <input
+                        type="text"
+                        value={backgroundColor}
+                        onChange={(e) => setBackgroundColor(e.target.value)}
+                        placeholder="#FFFFFF"
+                        className="flex-1 px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-900 focus:outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Pattern Styles */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Pattern Styles</h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {(['square', 'dots', 'rounded', 'extra-rounded'] as PatternStyle[]).map((pattern) => (
+                      <button
+                        key={pattern}
+                        onClick={() => setPatternStyle(pattern)}
+                        className={`p-4 rounded-lg border-2 transition-all ${
+                          patternStyle === pattern
+                            ? 'border-gray-900 bg-gray-100'
+                            : 'border-gray-200 hover:border-gray-400'
+                        }`}
+                      >
+                        <div className="flex justify-center mb-2">
+                          <div className={`w-12 h-12 ${
+                            pattern === 'square' ? 'bg-gray-900' :
+                            pattern === 'dots' ? 'bg-gray-900 rounded-full' :
+                            pattern === 'rounded' ? 'bg-gray-900 rounded-lg' :
+                            'bg-gray-900 rounded-full'
+                          }`} />
+                        </div>
+                        <p className="text-xs font-medium text-gray-700 capitalize">
+                          {pattern === 'square' ? 'Firkant' :
+                           pattern === 'dots' ? 'Prikker' :
+                           pattern === 'rounded' ? 'Afrundet' :
+                           'Meget Afrundet'}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Corner Styles */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Hjørne Styles</h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {(['square', 'rounded', 'dot', 'classic'] as CornerStyle[]).map((corner) => (
+                      <button
+                        key={corner}
+                        onClick={() => setCornerStyle(corner)}
+                        className={`p-4 rounded-lg border-2 transition-all ${
+                          cornerStyle === corner
+                            ? 'border-gray-900 bg-gray-100'
+                            : 'border-gray-200 hover:border-gray-400'
+                        }`}
+                      >
+                        <div className="flex justify-center mb-2">
+                          <div className={`w-12 h-12 bg-gray-900 ${
+                            corner === 'square' ? '' :
+                            corner === 'rounded' ? 'rounded-lg' :
+                            corner === 'dot' ? 'rounded-full' :
+                            'rounded-lg'
+                          }`} />
+                        </div>
+                        <p className="text-xs font-medium text-gray-700 capitalize">
+                          {corner === 'square' ? 'Firkant' :
+                           corner === 'rounded' ? 'Afrundet' :
+                           corner === 'dot' ? 'Prik' :
+                           'Klassisk'}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Logo / Center Text */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Tilføj Logo eller Center Tekst</h3>
+                  
+                  <div className="flex flex-wrap gap-3 mb-4">
+                    <button
+                      onClick={removeLogo}
+                      className={`px-4 py-2 rounded-lg border-2 transition-all ${
+                        !logoPreview && !centerText
+                          ? 'border-gray-900 bg-gray-100'
+                          : 'border-gray-200 hover:border-gray-400'
+                      }`}
+                    >
+                      <span className="text-2xl">✕</span>
+                    </button>
+                    
+                    <button
+                      onClick={() => logoInputRef.current?.click()}
+                      className="px-4 py-2 rounded-lg border-2 border-gray-200 hover:border-gray-400 transition-all"
+                    >
+                      <span className="text-2xl">📷</span>
+                      <span className="ml-2 text-sm font-medium text-gray-700">Upload Logo</span>
+                    </button>
+                    
+                    <input
+                      ref={logoInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleLogoUpload}
+                      className="hidden"
+                    />
+                  </div>
+
+                  {logoPreview && (
+                    <div className="mb-4">
+                      <img 
+                        src={logoPreview} 
+                        alt="Logo preview" 
+                        className="w-20 h-20 object-contain rounded-lg border border-gray-200"
+                      />
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Eller indtast center tekst
+                    </label>
+                    <input
+                      type="text"
+                      value={centerText}
+                      onChange={(e) => {
+                        setCenterText(e.target.value)
+                        if (e.target.value) removeLogo()
+                      }}
+                      placeholder="F.eks. Logo"
+                      maxLength={10}
+                      className="w-full px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-900 focus:outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">PNG format, 1:1 forhold, maks 5MB</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Text Below Input */}
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -316,11 +730,11 @@ export default function QRGenerator() {
             )}
             
             {/* QR Code Display */}
-            {(finalQRImage || qrImageSrc) && (
+            {finalQRImage && (
               <div className="mb-6 p-6 rounded-xl bg-gray-50 border border-gray-200">
                 <div className="flex justify-center items-center">
                   <img 
-                    src={finalQRImage ?? qrImageSrc ?? undefined} 
+                    src={finalQRImage} 
                     alt="QR Code" 
                     className="max-w-full h-auto rounded-lg shadow-sm"
                   />
@@ -350,7 +764,7 @@ export default function QRGenerator() {
             )}
             
             {/* Download Button */}
-            {qrImageSrc && (
+            {finalQRImage && (
               <button
                 onClick={downloadQR}
                 className="w-full px-6 py-4 bg-gray-700 text-white rounded-lg font-medium text-lg hover:bg-gray-600 transition-all duration-200"
