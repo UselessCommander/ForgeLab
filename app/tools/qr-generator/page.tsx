@@ -57,11 +57,28 @@ export default function QRGenerator() {
   // Live preview effect with debouncing
   useEffect(() => {
     if (!qrCodeLoaded || !qrText.trim()) {
+      setFinalQRImage(null)
       return
     }
 
-    const timeoutId = setTimeout(() => {
-      generateQRPreview()
+    const timeoutId = setTimeout(async () => {
+      if (typeof window === 'undefined' || !window.QRCode) {
+        return
+      }
+
+      const text = qrText.trim()
+      if (!text) {
+        setFinalQRImage(null)
+        return
+      }
+
+      try {
+        const imageData = await generateQRCode(text, true)
+        setFinalQRImage(imageData)
+      } catch (err: any) {
+        // Silently fail for preview
+        console.error('Preview generation error:', err)
+      }
     }, 500) // Debounce 500ms
 
     return () => clearTimeout(timeoutId)
