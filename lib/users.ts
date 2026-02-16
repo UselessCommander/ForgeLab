@@ -1,4 +1,4 @@
-﻿import bcrypt from 'bcryptjs';
+import bcrypt from 'bcryptjs';
 import { supabase } from './supabase';
 import { generateId } from './data';
 
@@ -21,13 +21,21 @@ export function isPasswordHashed(password: string): boolean {
 export async function createUser(username: string, password: string): Promise<User | null> {
     try {
         // Tjek om brugernavn allerede eksisterer
-        const { data: existingUser } = await supabase
+        const { data: existingUser, error: checkError } = await supabase
             .from('users')
             .select('id')
             .eq('username', username)
-            .single();
+            .maybeSingle();
 
+        // Hvis der er en fejl (ikke PGRST116 = not found), log den
+        if (checkError && checkError.code !== 'PGRST116') {
+            console.error('❌ Fejl ved tjek af eksisterende bruger:', checkError);
+            return null;
+        }
+
+        // Hvis brugeren allerede eksisterer
         if (existingUser) {
+            console.log(`⚠️ Brugernavn "${username}" er allerede taget`);
             return null;
         }
 
@@ -70,9 +78,15 @@ export async function getUserByUsername(username: string): Promise<User | null> 
             .from('users')
             .select('*')
             .eq('username', username)
-            .single();
+            .maybeSingle();
 
-        if (error || !data) {
+        // PGRST116 = not found, hvilket er OK
+        if (error && error.code !== 'PGRST116') {
+            console.error('❌ Fejl ved hentning af bruger:', error);
+            return null;
+        }
+
+        if (!data) {
             return null;
         }
 
@@ -94,9 +108,15 @@ export async function getUserById(id: string): Promise<User | null> {
             .from('users')
             .select('*')
             .eq('id', id)
-            .single();
+            .maybeSingle();
 
-        if (error || !data) {
+        // PGRST116 = not found, hvilket er OK
+        if (error && error.code !== 'PGRST116') {
+            console.error('❌ Fejl ved hentning af bruger:', error);
+            return null;
+        }
+
+        if (!data) {
             return null;
         }
 
@@ -133,7 +153,7 @@ export async function verifyPassword(user: User, password: string): Promise<bool
             if (error) {
                 console.error('âŒ Fejl ved auto-migration af password:', error);
             } else {
-                console.log(`âœ… Auto-migreret password for bruger: ${user.username}`);
+                console.log(`✅ Auto-migreret password for bruger: ${user.username}`);
             }
         } catch (error) {
             console.error('âŒ Fejl ved auto-migration af password:', error);

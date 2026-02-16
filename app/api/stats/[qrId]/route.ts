@@ -1,11 +1,11 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getQRCodeById, deleteQRCode } from '@/lib/data';
 import { getCurrentUserId } from '@/lib/auth';
 
 // GET stats for specific QR code
 export async function GET(
     request: NextRequest,
-    { params }: { params: { qrId: string } }
+    { params }: { params: Promise<{ qrId: string }> }
 ) {
     try {
         const userId = await getCurrentUserId();
@@ -17,7 +17,7 @@ export async function GET(
             );
         }
 
-        const { qrId } = params;
+        const { qrId } = await params;
         const qrCode = await getQRCodeById(qrId);
 
         if (!qrCode) {
@@ -53,7 +53,7 @@ export async function GET(
 // DELETE specific QR code
 export async function DELETE(
     request: NextRequest,
-    { params }: { params: { qrId: string } }
+    { params }: { params: Promise<{ qrId: string }> }
 ) {
     try {
         const userId = await getCurrentUserId();
@@ -65,7 +65,7 @@ export async function DELETE(
             );
         }
 
-        const { qrId } = params;
+        const { qrId } = await params;
         const qrCode = await getQRCodeById(qrId);
 
         if (!qrCode) {

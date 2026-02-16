@@ -1,14 +1,13 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getQRCodeById, trackScan } from '@/lib/data';
 
 export async function GET(
     request: NextRequest,
-    { params }: { params: { qrId: string } }
+    { params }: { params: Promise<{ qrId: string }> }
 ) {
     try {
-        const { qrId } = params;
-        const clientIP = request.ip || 
-            request.headers.get('x-forwarded-for') || 
+        const { qrId } = await params;
+        const clientIP = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 
             request.headers.get('x-real-ip') || 
             'unknown';
 
