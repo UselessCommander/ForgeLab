@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import Link from 'next/link'
+import ForgeLabLogo from '@/components/ForgeLabLogo'
 
 async function checkAuth() {
   const cookieStore = await cookies()
@@ -22,13 +23,16 @@ export default async function Dashboard() {
         <header className="mb-12 md:mb-16">
           <div className="bg-white rounded-2xl p-8 md:p-12 shadow-sm border border-gray-200">
             <div className="flex justify-between items-center mb-6">
-              <div>
-                <h1 className="text-4xl md:text-6xl font-semibold text-gray-900 mb-4">
-                  ForgeLab Dashboard
-                </h1>
+              <div className="flex items-center gap-4">
+                <ForgeLabLogo size={48} />
+                <div>
+                  <h1 className="text-4xl md:text-6xl font-semibold text-gray-900 mb-4">
+                    ForgeLab Dashboard
+                  </h1>
                 <p className="text-gray-600 text-lg md:text-xl">
                   Velkommen tilbage! Vælg et værktøj nedenfor.
                 </p>
+                </div>
               </div>
               <form action="/api/auth/logout" method="POST">
                 <button

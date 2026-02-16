@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import ForgeLabLogo from '@/components/ForgeLabLogo'
 
 export default function LoginPage() {
   const [username, setUsername] = useState('')
@@ -40,13 +41,19 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black flex items-center justify-center px-4">
-      <div className="max-w-md w-full">
-        <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 md:p-10 shadow-xl border border-white/20">
+    <div className="min-h-screen bg-[#1a2f4a] flex items-center justify-center px-4">
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#2a3f5a_1px,transparent_1px),linear-gradient(to_bottom,#2a3f5a_1px,transparent_1px)] bg-[size:48px_48px] opacity-30"></div>
+      </div>
+      <div className="max-w-md w-full relative z-10">
+        <div className="bg-[#2a3f5a] border-2 border-[#3a4f6a] p-8 md:p-10">
           <div className="text-center mb-8">
-            <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">
-              ForgeLab
-            </h1>
+            <div className="flex items-center justify-center gap-3 mb-4">
+              <ForgeLabLogo size={48} />
+              <h1 className="text-3xl md:text-4xl font-bold text-white">
+                ForgeLab
+              </h1>
+            </div>
             <p className="text-gray-300">Log ind for at fortsætte</p>
           </div>
 
@@ -60,7 +67,7 @@ export default function LoginPage() {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
-                className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:border-white/40 focus:ring-2 focus:ring-white/20 transition-all"
+                className="w-full px-4 py-3 bg-[#1a2f4a] border-2 border-[#3a4f6a] text-white placeholder-gray-400 focus:outline-none focus:border-[#F97316] transition-all"
                 placeholder="Indtast brugernavn"
               />
             </div>
@@ -74,21 +81,21 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:border-white/40 focus:ring-2 focus:ring-white/20 transition-all"
+                className="w-full px-4 py-3 bg-[#1a2f4a] border-2 border-[#3a4f6a] text-white placeholder-gray-400 focus:outline-none focus:border-[#F97316] transition-all"
                 placeholder="Indtast password"
               />
             </div>
 
             {error && (
-              <div className="p-4 rounded-lg bg-red-500/20 border border-red-500/50">
-                <p className="text-red-300 text-sm">{error}</p>
+              <div className="p-4 bg-[#1a2f4a] border-2 border-red-600">
+                <p className="text-red-400 text-sm">{error}</p>
               </div>
             )}
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full px-6 py-4 bg-white text-gray-900 rounded-lg font-semibold text-lg hover:bg-gray-100 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full px-6 py-4 bg-[#F97316] text-white border-2 border-[#F97316] font-bold text-lg hover:bg-[#ea580c] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Logger ind...' : 'Log Ind'}
             </button>
@@ -97,7 +104,7 @@ export default function LoginPage() {
           <div className="mt-6 text-center">
             <Link 
               href="/"
-              className="text-gray-400 hover:text-white transition-colors text-sm"
+              className="text-gray-400 hover:text-[#F97316] transition-colors text-sm"
             >
               ← Tilbage til landing page
             </Link>
