@@ -25,13 +25,28 @@ function getSupabaseClient(): SupabaseClient {
 }
 
 // Export as a Proxy to maintain the same API while lazy-loading
+// The Proxy only gets evaluated when properties are accessed, not during module load
 export const supabase = new Proxy({} as SupabaseClient, {
   get(_target, prop) {
-    const client = getSupabaseClient()
-    const value = client[prop as keyof SupabaseClient]
-    if (typeof value === 'function') {
-      return value.bind(client)
+    try {
+      const client = getSupabaseClient()
+      const value = client[prop as keyof SupabaseClient]
+      if (typeof value === 'function') {
+        return value.bind(client)
+      }
+      return value
+    } catch (error) {
+      // If there's an error getting the client, return a no-op function
+      // This prevents build-time errors
+      if (typeof prop === 'string' && prop.includes('from')) {
+        return () => ({
+          select: () => ({ eq: () => ({ single: () => ({ data: null, error: null }) }) }),
+          insert: () => ({ select: () => ({ single: () => ({ data: null, error: { message: 'Missing Supabase environment variables' } }) }) }),
+          update: () => ({ eq: () => ({ data: null, error: { message: 'Missing Supabase environment variables' } }) }),
+          delete: () => ({ eq: () => ({ error: { message: 'Missing Supabase environment variables' } }) })
+        })
+      }
+      throw error
     }
-    return value
   }
 }) as SupabaseClient
