@@ -189,7 +189,7 @@ export default function QRGenerator() {
   }
 
   const downloadQR = () => {
-    const imageToDownload = finalQRImage || qrImageSrc
+    const imageToDownload = finalQRImage ?? qrImageSrc ?? ''
     if (!imageToDownload) {
       alert('Generer venligst en QR kode først!')
       return
@@ -320,7 +320,7 @@ export default function QRGenerator() {
               <div className="mb-6 p-6 rounded-xl bg-gray-50 border border-gray-200">
                 <div className="flex justify-center items-center">
                   <img 
-                    src={finalQRImage || qrImageSrc} 
+                    src={finalQRImage ?? qrImageSrc ?? undefined} 
                     alt="QR Code" 
                     className="max-w-full h-auto rounded-lg shadow-sm"
                   />
