@@ -58,6 +58,157 @@ export default function QRGenerator() {
     ? window.location.origin 
     : 'http://localhost:3000'
 
+  // Core QR code generation function (used by both preview and full generation)
+  const generateQRCode = (text: string, skipTracking: boolean = false) => {
+    return new Promise<string>((resolve, reject) => {
+      try {
+        const container = document.createElement('div')
+        const errorLevelMap: { [key: string]: number } = {
+          'L': 0,
+          'M': 1,
+          'Q': 2,
+          'H': 3
+        }
+        const correctLevel = errorLevelMap[errorLevel] || 1
+
+        new window.QRCode(container, {
+          text: text,
+          width: qrSize,
+          height: qrSize,
+          colorDark: '#000000',
+          colorLight: '#FFFFFF',
+          correctLevel: correctLevel
+        })
+
+        setTimeout(() => {
+          const canvas = container.querySelector('canvas')
+          if (!canvas) {
+            reject(new Error('Kunne ikke generere QR kode canvas'))
+            return
+          }
+
+          const tempCtx = canvas.getContext('2d')
+          if (!tempCtx) {
+            reject(new Error('Kunne ikke få canvas context'))
+            return
+          }
+          
+          const imageData = tempCtx.getImageData(0, 0, canvas.width, canvas.height)
+          const modules = canvas.width
+          const moduleSize = canvas.width / modules
+
+          const finalCanvas = document.createElement('canvas')
+          const ctx = finalCanvas.getContext('2d')
+          if (!ctx) {
+            reject(new Error('Kunne ikke få final canvas context'))
+            return
+          }
+
+          const padding = 20
+          const textHeight = textBelow.trim() ? 60 : 0
+          finalCanvas.width = qrSize + (padding * 2)
+          finalCanvas.height = qrSize + (padding * 2) + textHeight
+
+          ctx.fillStyle = backgroundColor
+          ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height)
+
+          const qrStartX = padding
+          const qrStartY = padding
+          
+          for (let y = 0; y < modules; y++) {
+            for (let x = 0; x < modules; x++) {
+              const index = (y * modules + x) * 4
+              const r = imageData.data[index]
+              const isDark = r < 128
+
+              if (isDark) {
+                const pixelX = qrStartX + x * moduleSize
+                const pixelY = qrStartY + y * moduleSize
+                
+                const isCorner = (
+                  (x < 7 && y < 7) ||
+                  (x >= modules - 7 && y < 7) ||
+                  (x < 7 && y >= modules - 7)
+                )
+
+                if (isCorner) {
+                  drawCorner(ctx, pixelX, pixelY, moduleSize, cornerStyle, foregroundColor)
+                } else {
+                  drawPattern(ctx, pixelX, pixelY, moduleSize, patternStyle, foregroundColor)
+                }
+              }
+            }
+          }
+
+          const addLogoAndText = () => {
+            if (logoPreview || centerText) {
+              const centerX = qrStartX + qrSize / 2
+              const centerY = qrStartY + qrSize / 2
+              const logoSize = qrSize * 0.2
+
+              if (logoPreview) {
+                const logoImg = new Image()
+                logoImg.onload = () => {
+                  ctx.save()
+                  ctx.globalCompositeOperation = 'destination-over'
+                  ctx.drawImage(logoImg, centerX - logoSize / 2, centerY - logoSize / 2, logoSize, logoSize)
+                  ctx.restore()
+                  finalizeQR()
+                }
+                logoImg.onerror = () => finalizeQR()
+                logoImg.src = logoPreview
+              } else if (centerText) {
+                ctx.fillStyle = foregroundColor
+                ctx.font = `bold ${logoSize * 0.3}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`
+                ctx.textAlign = 'center'
+                ctx.textBaseline = 'middle'
+                ctx.fillText(centerText, centerX, centerY)
+                finalizeQR()
+              }
+            } else {
+              finalizeQR()
+            }
+          }
+
+          const finalizeQR = () => {
+            if (!ctx) return
+            
+            if (textBelow.trim()) {
+              ctx.fillStyle = '#1a1a1a'
+              ctx.font = 'bold 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+              ctx.textAlign = 'center'
+              ctx.textBaseline = 'top'
+              
+              const maxWidth = qrSize - 20
+              const words = textBelow.split(' ')
+              let line = ''
+              let y = qrSize + padding + 10
+              
+              for (let i = 0; i < words.length; i++) {
+                const testLine = line + words[i] + ' '
+                const metrics = ctx.measureText(testLine)
+                if (metrics.width > maxWidth && i > 0) {
+                  ctx.fillText(line, finalCanvas.width / 2, y)
+                  line = words[i] + ' '
+                  y += 22
+                } else {
+                  line = testLine
+                }
+              }
+              ctx.fillText(line, finalCanvas.width / 2, y)
+            }
+            
+            resolve(finalCanvas.toDataURL('image/png'))
+          }
+
+          addLogoAndText()
+        }, 200)
+      } catch (err: any) {
+        reject(err)
+      }
+    })
+  }
+
   const drawPattern = (
     ctx: CanvasRenderingContext2D,
     x: number,
