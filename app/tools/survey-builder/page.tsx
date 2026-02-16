@@ -844,13 +844,14 @@ function QuestionEditor({
         <div className="space-y-3 mb-3">
           <div>
             <label className="block text-xs text-gray-700 mb-1">Rækker</label>
-            {question.rows?.map((row, rowIndex) => (
+            {(Array.isArray(question.rows) ? question.rows : []).map((row, rowIndex) => (
               <div key={rowIndex} className="flex gap-2 mb-1">
                 <input
                   type="text"
                   value={row}
                   onChange={(e) => {
-                    const newRows = [...(question.rows || [])]
+                    const currentRows = Array.isArray(question.rows) ? question.rows : []
+                    const newRows = [...currentRows]
                     newRows[rowIndex] = e.target.value
                     onUpdate({ rows: newRows })
                   }}
@@ -860,7 +861,8 @@ function QuestionEditor({
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
-                    const newRows = question.rows?.filter((_, i) => i !== rowIndex) || []
+                    const currentRows = Array.isArray(question.rows) ? question.rows : []
+                    const newRows = currentRows.filter((_, i) => i !== rowIndex)
                     onUpdate({ rows: newRows.length > 0 ? newRows : ['Row 1'] })
                   }}
                   className="text-red-500 text-sm"
@@ -872,7 +874,8 @@ function QuestionEditor({
             <button
               onClick={(e) => {
                 e.stopPropagation()
-                onUpdate({ rows: [...(question.rows || []), ''] })
+                const currentRows = Array.isArray(question.rows) ? question.rows : []
+                onUpdate({ rows: [...currentRows, ''] })
               }}
               className="text-xs text-blue-600"
             >
