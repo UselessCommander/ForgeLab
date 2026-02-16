@@ -173,13 +173,15 @@ export default function QRGenerator() {
         ctx.fillRect(x, y + size * 0.65, size, size * 0.15)
         break
       case 'blob':
-        // Organic blob shape
+        // Organic blob shape (deterministic based on position)
         ctx.beginPath()
         const blobRadius = size * 0.4
         const points = 8
+        const seed = (x + y) % 7 // Deterministic seed based on position
         for (let i = 0; i < points; i++) {
           const angle = (i * Math.PI * 2) / points
-          const radius = blobRadius + (Math.random() * 0.3 - 0.15) * blobRadius
+          const variation = Math.sin(seed + i) * 0.2 + Math.cos(seed * 2 + i) * 0.1
+          const radius = blobRadius + variation * blobRadius
           const px = centerX + Math.cos(angle) * radius
           const py = centerY + Math.sin(angle) * radius
           if (i === 0) ctx.moveTo(px, py)
