@@ -2,6 +2,7 @@ import Link from 'next/link'
 import ForgeLabLogo from '@/components/ForgeLabLogo'
 import { LayoutGrid, ArrowRight, LogIn } from 'lucide-react'
 import { VAERKTOEJER } from '@/lib/vaerktoejer-data'
+import { getToolIcon } from '@/lib/vaerktoejer-icons'
 
 export const metadata = {
   title: 'Flere værktøjer | ForgeLab',
@@ -45,27 +46,36 @@ export default function VaerktoejerPage() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {VAERKTOEJER.map((v) => (
-              <Link
-                key={v.slug}
-                href={`/vaerktoejer/${v.slug}`}
-                className="group bg-white rounded-2xl p-6 border border-gray-200/80 shadow-sm hover:shadow-lg hover:border-violet-200/80 transition-all duration-300 block text-left"
-              >
-                <h2 className="text-lg font-semibold text-gray-900 mb-2 group-hover:text-violet-700 transition-colors">
-                  {v.title}
-                </h2>
-                <p className="text-gray-600 text-sm leading-relaxed mb-4">
-                  {v.shortDescription}
-                </p>
-                <span className="inline-flex items-center gap-2 text-violet-600 font-medium text-sm">
-                  Læs mere
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                </span>
-              </Link>
-            ))}
+            {VAERKTOEJER.map((v) => {
+              const { Icon, bg, text } = getToolIcon(v.slug)
+              return (
+                <Link
+                  key={v.slug}
+                  href={`/vaerktoejer/${v.slug}`}
+                  className="group bg-white rounded-2xl p-6 border border-gray-200/80 shadow-sm hover:shadow-lg hover:border-violet-200/80 transition-all duration-300 block text-left"
+                >
+                  <div className={`inline-flex items-center justify-center w-12 h-12 rounded-xl ${bg} ${text} mb-4 group-hover:scale-105 transition-transform`}>
+                    <Icon className="w-6 h-6" />
+                  </div>
+                  <h2 className="text-lg font-semibold text-gray-900 mb-2 group-hover:text-violet-700 transition-colors">
+                    {v.title}
+                  </h2>
+                  <p className="text-gray-600 text-sm leading-relaxed mb-4">
+                    {v.shortDescription}
+                  </p>
+                  <span className="inline-flex items-center gap-2 text-violet-600 font-medium text-sm">
+                    Læs mere
+                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  </span>
+                </Link>
+              )
+            })}
           </div>
 
           <div className="mt-12 p-6 bg-violet-50 border border-violet-200/80 rounded-2xl text-center">
+            <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-violet-100 text-violet-600 mb-4">
+              <LayoutGrid className="w-6 h-6" />
+            </div>
             <p className="text-gray-700 mb-4">
               Alle værktøjer er tilgængelige efter login fra dit dashboard.
             </p>
@@ -79,7 +89,7 @@ export default function VaerktoejerPage() {
           </div>
 
           <div className="mt-10 text-center">
-            <Link href="/" className="text-gray-500 hover:text-gray-900">
+            <Link href="/" className="text-gray-500 hover:text-gray-900 inline-flex items-center gap-2">
               ← Tilbage til forsiden
             </Link>
           </div>

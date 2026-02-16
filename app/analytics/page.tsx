@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import ForgeLabLogo from '@/components/ForgeLabLogo'
 import { BarChart3, ArrowRight, LogIn, TrendingUp, Clock, MapPin, Download } from 'lucide-react'
+import AnalyticsCharts from './AnalyticsCharts'
 
 export const metadata = {
   title: 'Analytics Dashboard | ForgeLab',
@@ -30,7 +31,7 @@ export default function AnalyticsPage() {
           </div>
         </nav>
 
-        <main className="container mx-auto px-6 py-16 max-w-4xl">
+        <main className="container mx-auto px-6 py-16 max-w-5xl">
           <div className="text-center mb-12">
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-sky-50 text-sky-600 mb-6">
               <BarChart3 className="w-8 h-8" />
@@ -42,6 +43,8 @@ export default function AnalyticsPage() {
               Få indsigt i dine QR-koders performance med real-time statistik over scanninger, tidspunkter og enkeltscan-detaljer.
             </p>
           </div>
+
+          <AnalyticsCharts />
 
           <section className="prose prose-gray max-w-none mb-12">
             <h2 className="text-2xl font-bold text-gray-900 mt-0">Hvad er Analytics Dashboard?</h2>

@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import ForgeLabLogo from '@/components/ForgeLabLogo'
 import { ArrowRight, LogIn } from 'lucide-react'
 import { getVaerktoejBySlug, getAllSlugs } from '@/lib/vaerktoejer-data'
+import { getToolIcon } from '@/lib/vaerktoejer-icons'
 
 interface PageProps {
   params: Promise<{ slug: string }>
@@ -26,6 +27,7 @@ export default async function VaerktoejSlugPage({ params }: PageProps) {
   const { slug } = await params
   const v = getVaerktoejBySlug(slug)
   if (!v) notFound()
+  const { Icon, bg, text } = getToolIcon(slug)
 
   return (
     <div className="min-h-screen bg-[#fafbfc]">
@@ -63,6 +65,9 @@ export default async function VaerktoejSlugPage({ params }: PageProps) {
             <span className="text-gray-900">{v.title}</span>
           </nav>
 
+          <div className={`inline-flex items-center justify-center w-14 h-14 rounded-2xl ${bg} ${text} mb-6`}>
+            <Icon className="w-7 h-7" />
+          </div>
           <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
             {v.title}
           </h1>
