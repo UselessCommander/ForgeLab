@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import Script from 'next/script'
 
@@ -229,7 +229,7 @@ export default function QRGenerator() {
   }
 
   // Core QR code generation function (used by both preview and full generation)
-  const generateQRCode = (text: string, skipTracking: boolean = false) => {
+  const generateQRCode = useCallback((text: string, skipTracking: boolean = false) => {
     return new Promise<string>((resolve, reject) => {
       try {
         const container = document.createElement('div')
@@ -377,7 +377,7 @@ export default function QRGenerator() {
         reject(err)
       }
     })
-  }
+  }, [qrSize, errorLevel, foregroundColor, backgroundColor, patternStyle, cornerStyle, logoPreview, centerText, textBelow])
 
   // Live preview effect with debouncing
   useEffect(() => {
@@ -407,7 +407,7 @@ export default function QRGenerator() {
     }, 500) // Debounce 500ms
 
     return () => clearTimeout(timeoutId)
-  }, [qrText, qrSize, errorLevel, foregroundColor, backgroundColor, patternStyle, cornerStyle, logoPreview, centerText, textBelow, qrCodeLoaded])
+  }, [qrText, qrCodeLoaded, generateQRCode])
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
