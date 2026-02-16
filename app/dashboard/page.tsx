@@ -85,6 +85,57 @@ export default async function Dashboard() {
               <span>→</span>
             </Link>
           </div>
+
+          <div className="group bg-white rounded-xl p-8 shadow-sm border border-gray-200 hover:shadow-md transition-all duration-300 hover:-translate-y-1">
+            <div className="text-4xl mb-4">📊</div>
+            <h2 className="text-2xl font-semibold text-gray-900 mb-3">
+              SWOT Generator
+            </h2>
+            <p className="text-gray-600 mb-6 leading-relaxed">
+              Analysér styrker, svagheder, muligheder og trusler for din virksomhed eller projekt.
+            </p>
+            <Link 
+              href="/tools/swot-generator"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-all duration-200"
+            >
+              Brug Værktøj
+              <span>→</span>
+            </Link>
+          </div>
+
+          <div className="group bg-white rounded-xl p-8 shadow-sm border border-gray-200 hover:shadow-md transition-all duration-300 hover:-translate-y-1">
+            <div className="text-4xl mb-4">💎</div>
+            <h2 className="text-2xl font-semibold text-gray-900 mb-3">
+              Value Proposition Canvas
+            </h2>
+            <p className="text-gray-600 mb-6 leading-relaxed">
+              Mappér kundens behov og værdi tilbud. Forstå hvad kunderne virkelig ønsker og hvordan du leverer værdi.
+            </p>
+            <Link 
+              href="/tools/value-proposition-canvas"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-all duration-200"
+            >
+              Brug Værktøj
+              <span>→</span>
+            </Link>
+          </div>
+
+          <div className="group bg-white rounded-xl p-8 shadow-sm border border-gray-200 hover:shadow-md transition-all duration-300 hover:-translate-y-1">
+            <div className="text-4xl mb-4">📈</div>
+            <h2 className="text-2xl font-semibold text-gray-900 mb-3">
+              Business Model Canvas
+            </h2>
+            <p className="text-gray-600 mb-6 leading-relaxed">
+              Visualiser og design din forretningsmodel. Mappér alle aspekter af din virksomhed på ét canvas.
+            </p>
+            <Link 
+              href="/tools/business-model-canvas"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-all duration-200"
+            >
+              Brug Værktøj
+              <span>→</span>
+            </Link>
+          </div>
         </div>
 
         {/* Footer */}
