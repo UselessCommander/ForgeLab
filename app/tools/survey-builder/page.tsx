@@ -29,7 +29,7 @@ interface Question {
   placeholder?: string
   min?: number
   max?: number
-  rows?: number
+  rows?: number | string[]
   columns?: string[]
   scaleLabels?: { min: string; max: string }
 }
@@ -978,7 +978,7 @@ function QuestionEditor({
           <label className="block text-xs text-gray-700 mb-1">Antal rækker</label>
           <input
             type="number"
-            value={question.rows || 4}
+            value={typeof question.rows === 'number' ? question.rows : 4}
             onChange={(e) => onUpdate({ rows: parseInt(e.target.value) || 4 })}
             min="1"
             max="20"
@@ -1313,7 +1313,7 @@ function SurveyPreview({
                       </tr>
                     </thead>
                     <tbody>
-                      {currentQuestion.rows?.map((row, rowIndex) => (
+                      {(Array.isArray(currentQuestion.rows) ? currentQuestion.rows : []).map((row, rowIndex) => (
                         <tr key={rowIndex}>
                           <td className="border-2 p-2 font-medium">{row}</td>
                           {currentQuestion.columns?.map((col, colIndex) => (
