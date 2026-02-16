@@ -136,6 +136,91 @@ export default async function Dashboard() {
               <span>→</span>
             </Link>
           </div>
+
+          <div className="group bg-white rounded-xl p-8 shadow-sm border border-gray-200 hover:shadow-md transition-all duration-300 hover:-translate-y-1">
+            <div className="text-4xl mb-4">💭</div>
+            <h2 className="text-2xl font-semibold text-gray-900 mb-3">
+              Empathy Map
+            </h2>
+            <p className="text-gray-600 mb-6 leading-relaxed">
+              Forstå kundens perspektiv gennem deres ord, tanker, følelser og handlinger.
+            </p>
+            <Link 
+              href="/tools/empathy-map"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-all duration-200"
+            >
+              Brug Værktøj
+              <span>→</span>
+            </Link>
+          </div>
+
+          <div className="group bg-white rounded-xl p-8 shadow-sm border border-gray-200 hover:shadow-md transition-all duration-300 hover:-translate-y-1">
+            <div className="text-4xl mb-4">🎯</div>
+            <h2 className="text-2xl font-semibold text-gray-900 mb-3">
+              TOWS Matrix
+            </h2>
+            <p className="text-gray-600 mb-6 leading-relaxed">
+              Strategisk analyse: Kombiner SWOT faktorer for at identificere strategiske muligheder.
+            </p>
+            <Link 
+              href="/tools/tows-matrix"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-all duration-200"
+            >
+              Brug Værktøj
+              <span>→</span>
+            </Link>
+          </div>
+
+          <div className="group bg-white rounded-xl p-8 shadow-sm border border-gray-200 hover:shadow-md transition-all duration-300 hover:-translate-y-1">
+            <div className="text-4xl mb-4">⚡</div>
+            <h2 className="text-2xl font-semibold text-gray-900 mb-3">
+              Porter's 5 Forces
+            </h2>
+            <p className="text-gray-600 mb-6 leading-relaxed">
+              Analysér branchens konkurrencemæssige kræfter og strukturelle faktorer.
+            </p>
+            <Link 
+              href="/tools/porters-five-forces"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-all duration-200"
+            >
+              Brug Værktøj
+              <span>→</span>
+            </Link>
+          </div>
+
+          <div className="group bg-white rounded-xl p-8 shadow-sm border border-gray-200 hover:shadow-md transition-all duration-300 hover:-translate-y-1">
+            <div className="text-4xl mb-4">📅</div>
+            <h2 className="text-2xl font-semibold text-gray-900 mb-3">
+              Gantt Chart
+            </h2>
+            <p className="text-gray-600 mb-6 leading-relaxed">
+              Visualiser projektets tidslinje og opgaver med en interaktiv Gantt-diagram.
+            </p>
+            <Link 
+              href="/tools/gantt-chart"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-all duration-200"
+            >
+              Brug Værktøj
+              <span>→</span>
+            </Link>
+          </div>
+
+          <div className="group bg-white rounded-xl p-8 shadow-sm border border-gray-200 hover:shadow-md transition-all duration-300 hover:-translate-y-1">
+            <div className="text-4xl mb-4">🔺</div>
+            <h2 className="text-2xl font-semibold text-gray-900 mb-3">
+              Maslow's Model
+            </h2>
+            <p className="text-gray-600 mb-6 leading-relaxed">
+              Forstå behovshierarkiet og mappér kundens eller brugerens behov gennem Maslow's pyramid.
+            </p>
+            <Link 
+              href="/tools/maslow-model"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-all duration-200"
+            >
+              Brug Værktøj
+              <span>→</span>
+            </Link>
+          </div>
         </div>
 
         {/* Footer */}
