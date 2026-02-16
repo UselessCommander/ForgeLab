@@ -6,21 +6,15 @@
       "use": "@vercel/node"
     }
   ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/server.js"
-    },
-    {
-      "src": "/track/(.*)",
-      "dest": "/server.js"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/public/$1"
-    }
-  ],
   "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/server.js"
+    },
+    {
+      "source": "/track/(.*)",
+      "destination": "/server.js"
+    },
     {
       "source": "/",
       "destination": "/public/index.html"
@@ -28,6 +22,10 @@
     {
       "source": "/admin.html",
       "destination": "/public/admin.html"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/public/$1"
     }
   ],
   "headers": [
