@@ -1,4 +1,4 @@
-﻿-- Create users table
+-- Create users table
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   username TEXT UNIQUE NOT NULL,
@@ -35,7 +35,24 @@ ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE qr_codes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE scans ENABLE ROW LEVEL SECURITY;
 
--- Create policies to allow all operations (vi hÃ¥ndterer auth i appen)
-CREATE POLICY "Allow all operations for users" ON users FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all operations for qr_codes" ON qr_codes FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all operations for scans" ON scans FOR ALL USING (true) WITH CHECK (true);
+-- Slet de gamle policies hvis de eksisterer
+DROP POLICY IF EXISTS "Allow all operations for users" ON users;
+DROP POLICY IF EXISTS "Allow all operations for qr_codes" ON qr_codes;
+DROP POLICY IF EXISTS "Allow all operations for scans" ON scans;
+
+-- Create policies to allow all operations (vi håndterer auth i appen)
+-- Brug separate policies for hver operation type for bedre kompatibilitet
+CREATE POLICY "Allow SELECT for users" ON users FOR SELECT USING (true);
+CREATE POLICY "Allow INSERT for users" ON users FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow UPDATE for users" ON users FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "Allow DELETE for users" ON users FOR DELETE USING (true);
+
+CREATE POLICY "Allow SELECT for qr_codes" ON qr_codes FOR SELECT USING (true);
+CREATE POLICY "Allow INSERT for qr_codes" ON qr_codes FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow UPDATE for qr_codes" ON qr_codes FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "Allow DELETE for qr_codes" ON qr_codes FOR DELETE USING (true);
+
+CREATE POLICY "Allow SELECT for scans" ON scans FOR SELECT USING (true);
+CREATE POLICY "Allow INSERT for scans" ON scans FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow UPDATE for scans" ON scans FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "Allow DELETE for scans" ON scans FOR DELETE USING (true);
