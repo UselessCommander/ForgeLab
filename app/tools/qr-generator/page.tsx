@@ -58,7 +58,7 @@ export default function QRGenerator() {
     ? window.location.origin 
     : 'http://localhost:3000'
 
-  const drawPattern = (
+  const drawPattern = useCallback((
     ctx: CanvasRenderingContext2D,
     x: number,
     y: number,
@@ -181,9 +181,9 @@ export default function QRGenerator() {
         ctx.fill()
         break
     }
-  }
+  }, [backgroundColor])
 
-  const drawCorner = (
+  const drawCorner = useCallback((
     ctx: CanvasRenderingContext2D,
     x: number,
     y: number,
@@ -226,7 +226,7 @@ export default function QRGenerator() {
         ctx.fillStyle = color
         break
     }
-  }
+  }, [backgroundColor])
 
   // Core QR code generation function (used by both preview and full generation)
   const generateQRCode = useCallback((text: string, skipTracking: boolean = false) => {
@@ -377,7 +377,7 @@ export default function QRGenerator() {
         reject(err)
       }
     })
-  }, [qrSize, errorLevel, foregroundColor, backgroundColor, patternStyle, cornerStyle, logoPreview, centerText, textBelow])
+  }, [qrSize, errorLevel, foregroundColor, backgroundColor, patternStyle, cornerStyle, logoPreview, centerText, textBelow, drawPattern, drawCorner])
 
   // Live preview effect with debouncing
   useEffect(() => {
