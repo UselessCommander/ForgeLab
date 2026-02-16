@@ -407,7 +407,7 @@ export default function QRGenerator() {
     }, 500) // Debounce 500ms
 
     return () => clearTimeout(timeoutId)
-  }, [qrText, qrSize, errorLevel, foregroundColor, backgroundColor, patternStyle, cornerStyle, logoPreview, centerText, textBelow, qrCodeLoaded, generateQRCode])
+  }, [qrText, qrSize, errorLevel, foregroundColor, backgroundColor, patternStyle, cornerStyle, logoPreview, centerText, textBelow, qrCodeLoaded])
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
