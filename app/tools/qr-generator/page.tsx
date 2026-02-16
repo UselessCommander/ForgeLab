@@ -45,6 +45,7 @@ export default function QRGenerator() {
   const [showAdvanced, setShowAdvanced] = useState(false)
   
   const logoInputRef = useRef<HTMLInputElement>(null)
+  const statsIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     if (typeof window !== 'undefined' && window.QRCode) {
@@ -101,7 +102,7 @@ export default function QRGenerator() {
     }
   }, [backgroundColor])
 
-  // Core QR code generation function (used by both preview and full generation)
+  // Core QR code generation function
   const generateQRCode = useCallback((text: string, skipTracking: boolean = false) => {
     return new Promise<string>((resolve, reject) => {
       try {
@@ -177,7 +178,6 @@ export default function QRGenerator() {
                 if (isCorner) {
                   drawCorner(ctx, pixelX, pixelY, moduleSize, cornerStyle, foregroundColor)
                 } else {
-                  // Simple square pattern for non-corner modules
                   ctx.fillStyle = foregroundColor
                   ctx.fillRect(pixelX, pixelY, moduleSize, moduleSize)
                 }
@@ -276,10 +276,9 @@ export default function QRGenerator() {
         const imageData = await generateQRCode(text, true)
         setFinalQRImage(imageData)
       } catch (err: any) {
-        // Silently fail for preview
         console.error('Preview generation error:', err)
       }
-    }, 500) // Debounce 500ms
+    }, 500)
 
     return () => clearTimeout(timeoutId)
   }, [qrText, qrCodeLoaded, generateQRCode, foregroundColor, backgroundColor, cornerStyle, logoPreview, centerText, textBelow, qrSize, errorLevel])
@@ -312,6 +311,35 @@ export default function QRGenerator() {
     }
   }
 
+  const refreshStats = async (qrId: string) => {
+    try {
+      const response = await fetch(`${API_URL}/api/stats/${qrId}`)
+      if (response.ok) {
+        const data = await response.json()
+        setScanCount(data.count || 0)
+      }
+    } catch (err) {
+      console.error('Kunne ikke hente statistik:', err)
+    }
+  }
+
+  const startAutoRefreshStats = (qrId: string) => {
+    if (statsIntervalRef.current) {
+      clearInterval(statsIntervalRef.current)
+    }
+    statsIntervalRef.current = setInterval(() => {
+      refreshStats(qrId)
+    }, 5000)
+  }
+
+  useEffect(() => {
+    return () => {
+      if (statsIntervalRef.current) {
+        clearInterval(statsIntervalRef.current)
+      }
+    }
+  }, [])
+
   // Full generation with tracking
   const generateQR = async () => {
     if (typeof window === 'undefined' || !window.QRCode) {
@@ -328,6 +356,11 @@ export default function QRGenerator() {
     setError('')
     setCurrentQrId(null)
     setScanCount(0)
+
+    if (statsIntervalRef.current) {
+      clearInterval(statsIntervalRef.current)
+      statsIntervalRef.current = null
+    }
 
     let finalText = text
     let trackUrl = null
@@ -372,25 +405,6 @@ export default function QRGenerator() {
     }
   }
 
-  const refreshStats = async (qrId: string) => {
-    try {
-      const response = await fetch(`${API_URL}/api/stats/${qrId}`)
-      if (response.ok) {
-        const data = await response.json()
-        setScanCount(data.count || 0)
-      }
-    } catch (err) {
-      console.error('Kunne ikke hente statistik:', err)
-    }
-  }
-
-  const startAutoRefreshStats = (qrId: string) => {
-    const interval = setInterval(() => {
-      refreshStats(qrId)
-    }, 5000)
-    return () => clearInterval(interval)
-  }
-
   const downloadQR = () => {
     if (!finalQRImage) {
       alert('Generer venligst en QR kode først!')
@@ -414,367 +428,368 @@ export default function QRGenerator() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Left Column - Controls */}
             <div className="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-gray-200">
-            {/* Back Link */}
-            <Link 
-              href="/dashboard" 
-              className="inline-flex items-center gap-2 text-gray-700 font-medium mb-8 hover:text-gray-900 transition-colors"
-            >
-              <span>←</span>
-              <span>Tilbage til Dashboard</span>
-            </Link>
-            
-            {/* Header */}
-            <div className="text-center mb-8">
-              <h1 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-2">
-                QR Code Generator
-              </h1>
-            </div>
-            
-            {/* Input */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Indtast tekst eller URL
-              </label>
-              <textarea
-                value={qrText}
-                onChange={(e) => setQrText(e.target.value)}
-                placeholder="Skriv din tekst eller URL her..."
-                className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-900 focus:outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-all duration-200 resize-none min-h-[100px]"
-              />
-            </div>
-
-            {/* Tracking Checkbox */}
-            <div className="flex items-center gap-3 mb-6 p-4 rounded-lg bg-gray-50 border border-gray-200">
-              <input
-                type="checkbox"
-                id="enableTracking"
-                checked={enableTracking}
-                onChange={(e) => setEnableTracking(e.target.checked)}
-                className="w-5 h-5 rounded border-gray-300 text-gray-900 focus:ring-gray-900 cursor-pointer"
-              />
-              <label htmlFor="enableTracking" className="text-gray-700 font-medium cursor-pointer">
-                Aktiver scanning tracking
-              </label>
-            </div>
-
-            {/* Basic Options */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-              <div>
+              {/* Back Link */}
+              <Link 
+                href="/dashboard" 
+                className="inline-flex items-center gap-2 text-gray-700 font-medium mb-8 hover:text-gray-900 transition-colors"
+              >
+                <span>←</span>
+                <span>Tilbage til Dashboard</span>
+              </Link>
+              
+              {/* Header */}
+              <div className="text-center mb-8">
+                <h1 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-2">
+                  QR Code Generator
+                </h1>
+              </div>
+              
+              {/* Input */}
+              <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Størrelse
+                  Indtast tekst eller URL
                 </label>
-                <input
-                  type="number"
-                  value={qrSize}
-                  onChange={(e) => setQrSize(parseInt(e.target.value))}
-                  min="100"
-                  max="500"
-                  step="50"
-                  className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-900 focus:outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-all duration-200"
+                <textarea
+                  value={qrText}
+                  onChange={(e) => setQrText(e.target.value)}
+                  placeholder="Skriv din tekst eller URL her..."
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-900 focus:outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-all duration-200 resize-none min-h-[100px]"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Fejlkorrektion
+
+              {/* Tracking Checkbox */}
+              <div className="flex items-center gap-3 mb-6 p-4 rounded-lg bg-gray-50 border border-gray-200">
+                <input
+                  type="checkbox"
+                  id="enableTracking"
+                  checked={enableTracking}
+                  onChange={(e) => setEnableTracking(e.target.checked)}
+                  className="w-5 h-5 rounded border-gray-300 text-gray-900 focus:ring-gray-900 cursor-pointer"
+                />
+                <label htmlFor="enableTracking" className="text-gray-700 font-medium cursor-pointer">
+                  Aktiver scanning tracking
                 </label>
-                <select
-                  value={errorLevel}
-                  onChange={(e) => setErrorLevel(e.target.value)}
-                  className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-900 focus:outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-all duration-200"
-                >
-                  <option value="L">Lav</option>
-                  <option value="M">Medium</option>
-                  <option value="Q">Høj</option>
-                  <option value="H">Meget høj</option>
-                </select>
               </div>
-            </div>
 
-            {/* Advanced Options Toggle */}
-            <div className="mb-6">
-              <button
-                onClick={() => setShowAdvanced(!showAdvanced)}
-                className="w-full px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium text-gray-700 transition-all duration-200 flex items-center justify-between"
-              >
-                <span>Avancerede Indstillinger</span>
-                <span className={showAdvanced ? 'rotate-180' : ''}>▼</span>
-              </button>
-            </div>
+              {/* Basic Options */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Størrelse
+                  </label>
+                  <input
+                    type="number"
+                    value={qrSize}
+                    onChange={(e) => setQrSize(parseInt(e.target.value))}
+                    min="100"
+                    max="500"
+                    step="50"
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-900 focus:outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-all duration-200"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Fejlkorrektion
+                  </label>
+                  <select
+                    value={errorLevel}
+                    onChange={(e) => setErrorLevel(e.target.value)}
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-900 focus:outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-all duration-200"
+                  >
+                    <option value="L">Lav</option>
+                    <option value="M">Medium</option>
+                    <option value="Q">Høj</option>
+                    <option value="H">Meget høj</option>
+                  </select>
+                </div>
+              </div>
 
-            {/* Advanced Options */}
-            {showAdvanced && (
-              <div className="space-y-4 mb-6 p-4 bg-gray-50 rounded-xl border border-gray-200 max-h-[calc(100vh-300px)] overflow-y-auto">
-                {/* Colors - Side by side layout */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Color Presets */}
+              {/* Advanced Options Toggle */}
+              <div className="mb-6">
+                <button
+                  onClick={() => setShowAdvanced(!showAdvanced)}
+                  className="w-full px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium text-gray-700 transition-all duration-200 flex items-center justify-between"
+                >
+                  <span>Avancerede Indstillinger</span>
+                  <span className={showAdvanced ? 'rotate-180' : ''}>▼</span>
+                </button>
+              </div>
+
+              {/* Advanced Options */}
+              {showAdvanced && (
+                <div className="space-y-4 mb-6 p-4 bg-gray-50 rounded-xl border border-gray-200 max-h-[calc(100vh-300px)] overflow-y-auto">
+                  {/* Colors - Side by side layout */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Color Presets */}
+                    <div>
+                      <h3 className="text-base font-semibold text-gray-900 mb-2">Preset Farver</h3>
+                      <div className="flex flex-wrap gap-2">
+                        {COLOR_PRESETS.map((preset) => (
+                          <button
+                            key={preset.value}
+                            onClick={() => setForegroundColor(preset.value)}
+                            className={`w-8 h-8 rounded-full border-2 transition-all ${
+                              foregroundColor === preset.value 
+                                ? 'border-gray-900 scale-110' 
+                                : 'border-gray-300 hover:border-gray-500'
+                            }`}
+                            style={{ backgroundColor: preset.value }}
+                            title={preset.name}
+                          />
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Foreground & Background Colors - Side by side */}
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          QR Kode Farve
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="color"
+                            value={foregroundColor}
+                            onChange={(e) => setForegroundColor(e.target.value)}
+                            className="w-12 h-8 rounded border border-gray-300 cursor-pointer"
+                          />
+                          <input
+                            type="text"
+                            value={foregroundColor}
+                            onChange={(e) => setForegroundColor(e.target.value)}
+                            placeholder="#000000"
+                            className="flex-1 px-2 py-1 text-sm rounded border border-gray-300 bg-white text-gray-900 focus:outline-none focus:border-gray-900"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Baggrund Farve
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="color"
+                            value={backgroundColor}
+                            onChange={(e) => setBackgroundColor(e.target.value)}
+                            className="w-12 h-8 rounded border border-gray-300 cursor-pointer"
+                          />
+                          <input
+                            type="text"
+                            value={backgroundColor}
+                            onChange={(e) => setBackgroundColor(e.target.value)}
+                            placeholder="#FFFFFF"
+                            className="flex-1 px-2 py-1 text-sm rounded border border-gray-300 bg-white text-gray-900 focus:outline-none focus:border-gray-900"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Corner Styles - Smaller */}
                   <div>
-                    <h3 className="text-base font-semibold text-gray-900 mb-2">Preset Farver</h3>
-                    <div className="flex flex-wrap gap-2">
-                      {COLOR_PRESETS.map((preset) => (
+                    <h3 className="text-base font-semibold text-gray-900 mb-2">Hjørne Styles</h3>
+                    <div className="grid grid-cols-4 gap-2">
+                      {(['square', 'rounded', 'dot', 'classic'] as CornerStyle[]).map((corner) => (
                         <button
-                          key={preset.value}
-                          onClick={() => setForegroundColor(preset.value)}
-                          className={`w-8 h-8 rounded-full border-2 transition-all ${
-                            foregroundColor === preset.value 
-                              ? 'border-gray-900 scale-110' 
-                              : 'border-gray-300 hover:border-gray-500'
+                          key={corner}
+                          onClick={() => setCornerStyle(corner)}
+                          className={`p-2 rounded border-2 transition-all ${
+                            cornerStyle === corner
+                              ? 'border-gray-900 bg-gray-100'
+                              : 'border-gray-200 hover:border-gray-400'
                           }`}
-                          style={{ backgroundColor: preset.value }}
-                          title={preset.name}
-                        />
+                        >
+                          <div className="flex justify-center mb-1">
+                            <div className={`w-6 h-6 bg-gray-900 ${
+                              corner === 'square' ? '' :
+                              corner === 'rounded' ? 'rounded-lg' :
+                              corner === 'dot' ? 'rounded-full' :
+                              'rounded-lg'
+                            }`} />
+                          </div>
+                          <p className="text-[10px] font-medium text-gray-700 capitalize text-center">
+                            {corner === 'square' ? 'Firkant' :
+                             corner === 'rounded' ? 'Afrundet' :
+                             corner === 'dot' ? 'Prik' :
+                             'Klassisk'}
+                          </p>
+                        </button>
                       ))}
                     </div>
                   </div>
 
-                  {/* Foreground & Background Colors - Side by side */}
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
-                        QR Kode Farve
-                      </label>
-                      <div className="flex gap-2">
-                        <input
-                          type="color"
-                          value={foregroundColor}
-                          onChange={(e) => setForegroundColor(e.target.value)}
-                          className="w-12 h-8 rounded border border-gray-300 cursor-pointer"
-                        />
-                        <input
-                          type="text"
-                          value={foregroundColor}
-                          onChange={(e) => setForegroundColor(e.target.value)}
-                          placeholder="#000000"
-                          className="flex-1 px-2 py-1 text-sm rounded border border-gray-300 bg-white text-gray-900 focus:outline-none focus:border-gray-900"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
-                        Baggrund Farve
-                      </label>
-                      <div className="flex gap-2">
-                        <input
-                          type="color"
-                          value={backgroundColor}
-                          onChange={(e) => setBackgroundColor(e.target.value)}
-                          className="w-12 h-8 rounded border border-gray-300 cursor-pointer"
-                        />
-                        <input
-                          type="text"
-                          value={backgroundColor}
-                          onChange={(e) => setBackgroundColor(e.target.value)}
-                          placeholder="#FFFFFF"
-                          className="flex-1 px-2 py-1 text-sm rounded border border-gray-300 bg-white text-gray-900 focus:outline-none focus:border-gray-900"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Corner Styles - Smaller */}
-                <div>
-                  <h3 className="text-base font-semibold text-gray-900 mb-2">Hjørne Styles</h3>
-                  <div className="grid grid-cols-4 gap-2">
-                    {(['square', 'rounded', 'dot', 'classic'] as CornerStyle[]).map((corner) => (
+                  {/* Logo / Center Text */}
+                  <div>
+                    <h3 className="text-base font-semibold text-gray-900 mb-2">Logo eller Center Tekst</h3>
+                    
+                    <div className="flex flex-wrap gap-2 mb-3">
                       <button
-                        key={corner}
-                        onClick={() => setCornerStyle(corner)}
-                        className={`p-2 rounded border-2 transition-all ${
-                          cornerStyle === corner
+                        onClick={removeLogo}
+                        className={`px-3 py-1.5 rounded border-2 transition-all text-sm ${
+                          !logoPreview && !centerText
                             ? 'border-gray-900 bg-gray-100'
                             : 'border-gray-200 hover:border-gray-400'
                         }`}
                       >
-                        <div className="flex justify-center mb-1">
-                          <div className={`w-6 h-6 bg-gray-900 ${
-                            corner === 'square' ? '' :
-                            corner === 'rounded' ? 'rounded-lg' :
-                            corner === 'dot' ? 'rounded-full' :
-                            'rounded-lg'
-                          }`} />
-                        </div>
-                        <p className="text-[10px] font-medium text-gray-700 capitalize text-center">
-                          {corner === 'square' ? 'Firkant' :
-                           corner === 'rounded' ? 'Afrundet' :
-                           corner === 'dot' ? 'Prik' :
-                           'Klassisk'}
-                        </p>
+                        <span className="text-lg">✕</span>
                       </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Logo / Center Text */}
-                <div>
-                  <h3 className="text-base font-semibold text-gray-900 mb-2">Logo eller Center Tekst</h3>
-                  
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    <button
-                      onClick={removeLogo}
-                      className={`px-3 py-1.5 rounded border-2 transition-all text-sm ${
-                        !logoPreview && !centerText
-                          ? 'border-gray-900 bg-gray-100'
-                          : 'border-gray-200 hover:border-gray-400'
-                      }`}
-                    >
-                      <span className="text-lg">✕</span>
-                    </button>
-                    
-                    <button
-                      onClick={() => logoInputRef.current?.click()}
-                      className="px-3 py-1.5 rounded border-2 border-gray-200 hover:border-gray-400 transition-all text-sm"
-                    >
-                      <span className="text-lg">📷</span>
-                      <span className="ml-1 text-xs font-medium text-gray-700">Upload</span>
-                    </button>
-                    
-                    <input
-                      ref={logoInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleLogoUpload}
-                      className="hidden"
-                    />
-                  </div>
-
-                  {logoPreview && (
-                    <div className="mb-3">
-                      <img 
-                        src={logoPreview} 
-                        alt="Logo preview" 
-                        className="w-16 h-16 object-contain rounded border border-gray-200"
+                      
+                      <button
+                        onClick={() => logoInputRef.current?.click()}
+                        className="px-3 py-1.5 rounded border-2 border-gray-200 hover:border-gray-400 transition-all text-sm"
+                      >
+                        <span className="text-lg">📷</span>
+                        <span className="ml-1 text-xs font-medium text-gray-700">Upload</span>
+                      </button>
+                      
+                      <input
+                        ref={logoInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleLogoUpload}
+                        className="hidden"
                       />
                     </div>
-                  )}
 
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Center tekst
-                    </label>
-                    <input
-                      type="text"
-                      value={centerText}
-                      onChange={(e) => {
-                        setCenterText(e.target.value)
-                        if (e.target.value) removeLogo()
-                      }}
-                      placeholder="F.eks. Logo"
-                      maxLength={10}
-                      className="w-full px-3 py-2 text-sm rounded border border-gray-300 bg-white text-gray-900 focus:outline-none focus:border-gray-900"
-                    />
-                    <p className="text-[10px] text-gray-500 mt-1">PNG, 1:1, max 5MB</p>
-                  </div>
-                </div>
-              </div>
-            )}
+                    {logoPreview && (
+                      <div className="mb-3">
+                        <img 
+                          src={logoPreview} 
+                          alt="Logo preview" 
+                          className="w-16 h-16 object-contain rounded border border-gray-200"
+                        />
+                      </div>
+                    )}
 
-            {/* Text Below Input */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Tekst nedenunder QR-koden (valgfrit)
-              </label>
-              <input
-                type="text"
-                value={textBelow}
-                onChange={(e) => setTextBelow(e.target.value)}
-                placeholder="F.eks. Scan mig for at besøge hjemmesiden"
-                className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-900 focus:outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-all duration-200"
-              />
-            </div>
-
-            {/* Generate Button */}
-            <button
-              onClick={generateQR}
-              className="w-full px-6 py-4 bg-gray-900 text-white rounded-lg font-medium text-lg hover:bg-gray-800 transition-all duration-200 mb-6"
-            >
-              Generer QR Kode
-            </button>
-            
-            {/* Error Message */}
-            {error && (
-              <div className="mb-6 p-4 rounded-lg bg-red-50 border border-red-200">
-                <p className="text-red-700 text-sm">{error}</p>
-              </div>
-            )}
-            
-            {/* QR Code Display */}
-            {finalQRImage && (
-              <div className="mb-6 p-4 rounded-xl bg-gray-50 border border-gray-200">
-                <div className="flex flex-col items-center">
-                  <div className="mb-2 text-sm text-gray-500">
-                    {qrText.trim() ? 'Live Preview' : 'Generer QR kode for at se preview'}
-                  </div>
-                  <div className="flex justify-center items-center">
-                    <img 
-                      src={finalQRImage} 
-                      alt="QR Code" 
-                      className="max-w-full h-auto rounded-lg shadow-sm"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            {/* Tracking Info */}
-            {currentQrId && (
-              <div className="mb-6 p-4 rounded-lg bg-gray-50 border border-gray-200">
-                <h3 className="text-base font-semibold text-gray-900 mb-2">
-                  📊 Tracking Information
-                </h3>
-                <div className="space-y-2 text-sm">
-                  <p className="text-gray-700">
-                    <span className="font-medium">QR ID:</span>{' '}
-                    <code className="px-2 py-1 rounded bg-white border border-gray-200 text-xs font-mono">
-                      {currentQrId}
-                    </code>
-                  </p>
-                  <p className="text-gray-700">
-                    <span className="font-medium">Antal scanninger:</span>{' '}
-                    <span className="text-gray-900 font-bold text-lg">{scanCount}</span>
-                  </p>
-                </div>
-              </div>
-            )}
-            
-            {/* Download Button */}
-            {finalQRImage && (
-              <button
-                onClick={downloadQR}
-                className="w-full px-6 py-4 bg-gray-700 text-white rounded-lg font-medium text-lg hover:bg-gray-600 transition-all duration-200"
-              >
-                Download QR Kode
-              </button>
-            )}
-          </div>
-
-          {/* Right Column - QR Preview (on larger screens) */}
-          <div className="lg:sticky lg:top-6 lg:self-start">
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
-              {finalQRImage ? (
-                <div className="flex flex-col items-center">
-                  <div className="mb-3 text-sm font-medium text-gray-700">
-                    Live Preview
-                  </div>
-                  <div className="flex justify-center items-center bg-gray-50 p-4 rounded-lg">
-                    <img 
-                      src={finalQRImage} 
-                      alt="QR Code Preview" 
-                      className="max-w-full h-auto rounded-lg shadow-md"
-                    />
-                  </div>
-                  {currentQrId && (
-                    <div className="mt-4 p-3 rounded-lg bg-gray-50 border border-gray-200 w-full">
-                      <p className="text-xs text-gray-600 mb-1">Scanninger:</p>
-                      <p className="text-2xl font-bold text-gray-900">{scanCount}</p>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Center tekst
+                      </label>
+                      <input
+                        type="text"
+                        value={centerText}
+                        onChange={(e) => {
+                          setCenterText(e.target.value)
+                          if (e.target.value) removeLogo()
+                        }}
+                        placeholder="F.eks. Logo"
+                        maxLength={10}
+                        className="w-full px-3 py-2 text-sm rounded border border-gray-300 bg-white text-gray-900 focus:outline-none focus:border-gray-900"
+                      />
+                      <p className="text-[10px] text-gray-500 mt-1">PNG, 1:1, max 5MB</p>
                     </div>
-                  )}
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center h-full min-h-[300px] text-gray-400">
-                  <div className="text-4xl mb-2">🔲</div>
-                  <p className="text-sm">Indtast tekst for at se preview</p>
+                  </div>
                 </div>
               )}
+
+              {/* Text Below Input */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Tekst nedenunder QR-koden (valgfrit)
+                </label>
+                <input
+                  type="text"
+                  value={textBelow}
+                  onChange={(e) => setTextBelow(e.target.value)}
+                  placeholder="F.eks. Scan mig for at besøge hjemmesiden"
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-900 focus:outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-all duration-200"
+                />
+              </div>
+
+              {/* Generate Button */}
+              <button
+                onClick={generateQR}
+                className="w-full px-6 py-4 bg-gray-900 text-white rounded-lg font-medium text-lg hover:bg-gray-800 transition-all duration-200 mb-6"
+              >
+                Generer QR Kode
+              </button>
+              
+              {/* Error Message */}
+              {error && (
+                <div className="mb-6 p-4 rounded-lg bg-red-50 border border-red-200">
+                  <p className="text-red-700 text-sm">{error}</p>
+                </div>
+              )}
+              
+              {/* QR Code Display */}
+              {finalQRImage && (
+                <div className="mb-6 p-4 rounded-xl bg-gray-50 border border-gray-200">
+                  <div className="flex flex-col items-center">
+                    <div className="mb-2 text-sm text-gray-500">
+                      {qrText.trim() ? 'Live Preview' : 'Generer QR kode for at se preview'}
+                    </div>
+                    <div className="flex justify-center items-center">
+                      <img 
+                        src={finalQRImage ?? undefined} 
+                        alt="QR Code" 
+                        className="max-w-full h-auto rounded-lg shadow-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Tracking Info */}
+              {currentQrId && (
+                <div className="mb-6 p-4 rounded-lg bg-gray-50 border border-gray-200">
+                  <h3 className="text-base font-semibold text-gray-900 mb-2">
+                    📊 Tracking Information
+                  </h3>
+                  <div className="space-y-2 text-sm">
+                    <p className="text-gray-700">
+                      <span className="font-medium">QR ID:</span>{' '}
+                      <code className="px-2 py-1 rounded bg-white border border-gray-200 text-xs font-mono">
+                        {currentQrId}
+                      </code>
+                    </p>
+                    <p className="text-gray-700">
+                      <span className="font-medium">Antal scanninger:</span>{' '}
+                      <span className="text-gray-900 font-bold text-lg">{scanCount}</span>
+                    </p>
+                  </div>
+                </div>
+              )}
+              
+              {/* Download Button */}
+              {finalQRImage && (
+                <button
+                  onClick={downloadQR}
+                  className="w-full px-6 py-4 bg-gray-700 text-white rounded-lg font-medium text-lg hover:bg-gray-600 transition-all duration-200"
+                >
+                  Download QR Kode
+                </button>
+              )}
+            </div>
+
+            {/* Right Column - QR Preview (on larger screens) */}
+            <div className="lg:sticky lg:top-6 lg:self-start">
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
+                {finalQRImage ? (
+                  <div className="flex flex-col items-center">
+                    <div className="mb-3 text-sm font-medium text-gray-700">
+                      Live Preview
+                    </div>
+                    <div className="flex justify-center items-center bg-gray-50 p-4 rounded-lg">
+                      <img 
+                        src={finalQRImage ?? undefined} 
+                        alt="QR Code Preview" 
+                        className="max-w-full h-auto rounded-lg shadow-md"
+                      />
+                    </div>
+                    {currentQrId && (
+                      <div className="mt-4 p-3 rounded-lg bg-gray-50 border border-gray-200 w-full">
+                        <p className="text-xs text-gray-600 mb-1">Scanninger:</p>
+                        <p className="text-2xl font-bold text-gray-900">{scanCount}</p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full min-h-[300px] text-gray-400">
+                    <div className="text-4xl mb-2">🔲</div>
+                    <p className="text-sm">Indtast tekst for at se preview</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
