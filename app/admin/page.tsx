@@ -2,6 +2,13 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import Script from 'next/script'
+
+declare global {
+  interface Window {
+    QRCode: any
+  }
+}
 
 interface QRData {
   count: number
@@ -19,6 +26,8 @@ export default function AdminDashboard() {
   const [data, setData] = useState<Record<string, QRData>>({})
   const [loading, setLoading] = useState(true)
   const [lastUpdate, setLastUpdate] = useState<string>('-')
+  const [qrImages, setQrImages] = useState<Record<string, string>>({})
+  const [qrCodeLoaded, setQrCodeLoaded] = useState(false)
 
   const API_URL = typeof window !== 'undefined' 
     ? window.location.origin 
@@ -54,6 +63,63 @@ export default function AdminDashboard() {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.QRCode) {
+      setQrCodeLoaded(true)
+    }
+  }, [])
+
+  const generateQRCodeImage = (qrId: string, trackUrl: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      try {
+        const container = document.createElement('div')
+        new window.QRCode(container, {
+          text: trackUrl,
+          width: 200,
+          height: 200,
+          colorDark: '#000000',
+          colorLight: '#FFFFFF',
+          correctLevel: 1
+        })
+
+        setTimeout(() => {
+          const canvas = container.querySelector('canvas')
+          if (!canvas) {
+            reject(new Error('Kunne ikke generere QR kode canvas'))
+            return
+          }
+          resolve(canvas.toDataURL('image/png'))
+        }, 200)
+      } catch (err: any) {
+        reject(err)
+      }
+    })
+  }
+
+  useEffect(() => {
+    if (!qrCodeLoaded) return
+
+    const generateAllQRCodes = async () => {
+      const newQrImages: Record<string, string> = {}
+      const qrCodes = Object.keys(data)
+      
+      for (const qrId of qrCodes) {
+        const trackUrl = `${API_URL}/api/track/${qrId}`
+        try {
+          const imageData = await generateQRCodeImage(qrId, trackUrl)
+          newQrImages[qrId] = imageData
+        } catch (err) {
+          console.error(`Fejl ved generering af QR kode for ${qrId}:`, err)
+        }
+      }
+      setQrImages(newQrImages)
+    }
+
+    if (Object.keys(data).length > 0) {
+      generateAllQRCodes()
+    }
+  }, [data, qrCodeLoaded, API_URL])
 
   useEffect(() => {
     loadData()
@@ -108,6 +174,7 @@ export default function AdminDashboard() {
 
       if (response.ok) {
         loadData()
+        setQrImages({})
       } else {
         const errorData = await response.json()
         alert('Fejl ved sletning: ' + (errorData.error || 'Ukendt fejl'))
@@ -118,12 +185,30 @@ export default function AdminDashboard() {
     }
   }
 
+  const downloadQR = (qrId: string) => {
+    const qrImage = qrImages[qrId]
+    if (!qrImage) {
+      alert('QR kode er ikke klar endnu. Vent venligst...')
+      return
+    }
+
+    const link = document.createElement('a')
+    link.download = `qr-kode-${qrId.substring(0, 8)}.png`
+    link.href = qrImage
+    link.click()
+  }
+
   const qrCodes = Object.keys(data)
   const totalScans = qrCodes.reduce((sum, id) => sum + (data[id]?.count || 0), 0)
 
   return (
-    <div className="min-h-screen px-4 py-8 md:py-12 bg-gradient-to-br from-gray-50 to-gray-100">
-      <div className="max-w-7xl mx-auto">
+    <>
+      <Script
+        src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"
+        onLoad={() => setQrCodeLoaded(true)}
+      />
+      <div className="min-h-screen px-4 py-8 md:py-12 bg-gradient-to-br from-gray-50 to-gray-100">
+        <div className="max-w-7xl mx-auto">
         {/* Header */}
         <header className="mb-8 md:mb-12">
           <div className="bg-white rounded-2xl p-6 md:p-10 shadow-sm border border-gray-200">
@@ -222,6 +307,21 @@ export default function AdminDashboard() {
                     </span>
                   </div>
 
+                  {/* QR Code Image */}
+                  {qrImages[qrId] ? (
+                    <div className="flex justify-center mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                      <img 
+                        src={qrImages[qrId]} 
+                        alt={`QR Code ${qrId}`}
+                        className="w-full max-w-[200px] h-auto rounded"
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex justify-center items-center mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200 h-[200px]">
+                      <div className="text-gray-400 text-sm">Genererer QR kode...</div>
+                    </div>
+                  )}
+
                   {/* Scan Count */}
                   <div className="text-center mb-4">
                     <div className="text-5xl font-bold text-gray-900 mb-2">
@@ -252,13 +352,22 @@ export default function AdminDashboard() {
                     </div>
                   )}
 
-                  {/* Delete Button */}
-                  <button
-                    onClick={() => deleteQR(qrId)}
-                    className="w-full px-4 py-2.5 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-all duration-200"
-                  >
-                    🗑️ Slet
-                  </button>
+                  {/* Action Buttons */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => downloadQR(qrId)}
+                      disabled={!qrImages[qrId]}
+                      className="flex-1 px-4 py-2.5 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                    >
+                      ⬇️ Download
+                    </button>
+                    <button
+                      onClick={() => deleteQR(qrId)}
+                      className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-all duration-200"
+                    >
+                      🗑️ Slet
+                    </button>
+                  </div>
                 </div>
               )
             })}
@@ -266,5 +375,6 @@ export default function AdminDashboard() {
         )}
       </div>
     </div>
+    </>
   )
 }
