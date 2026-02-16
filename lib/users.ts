@@ -20,25 +20,40 @@ export function isPasswordHashed(password: string): boolean {
 
 export async function createUser(username: string, password: string): Promise<User | null> {
     try {
+        console.log(`🔍 Tjekker om brugernavn "${username}" eksisterer...`);
+        
         // Tjek om brugernavn allerede eksisterer - brug select() i stedet for maybeSingle()
         const { data: existingUsers, error: checkError } = await supabase
             .from('users')
-            .select('id')
+            .select('id, username')
             .eq('username', username)
             .limit(1);
 
         // Hvis der er en fejl ved tjekket
         if (checkError) {
             console.error('❌ Fejl ved tjek af eksisterende bruger:', checkError);
-            console.error('Error code:', checkError.code, 'Error message:', checkError.message);
+            console.error('Error code:', checkError.code);
+            console.error('Error message:', checkError.message);
+            console.error('Error details:', JSON.stringify(checkError, null, 2));
+            
+            // Hvis fejlen er at tabellen ikke eksisterer, betyder det at migrationen ikke er kørt
+            if (checkError.code === '42P01' || checkError.message?.includes('does not exist')) {
+                console.error('❌ FEJL: Tabellen "users" eksisterer ikke! Kør migrationen i Supabase.');
+            }
+            
             return null;
         }
 
+        console.log(`📊 Resultat af tjek:`, existingUsers);
+
         // Hvis brugeren allerede eksisterer
         if (existingUsers && existingUsers.length > 0) {
-            console.log(`⚠️ Brugernavn "${username}" er allerede taget`);
+            console.log(`⚠️ Brugernavn "${username}" er allerede taget (fundet ${existingUsers.length} bruger(er))`);
+            console.log(`📋 Eksisterende bruger(er):`, existingUsers);
             return null;
         }
+
+        console.log(`✅ Brugernavn "${username}" er ledigt, opretter bruger...`);
 
         // Hash password
         const passwordHash = await hashPassword(password);
