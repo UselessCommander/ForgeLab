@@ -335,6 +335,8 @@ export default function QRGenerator() {
         }
 
         function finalizeQR() {
+          if (!ctx) return
+          
           // Add text below if provided
           if (textBelow.trim()) {
             ctx.fillStyle = '#1a1a1a'
