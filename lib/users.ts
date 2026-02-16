@@ -20,40 +20,51 @@ export function isPasswordHashed(password: string): boolean {
 
 export async function createUser(username: string, password: string): Promise<User | null> {
     try {
-        console.log(`🔍 Tjekker om brugernavn "${username}" eksisterer...`);
+        // Trim whitespace fra brugernavnet
+        const trimmedUsername = username.trim();
         
-        // Tjek om brugernavn allerede eksisterer - brug select() i stedet for maybeSingle()
-        const { data: existingUsers, error: checkError } = await supabase
+        if (!trimmedUsername || trimmedUsername.length < 3) {
+            console.error('❌ Brugernavn er for kort efter trimming');
+            return null;
+        }
+        
+        console.log(`🔍 Tjekker om brugernavn "${trimmedUsername}" eksisterer...`);
+        
+        // Tjek om brugernavn allerede eksisterer (case-insensitive)
+        // Hent alle brugere og sammenlign case-insensitive i JavaScript
+        const { data: allUsers, error: checkError } = await supabase
             .from('users')
-            .select('id, username')
-            .eq('username', username)
-            .limit(1);
-
-        // Hvis der er en fejl ved tjekket
+            .select('id, username');
+        
         if (checkError) {
             console.error('❌ Fejl ved tjek af eksisterende bruger:', checkError);
             console.error('Error code:', checkError.code);
             console.error('Error message:', checkError.message);
             console.error('Error details:', JSON.stringify(checkError, null, 2));
             
-            // Hvis fejlen er at tabellen ikke eksisterer, betyder det at migrationen ikke er kørt
             if (checkError.code === '42P01' || checkError.message?.includes('does not exist')) {
                 console.error('❌ FEJL: Tabellen "users" eksisterer ikke! Kør migrationen i Supabase.');
             }
             
             return null;
         }
+        
+        // Tjek case-insensitive om brugernavnet eksisterer
+        const existingUsers = allUsers?.filter(u => 
+            u.username?.toLowerCase().trim() === trimmedUsername.toLowerCase()
+        ) || [];
 
-        console.log(`📊 Resultat af tjek:`, existingUsers);
+        console.log(`📊 Tjekket ${allUsers?.length || 0} bruger(er) i databasen`);
+        console.log(`📊 Fundet ${existingUsers.length} match(es) for "${trimmedUsername}"`);
 
         // Hvis brugeren allerede eksisterer
         if (existingUsers && existingUsers.length > 0) {
-            console.log(`⚠️ Brugernavn "${username}" er allerede taget (fundet ${existingUsers.length} bruger(er))`);
+            console.log(`⚠️ Brugernavn "${trimmedUsername}" er allerede taget (fundet ${existingUsers.length} bruger(er))`);
             console.log(`📋 Eksisterende bruger(er):`, existingUsers);
             return null;
         }
 
-        console.log(`✅ Brugernavn "${username}" er ledigt, opretter bruger...`);
+        console.log(`✅ Brugernavn "${trimmedUsername}" er ledigt, opretter bruger...`);
 
         // Hash password
         const passwordHash = await hashPassword(password);
@@ -64,7 +75,7 @@ export async function createUser(username: string, password: string): Promise<Us
             .from('users')
             .insert({
                 id: userId,
-                username,
+                username: trimmedUsername,
                 password_hash: passwordHash,
                 created_at: new Date().toISOString()
             })
