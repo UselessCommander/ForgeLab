@@ -15,8 +15,13 @@ export function middleware(request: NextRequest) {
     }
   }
   
+  // Redirect /register to unified auth page
+  if (request.nextUrl.pathname === '/register') {
+    return NextResponse.redirect(new URL('/login?mode=register', request.url))
+  }
+
   // Public routes that don't require authentication
-  const publicRoutes = ['/', '/login', '/register', '/api/auth/login', '/api/auth/register', '/try/qr-generator', '/analytics', '/vaerktoejer']
+  const publicRoutes = ['/', '/login', '/api/auth/login', '/api/auth/register', '/try/qr-generator', '/analytics', '/vaerktoejer']
   const isPublicRoute = publicRoutes.some(route => request.nextUrl.pathname === route)
   const isPublicToolsExplore = request.nextUrl.pathname.startsWith('/vaerktoejer/')
   const isPublic = isPublicRoute || isPublicToolsExplore
