@@ -63,7 +63,7 @@ export function getBaseUrl() {
     }
     if (process.env.VERCEL) {
         if (process.env.VERCEL_ENV === 'production') {
-            return 'https://qr.floweffekt.dk';
+            return 'https://forgelab.dk';
         }
         if (process.env.VERCEL_URL) {
             return `https://${process.env.VERCEL_URL}`;
