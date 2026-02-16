@@ -185,36 +185,6 @@ export default function QRGenerator() {
             }
           }
 
-          const addLogoAndText = () => {
-            if (logoPreview || centerText) {
-              const centerX = qrStartX + qrSize / 2
-              const centerY = qrStartY + qrSize / 2
-              const logoSize = qrSize * 0.2
-
-              if (logoPreview) {
-                const logoImg = new Image()
-                logoImg.onload = () => {
-                  ctx.save()
-                  ctx.globalCompositeOperation = 'destination-over'
-                  ctx.drawImage(logoImg, centerX - logoSize / 2, centerY - logoSize / 2, logoSize, logoSize)
-                  ctx.restore()
-                  finalizeQR()
-                }
-                logoImg.onerror = () => finalizeQR()
-                logoImg.src = logoPreview
-              } else if (centerText) {
-                ctx.fillStyle = foregroundColor
-                ctx.font = `bold ${logoSize * 0.3}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`
-                ctx.textAlign = 'center'
-                ctx.textBaseline = 'middle'
-                ctx.fillText(centerText, centerX, centerY)
-                finalizeQR()
-              }
-            } else {
-              finalizeQR()
-            }
-          }
-
           const finalizeQR = () => {
             if (!ctx) return
             
@@ -244,6 +214,36 @@ export default function QRGenerator() {
             }
             
             resolve(finalCanvas.toDataURL('image/png'))
+          }
+
+          const addLogoAndText = () => {
+            if (logoPreview || centerText) {
+              const centerX = qrStartX + qrSize / 2
+              const centerY = qrStartY + qrSize / 2
+              const logoSize = qrSize * 0.2
+
+              if (logoPreview) {
+                const logoImg = new Image()
+                logoImg.onload = () => {
+                  ctx.save()
+                  ctx.globalCompositeOperation = 'destination-over'
+                  ctx.drawImage(logoImg, centerX - logoSize / 2, centerY - logoSize / 2, logoSize, logoSize)
+                  ctx.restore()
+                  finalizeQR()
+                }
+                logoImg.onerror = () => finalizeQR()
+                logoImg.src = logoPreview
+              } else if (centerText) {
+                ctx.fillStyle = foregroundColor
+                ctx.font = `bold ${logoSize * 0.3}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`
+                ctx.textAlign = 'center'
+                ctx.textBaseline = 'middle'
+                ctx.fillText(centerText, centerX, centerY)
+                finalizeQR()
+              }
+            } else {
+              finalizeQR()
+            }
           }
 
           addLogoAndText()
