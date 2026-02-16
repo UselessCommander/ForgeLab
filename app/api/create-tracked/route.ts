@@ -37,10 +37,11 @@ export async function POST(request: NextRequest) {
         console.log(`   Original URL: ${validatedUrl}`);
         console.log(`   Track URL: ${BASE_URL}/api/track/${id}\n`);
 
+        // Use relative URL for trackUrl to work correctly
         return NextResponse.json({
             success: true,
             qrId: id,
-            trackUrl: `${BASE_URL}/api/track/${id}`,
+            trackUrl: `/api/track/${id}`,
             statsUrl: `${BASE_URL}/api/stats/${id}`,
             originalUrl: validatedUrl
         });

@@ -55,9 +55,13 @@ export async function GET(
         // Redirect to original URL
         const originalUrl = scans[qrId].originalUrl;
         if (originalUrl) {
-            const redirectUrl = originalUrl.startsWith('http://') || originalUrl.startsWith('https://') 
-                ? originalUrl 
-                : `https://${originalUrl}`;
+            // Ensure URL has protocol
+            let redirectUrl = originalUrl;
+            if (!redirectUrl.startsWith('http://') && !redirectUrl.startsWith('https://')) {
+                redirectUrl = `https://${redirectUrl}`;
+            }
+            
+            // Use NextResponse.redirect with absolute URL
             return NextResponse.redirect(redirectUrl, 302);
         } else {
             return new NextResponse(

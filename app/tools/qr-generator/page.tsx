@@ -69,7 +69,11 @@ export default function QRGenerator() {
           const data = await response.json()
           setCurrentQrId(data.qrId)
           trackUrl = data.trackUrl
-          finalText = trackUrl
+          // Use full URL for QR code
+          const fullTrackUrl = trackUrl.startsWith('http') 
+            ? trackUrl 
+            : `${API_URL}${trackUrl}`
+          finalText = fullTrackUrl
           refreshStats(data.qrId)
           startAutoRefreshStats(data.qrId)
         } else {
