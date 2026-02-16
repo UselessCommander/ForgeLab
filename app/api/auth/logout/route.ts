@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
     const cookieStore = await cookies()
     cookieStore.delete('forgelab_session')
 
-    return NextResponse.json({ success: true })
+    // Redirect til landing page efter logout
+    return NextResponse.redirect(new URL('/', request.url))
   } catch (error: any) {
-    return NextResponse.json(
-      { error: 'Intern server fejl', message: error.message },
-      { status: 500 }
-    )
+    // Hvis redirect fejler, redirect alligevel
+    return NextResponse.redirect(new URL('/', request.url))
   }
 }
