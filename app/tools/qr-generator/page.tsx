@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import Script from 'next/script'
 import ForgeLabLogo from '@/components/ForgeLabLogo'
+import { useProjectToolData } from '@/lib/useProjectToolData'
 
 declare global {
   interface Window {
@@ -44,6 +45,35 @@ export default function QRGenerator() {
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [centerText, setCenterText] = useState('')
   const [showAdvanced, setShowAdvanced] = useState(false)
+
+  // Combine QR generator settings into one state object for saving (exclude UI-only and runtime states)
+  const qrGeneratorData = {
+    qrText,
+    qrSize,
+    errorLevel,
+    enableTracking,
+    textBelow,
+    foregroundColor,
+    backgroundColor,
+    cornerStyle,
+    logoPreview, // Save preview URL, not File object
+    centerText
+  }
+  const setQRGeneratorData = (data: typeof qrGeneratorData) => {
+    setQrText(data.qrText)
+    setQrSize(data.qrSize)
+    setErrorLevel(data.errorLevel)
+    setEnableTracking(data.enableTracking)
+    setTextBelow(data.textBelow)
+    setForegroundColor(data.foregroundColor)
+    setBackgroundColor(data.backgroundColor)
+    setCornerStyle(data.cornerStyle)
+    setLogoPreview(data.logoPreview)
+    setCenterText(data.centerText)
+  }
+
+  // Automatically save/load data when in a project
+  useProjectToolData('qr-generator', qrGeneratorData, setQRGeneratorData)
   const [savedQRCodes, setSavedQRCodes] = useState<Array<{
     id: string
     qrId: string | null

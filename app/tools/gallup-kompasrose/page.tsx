@@ -3,10 +3,21 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import ForgeLabLogo from '@/components/ForgeLabLogo'
+import { useProjectToolData } from '@/lib/useProjectToolData'
 
 export default function GallupKompasrose() {
   const [values1, setValues1] = useState([70, 55, 60, 45, 50, 65, 80, 75])
   const [values2, setValues2] = useState([70, 55, 60, 45, 50, 65, 80, 75])
+
+  // Combine values1 and values2 into one state object for saving
+  const kompasroseData = { values1, values2 }
+  const setKompasroseData = (data: typeof kompasroseData) => {
+    setValues1(data.values1)
+    setValues2(data.values2)
+  }
+
+  // Automatically save/load data when in a project
+  useProjectToolData('gallup-kompasrose', kompasroseData, setKompasroseData)
 
   const labels = [
     'Moderne',

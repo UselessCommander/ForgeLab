@@ -2,6 +2,7 @@
 
 import { useState, useRef, Suspense } from 'react'
 import ToolLayout from '@/components/ToolLayout'
+import { useProjectToolData } from '@/lib/useProjectToolData'
 import {
   Plus,
   Trash2,
@@ -119,6 +120,19 @@ function SurveyTemplateContent() {
   const [linkError, setLinkError] = useState<string | null>(null)
   const [linkLoading, setLinkLoading] = useState(false)
   const [designOpen, setDesignOpen] = useState(false)
+
+  // Combine survey data into one state object for saving (exclude UI-only states)
+  const surveyData = { surveyTitle, surveyDescription, surveyImage, design, questions }
+  const setSurveyData = (data: typeof surveyData) => {
+    setSurveyTitle(data.surveyTitle)
+    setSurveyDescription(data.surveyDescription)
+    setSurveyImage(data.surveyImage)
+    setDesign(data.design)
+    setQuestions(data.questions)
+  }
+
+  // Automatically save/load data when in a project
+  useProjectToolData('survey-template', surveyData, setSurveyData)
 
   const handleQuestionImageFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]

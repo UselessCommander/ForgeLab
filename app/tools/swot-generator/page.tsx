@@ -2,6 +2,7 @@
 
 import { useState, Suspense } from 'react'
 import ToolLayout from '@/components/ToolLayout'
+import { useProjectToolData } from '@/lib/useProjectToolData'
 
 function SWOTContent() {
   const [swot, setSwot] = useState({
@@ -10,6 +11,9 @@ function SWOTContent() {
     opportunities: [''],
     threats: ['']
   })
+
+  // Automatically save/load data when in a project
+  useProjectToolData('swot-generator', swot, setSwot)
 
   const updateField = (category: keyof typeof swot, index: number, value: string) => {
     const newSwot = { ...swot }

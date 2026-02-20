@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import ForgeLabLogo from '@/components/ForgeLabLogo'
+import { useProjectToolData } from '@/lib/useProjectToolData'
 
 export default function BusinessModelCanvas() {
   const [canvas, setCanvas] = useState({
@@ -16,6 +17,9 @@ export default function BusinessModelCanvas() {
     costStructure: [''],
     revenueStreams: ['']
   })
+
+  // Automatically save/load data when in a project
+  useProjectToolData('business-model-canvas', canvas, setCanvas)
 
   const updateField = (category: keyof typeof canvas, index: number, value: string) => {
     const newCanvas = { ...canvas }

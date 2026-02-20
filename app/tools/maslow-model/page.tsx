@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import ForgeLabLogo from '@/components/ForgeLabLogo'
+import { useProjectToolData } from '@/lib/useProjectToolData'
 
 export default function MaslowModel() {
   const [needs, setNeeds] = useState({
@@ -12,6 +13,9 @@ export default function MaslowModel() {
     esteem: [''],
     selfActualization: ['']
   })
+
+  // Automatically save/load data when in a project
+  useProjectToolData('maslow-model', needs, setNeeds)
 
   const updateNeed = (category: keyof typeof needs, index: number, value: string) => {
     const newNeeds = { ...needs }

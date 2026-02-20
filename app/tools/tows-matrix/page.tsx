@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import ForgeLabLogo from '@/components/ForgeLabLogo'
+import { useProjectToolData } from '@/lib/useProjectToolData'
 
 export default function TOWSMatrix() {
   const [matrix, setMatrix] = useState({
@@ -16,6 +17,19 @@ export default function TOWSMatrix() {
   const [weaknesses, setWeaknesses] = useState([''])
   const [opportunities, setOpportunities] = useState([''])
   const [threats, setThreats] = useState([''])
+
+  // Combine matrix and SWOT lists into one state object for saving
+  const towsData = { matrix, strengths, weaknesses, opportunities, threats }
+  const setTOWSData = (data: typeof towsData) => {
+    setMatrix(data.matrix)
+    setStrengths(data.strengths)
+    setWeaknesses(data.weaknesses)
+    setOpportunities(data.opportunities)
+    setThreats(data.threats)
+  }
+
+  // Automatically save/load data when in a project
+  useProjectToolData('tows-matrix', towsData, setTOWSData)
 
   const updateMatrix = (category: keyof typeof matrix, index: number, value: string) => {
     const newMatrix = { ...matrix }

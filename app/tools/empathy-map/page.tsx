@@ -2,6 +2,7 @@
 
 import { useState, Suspense } from 'react'
 import ToolLayout from '@/components/ToolLayout'
+import { useProjectToolData } from '@/lib/useProjectToolData'
 
 type MapSection = string[]
 
@@ -17,6 +18,16 @@ function EmpathyMapContent() {
     pains: [''],
     gains: ['']
   })
+
+  // Combine goal and map into one state object for saving
+  const empathyData = { goal, map }
+  const setEmpathyData = (data: typeof empathyData) => {
+    setGoal(data.goal)
+    setMap(data.map)
+  }
+
+  // Automatically save/load data when in a project
+  useProjectToolData('empathy-map', empathyData, setEmpathyData)
 
   const updateField = (category: keyof typeof map, index: number, value: string) => {
     const newMap = { ...map }

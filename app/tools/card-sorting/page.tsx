@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import ForgeLabLogo from '@/components/ForgeLabLogo'
+import { useProjectToolData } from '@/lib/useProjectToolData'
 
 type SortingMode = 'open' | 'closed' | 'hybrid'
 
@@ -26,6 +27,17 @@ export default function CardSorting() {
     { id: '1', name: '', cards: [] }
   ])
   const [draggedCard, setDraggedCard] = useState<string | null>(null)
+
+  // Combine mode, cards, and categories into one state object for saving (exclude draggedCard as it's UI-only)
+  const cardSortingData = { mode, cards, categories }
+  const setCardSortingData = (data: typeof cardSortingData) => {
+    setMode(data.mode)
+    setCards(data.cards)
+    setCategories(data.categories)
+  }
+
+  // Automatically save/load data when in a project
+  useProjectToolData('card-sorting', cardSortingData, setCardSortingData)
 
   const addCard = () => {
     setCards([...cards, { id: Date.now().toString(), text: '' }])

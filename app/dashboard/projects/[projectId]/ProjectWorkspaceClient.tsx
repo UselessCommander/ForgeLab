@@ -192,7 +192,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           {activeTool ? (
             <iframe
               key={activeTool}
-              src={`/tools/${activeTool}?embed=1`}
+              src={`/tools/${activeTool}?embed=1&projectId=${projectId}&toolSlug=${activeTool}`}
               className="w-full h-full border-0"
               title={getVaerktoejBySlug(activeTool)?.title ?? activeTool}
             />
