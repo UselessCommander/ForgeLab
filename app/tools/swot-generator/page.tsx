@@ -1,10 +1,9 @@
 'use client'
 
-import { useState } from 'react'
-import Link from 'next/link'
-import ForgeLabLogo from '@/components/ForgeLabLogo'
+import { useState, Suspense } from 'react'
+import ToolLayout from '@/components/ToolLayout'
 
-export default function SWOTGenerator() {
+function SWOTContent() {
   const [swot, setSwot] = useState({
     strengths: [''],
     weaknesses: [''],
@@ -35,31 +34,8 @@ export default function SWOTGenerator() {
   }
 
   return (
-    <div className="min-h-screen px-4 py-8 md:py-12 bg-gradient-to-br from-gray-50 to-gray-100">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <header className="mb-8">
-          <div className="bg-white rounded-2xl p-6 md:p-10 shadow-sm border border-gray-200">
-            <Link 
-              href="/dashboard" 
-              className="inline-flex items-center gap-2 text-gray-700 font-medium mb-6 hover:text-gray-900 transition-colors"
-            >
-              <span>←</span>
-              <span>Tilbage til Dashboard</span>
-            </Link>
-            <div className="flex items-center gap-4 mb-2">
-              <ForgeLabLogo size={48} />
-              <h1 className="text-3xl md:text-4xl font-semibold text-gray-900">
-                SWOT Analysis
-              </h1>
-            </div>
-            <p className="text-gray-600">
-              Analysér styrker, svagheder, muligheder og trusler
-            </p>
-          </div>
-        </header>
-
-        {/* Classic 2x2 SWOT Grid */}
+    <ToolLayout title="SWOT Analysis" description="Analysér styrker, svagheder, muligheder og trusler">
+      {/* Classic 2x2 SWOT Grid */}
         <div className="bg-white rounded-xl p-4 md:p-6 shadow-lg border-2 border-gray-300">
           <div className="grid grid-cols-2 gap-0 border-2 border-gray-400">
             {/* Top Left - Strengths */}
@@ -199,7 +175,14 @@ export default function SWOTGenerator() {
             </div>
           </div>
         </div>
-      </div>
-    </div>
+    </ToolLayout>
+  )
+}
+
+export default function SWOTGenerator() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-[#fafbfc]">Indlæser...</div>}>
+      <SWOTContent />
+    </Suspense>
   )
 }

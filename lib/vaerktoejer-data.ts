@@ -1,8 +1,24 @@
+export interface VaerktoejKategori {
+  id: string
+  label: string
+}
+
+/** Kategorier som værktøjer kan tilhøre (et værktøj kan være i flere). */
+export const VAERKTOEJ_KATEGORIER: VaerktoejKategori[] = [
+  { id: 'strategi', label: 'Strategi' },
+  { id: 'markedsfoering', label: 'Markedsføring' },
+  { id: 'projekt-planlaegning', label: 'Projekt & planlægning' },
+  { id: 'bruger-kultur', label: 'Bruger & kultur' },
+  { id: 'innovation-design', label: 'Innovation & design' },
+]
+
 export interface Vaerktoej {
   slug: string
   title: string
   shortDescription: string
   longSeoContent: string
+  /** Kategori-ids (et værktøj kan tilhøre flere kategorier). */
+  categories: string[]
 }
 
 export const VAERKTOEJER: Vaerktoej[] = [
@@ -10,6 +26,7 @@ export const VAERKTOEJER: Vaerktoej[] = [
     slug: 'qr-generator',
     title: 'QR Code Generator',
     shortDescription: 'Generer professionelle QR-koder med tracking. Følg scanninger og download som PNG.',
+    categories: ['markedsfoering'],
     longSeoContent: `
 QR Code Generator fra ForgeLab giver dig mulighed for at oprette professionelle QR-koder til links, tekster og URLs. Værktøjet understøtter tracking, så du kan følge antal scanninger og tidspunkter direkte i Analytics Dashboard. Du kan tilpasse farver, størrelse og fejlkorrektion, og downloade QR-koder som PNG til print eller digitale medier. Perfekt til kampagner, menukort, visitkort og events. Uden login kan du prøve en simpel version uden tracking på Prøv QR-generator-siden; for fuld funktionalitet og gemte koder skal du logge ind.
 
@@ -22,6 +39,7 @@ Sådan kommer du i gang: Besøg "Prøv QR-generator" for at lave en enkelt QR-ko
     slug: 'swot-generator',
     title: 'SWOT Generator',
     shortDescription: 'Analysér styrker, svagheder, muligheder og trusler i et struktureret SWOT-analyse værktøj.',
+    categories: ['strategi'],
     longSeoContent: `
 SWOT-analyser bruges til strategisk planlægning i virksomheder, projekter og personlig udvikling. ForgeLabs SWOT Generator giver dig et digitalt canvas til at udfylde de fire felter: Styrker (Strengths), Svagheder (Weaknesses), Muligheder (Opportunities) og Trusler (Threats). Ved at samle indsigt i alle fire områder får du et overblik, der understøtter beslutninger om strategi, markedsføring og ressourceallokering. Værktøjet er velegnet til workshops, team-møder og selvstændig analyse. Brug det til at forberede strategidage, business cases eller evaluering af konkurrenter. Log ind for at bruge SWOT Generator fra dit dashboard.
 
@@ -34,6 +52,7 @@ Hvornår skal du lave en SWOT? Brug SWOT Generator ved strategiplanlægning, fø
     slug: 'business-model-canvas',
     title: 'Business Model Canvas',
     shortDescription: 'Udarbejd og visualisér din forretningsmodel med de ni byggesten fra Osterwalder.',
+    categories: ['strategi', 'innovation-design'],
     longSeoContent: `
 Business Model Canvas er et anerkendt rammeværk til at beskrive, designe og justere forretningsmodeller. ForgeLabs udgave dækker de ni byggesten: Nøglepartnere, Nøgleaktiviteter, Nøgleressourcer, Værditilbud, Kunderelationer, Kanaler, Kundesegmenter, Omkostningsstruktur og Indtægtsstrømme. Værktøjet er ideelt til startups, iværksættere og etablerede virksomheder, der vil skitsere eller revidere deres model. Du får et overblik på én side og kan arbejde struktureret med teamet. Perfekt til pitch-forberedelse, strategiworkshops og innovation. Log ind for at åbne Business Model Canvas fra værktøjsoversigten.
 
@@ -46,6 +65,7 @@ Hvornår bruger man Business Model Canvas? Brug værktøjet ved opstart af nye v
     slug: 'gantt-chart',
     title: 'Gantt-diagram',
     shortDescription: 'Planlæg projekter med tidslinjer, opgaver og fremskridt i et Gantt-diagram.',
+    categories: ['projekt-planlaegning'],
     longSeoContent: `
 Et Gantt-diagram viser projektopgaver på en tidslinje og gør det nemt at se varighed, overlap og afhængigheder. ForgeLabs Gantt Chart-værktøj lader dig tilføje opgaver med start- og slutdatoer samt fremskridt i procent. Det er velegnet til projektledere, teamledere og alle, der skal planlægge og kommunikere tidsplaner. Brug det til projekter, produktlanceringer, events eller interne milestones. Ingen kompleks projektsoftware nødvendig — kom i gang med det samme fra dit dashboard efter login.
 
@@ -58,6 +78,7 @@ Hvornår giver Gantt mening? Brug ForgeLabs Gantt Chart når du skal planlægge 
     slug: 'gallup-kompasrose',
     title: 'Gallup Kompasrose',
     shortDescription: 'Visualisér kultur og værdier med Kompasrosen — moderne, traditionelle og fællesskabsorienterede dimensioner.',
+    categories: ['strategi', 'bruger-kultur'],
     longSeoContent: `
 Kompasrosen (Compass Rose) er et værktøj til at kortlægge kulturelle værdier og orienteringer — fx moderne mod traditionelle og individorienterede mod fællesskabsorienterede. ForgeLabs Gallup Kompasrose giver dig en radarvisning, hvor du kan plotte scores på otte dimensioner og sammenligne to profiler (fx "nu" vs "ønsket"). Værktøjet bruges i organisationsudvikling, strategi og teamworkshops for at skabe fælles sprog om værdier og kultur. Log ind for at bruge Kompasrosen fra værktøjsmenuen.
 
@@ -70,6 +91,7 @@ Hvornår bruger man Gallup Kompasrose? Brug værktøjet ved kultur- og strategiw
     slug: 'tows-matrix',
     title: 'TOWS Matrix',
     shortDescription: 'Kombinér SWOT med strategi: Trusler, Muligheder, Svagheder og Styrker i en TOWS-matrix.',
+    categories: ['strategi'],
     longSeoContent: `
 TOWS-matrixen bygger videre på SWOT ved at koble indre faktorer (styrker og svagheder) med ydre (muligheder og trusler) og udlede konkrete strategier. ForgeLabs TOWS Matrix hjælper dig med at udfylde felterne og tænke strategier som SO (styrke-mulighed), WO (svaghed-mulighed), ST (styrke-trussel) og WT (svaghed-trussel). Ideelt til strategiplanlægning, konkurrenceanalyse og risikohåndtering. Log ind for at åbne TOWS Matrix fra Flere værktøjer.
 
@@ -82,6 +104,7 @@ Hvornår bruger man TOWS Matrix? Brug værktøjet når du allerede har lavet en 
     slug: 'porters-five-forces',
     title: 'Porters Five Forces',
     shortDescription: 'Analysér brancheattraktivitet med Porters fem kræfter: konkurrence, nye spillere, substitutter, leverandører og kunder.',
+    categories: ['strategi'],
     longSeoContent: `
 Porters Five Forces er en klassisk model til at vurdere konkurrencemæssig dynamik i en branche. De fem kræfter er: rivalitet blandt eksisterende konkurrenter, trussel fra nye indtrædere, trussel fra substitutter, forhandlingsstyrke hos leverandører og forhandlingsstyrke hos kunder. ForgeLabs værktøj giver dig et struktureret framework til at score og diskutere hver kraft og dermed vurdere branchens attraktivitet og egen position. Velegnet til strategi, due diligence og markedsanalyse. Tilgængelig efter login under Flere værktøjer.
 
@@ -94,6 +117,7 @@ Hvornår bruger man Porters Five Forces? Brug værktøjet ved markedsvurdering, 
     slug: 'value-proposition-canvas',
     title: 'Value Proposition Canvas',
     shortDescription: 'Matche kundeprofil og værditilbud med Value Proposition Canvas.',
+    categories: ['markedsfoering', 'innovation-design'],
     longSeoContent: `
 Value Proposition Canvas hjælper med at sikre, at dit værditilbud matcher kundens jobs, smerter og gevinster. Værktøjet kombinerer en kundeprofil (jobs, pains, gains) med et værditilbud (produkter/tjenester, pain relievers, gain creators). ForgeLabs udgave gør det nemt at udfylde og justere begge sider, så produktudvikling og markedsføring bliver bedre aligned med kundebehov. Perfekt til innovation, go-to-market og pitch. Log ind for at bruge Value Proposition Canvas.
 
@@ -106,6 +130,7 @@ Hvornår bruger man Value Proposition Canvas? Brug det ved produktudvikling, seg
     slug: 'empathy-map',
     title: 'Empathy Map',
     shortDescription: 'Sæt dig ind i brugeren med en Empathy Map: ser, tænker, føler, gør og smerter/gevinster.',
+    categories: ['bruger-kultur', 'innovation-design'],
     longSeoContent: `
 En Empathy Map (empatikort) bruges til at forstå brugeren eller kunden dybere ved at udfylde felter som: Hvad ser de? Hvad tænker og føler de? Hvad siger og gør de? Hvad er deres smerter og gevinster? ForgeLabs Empathy Map giver et struktureret canvas til workshops og brugerresearch, så teams får et fælles billede af målgruppen. Velegnet til UX, produktudvikling og markedsføring. Log ind for at åbne Empathy Map under Flere værktøjer.
 
@@ -118,6 +143,7 @@ Hvornår bruger man Empathy Map? Brug værktøjet i brugerresearch, design sprin
     slug: 'card-sorting',
     title: 'Card Sorting',
     shortDescription: 'Strukturér indhold og information med card sorting til informationsarkitektur og navigation.',
+    categories: ['bruger-kultur', 'innovation-design'],
     longSeoContent: `
 Card sorting er en metode til at finde ud af, hvordan brugere grupperer og navngiver indhold — fx til menustruktur eller informationsarkitektur. ForgeLabs Card Sorting-værktøj understøtter denne proces digitalt, så du kan designe navigation og kategorisering baseret på brugerens mental model. Ideelt til webdesign, intranets og app-struktur. Log ind for at bruge Card Sorting fra værktøjsoversigten.
 
@@ -130,12 +156,26 @@ Hvornår bruger man Card Sorting? Brug værktøjet når du bygger eller omstrukt
     slug: 'maslow-model',
     title: 'Maslows behovspyramide',
     shortDescription: 'Visualisér og arbejd med Maslows behovshierarki i strategi og brugerforståelse.',
+    categories: ['strategi', 'bruger-kultur'],
     longSeoContent: `
 Maslows behovspyramide beskriver et hierarki af behov: fysiologiske, sikkerhed, socialt tilhør, anerkendelse og selvrealisering. ForgeLabs Maslow Model giver et visuelt værktøj til at diskutere motivation, målgrupper og værditilbud i forhold til disse lag. Brug det i strategi, markedsføring og produktudvikling for at sikre, at tilbud matcher brugerens behovsniveau. Tilgængelig efter login under Flere værktøjer.
 
 Hvad er Maslows behovspyramide? Abraham Maslow beskrev et behovshierarki fra grundlæggende (mad, sikkerhed) til højere (tilhør, anerkendelse, selvrealisering). Modellen bruges til at forstå motivation og til at placere produkter og budskaber i forhold til brugerens behov.
 
 Hvornår bruger man Maslow Model? Brug værktøjet ved segmentering, positionering eller når I diskuterer hvem I skaber værdi for og på hvilket niveau. ForgeLab tilbyder Maslow Model sammen med SWOT, Kompasrose og andre strategi- og bruger-værktøjer — log ind og åbn den under Flere værktøjer.
+    `.trim(),
+  },
+  {
+    slug: 'survey-template',
+    title: 'Survey Template',
+    shortDescription: 'Byg undersøgelser med forskellige spørgsmålstyper: tekst, flervalgs- og skala-spørgsmål.',
+    categories: ['bruger-kultur', 'markedsfoering'],
+    longSeoContent: `
+Survey Template fra ForgeLab giver dig mulighed for at designe undersøgelser og spørgeskemaer med forskellige spørgsmålstyper: kort og lang tekst, enten-valg, flere-valg og skala (fx 1–5). Perfekt til brugerresearch, kundetilfredshed (NPS, CSAT), feedback efter events eller interne meningsmålinger. Du bygger skabelonen i værktøjet og kan bruge den som udgangspunkt for dine surveys. Log ind for at bruge Survey Template fra dit dashboard.
+
+Hvad er et survey template? En survey-skabelon er en genbruelig struktur af spørgsmål, som du kan tilpasse og udsende til målgruppen. ForgeLabs værktøj understøtter tekster, enten-valg, flere-valg og skalaer, så du hurtigt kan lave professionelle undersøgelser uden eksterne survey-værktøjer.
+
+Hvornår bruger man Survey Template? Brug det til brugerinterviews, NPS-målinger, tilfredshedsundersøgelser, evaluering af workshops eller events, eller når du vil indsamle struktureret feedback fra kunder eller medarbejdere. Log ind og find Survey Template under Flere værktøjer.
     `.trim(),
   },
 ]
@@ -146,4 +186,19 @@ export function getVaerktoejBySlug(slug: string): Vaerktoej | undefined {
 
 export function getAllSlugs(): string[] {
   return VAERKTOEJER.map((v) => v.slug)
+}
+
+export function getKategoriById(id: string): VaerktoejKategori | undefined {
+  return VAERKTOEJ_KATEGORIER.find((k) => k.id === id)
+}
+
+/** Returnerer værktøjer grupperet efter kategori (kategorier i VAERKTOEJ_KATEGORIER-rækkefølge). */
+export function getVaerktoejerGroupedByKategori(
+  filter?: (v: Vaerktoej) => boolean
+): { kategori: VaerktoejKategori; tools: Vaerktoej[] }[] {
+  const list = filter ? VAERKTOEJER.filter(filter) : VAERKTOEJER
+  return VAERKTOEJ_KATEGORIER.map((kategori) => ({
+    kategori,
+    tools: list.filter((v) => v.categories.includes(kategori.id)),
+  })).filter((g) => g.tools.length > 0)
 }

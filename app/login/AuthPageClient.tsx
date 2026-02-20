@@ -15,6 +15,7 @@ function LoginFormInner({
 }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [rememberMe, setRememberMe] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [loading, setLoading] = useState(false)
@@ -35,7 +36,7 @@ function LoginFormInner({
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username, password, rememberMe }),
       })
       if (response.ok) {
         router.push('/dashboard')
@@ -96,6 +97,18 @@ function LoginFormInner({
               className="w-full px-4 py-3 bg-white/80 border-2 border-gray-200 text-gray-900 placeholder-gray-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition-all hover:border-amber-200"
               placeholder="Indtast password"
             />
+          </div>
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="rememberMe"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              className="w-4 h-4 text-amber-600 border-gray-300 rounded focus:ring-amber-500 focus:ring-2"
+            />
+            <label htmlFor="rememberMe" className="ml-2 text-sm text-gray-700 cursor-pointer">
+              Husk mig i et år
+            </label>
           </div>
           {success && (
             <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg">

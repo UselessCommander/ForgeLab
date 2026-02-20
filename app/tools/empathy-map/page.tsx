@@ -1,12 +1,11 @@
 'use client'
 
-import { useState } from 'react'
-import Link from 'next/link'
-import ForgeLabLogo from '@/components/ForgeLabLogo'
+import { useState, Suspense } from 'react'
+import ToolLayout from '@/components/ToolLayout'
 
 type MapSection = string[]
 
-export default function EmpathyMap() {
+function EmpathyMapContent() {
   const [goal, setGoal] = useState('')
   const [map, setMap] = useState<Record<string, MapSection>>({
     who: [''],
@@ -96,30 +95,7 @@ export default function EmpathyMap() {
   )
 
   return (
-    <div className="min-h-screen px-4 py-8 md:py-12 bg-gradient-to-br from-gray-50 to-gray-100">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <header className="mb-8">
-          <div className="bg-white rounded-2xl p-6 md:p-10 shadow-sm border border-gray-200">
-            <Link
-              href="/dashboard"
-              className="inline-flex items-center gap-2 text-gray-700 font-medium mb-6 hover:text-gray-900 transition-colors"
-            >
-              <span>←</span>
-              <span>Tilbage til Dashboard</span>
-            </Link>
-            <div className="flex items-center gap-4 mb-2">
-              <ForgeLabLogo size={48} />
-              <h1 className="text-3xl md:text-4xl font-semibold text-gray-900">
-                Empathy Map
-              </h1>
-            </div>
-            <p className="text-gray-600">
-              Forstå kundens perspektiv gennem deres ord, tanker, følelser og handlinger
-            </p>
-          </div>
-        </header>
-
+    <ToolLayout title="Empathy Map" description="Forstå kundens perspektiv gennem deres ord, tanker, følelser og handlinger">
         {/* Empathy Map - Template layout with head in center */}
         <div className="bg-white rounded-xl p-6 md:p-8 shadow-lg border-2 border-gray-300 overflow-hidden">
           {/* GOAL - top center */}
@@ -316,7 +292,14 @@ export default function EmpathyMap() {
             </div>
           </div>
         </div>
-      </div>
-    </div>
+    </ToolLayout>
+  )
+}
+
+export default function EmpathyMap() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-[#fafbfc]">Indlæser...</div>}>
+      <EmpathyMapContent />
+    </Suspense>
   )
 }

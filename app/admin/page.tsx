@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Script from 'next/script'
-import ForgeLabLogo from '@/components/ForgeLabLogo'
+import PageShell from '@/components/PageShell'
+import SiteNav from '@/components/SiteNav'
 
 declare global {
   interface Window {
@@ -208,42 +209,38 @@ export default function AdminDashboard() {
         src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"
         onLoad={() => setQrCodeLoaded(true)}
       />
-      <div className="min-h-screen px-4 py-8 md:py-12 bg-gradient-to-br from-gray-50 to-gray-100">
-        <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <header className="mb-8 md:mb-12">
-          <div className="bg-white rounded-2xl p-6 md:p-10 shadow-sm border border-gray-200">
-            <Link 
-              href="/dashboard" 
-              className="inline-flex items-center gap-2 text-gray-700 font-medium mb-6 hover:text-gray-900 transition-colors"
+      <PageShell>
+        <SiteNav
+          rightSlot={
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-900 text-white rounded-xl font-medium hover:bg-gray-800 transition-all duration-200 shadow-sm hover:shadow-md"
             >
-              <span>←</span>
-              <span>Tilbage til Dashboard</span>
+              ← Dashboard
             </Link>
-            <div className="flex items-center gap-4 mb-2">
-              <ForgeLabLogo size={48} />
-              <h1 className="text-3xl md:text-4xl font-semibold text-gray-900">
-                Admin Dashboard
-              </h1>
-            </div>
-            <p className="text-gray-600">
-              Oversigt over alle QR-koder og scanninger
-            </p>
-          </div>
+          }
+        />
+        <div className="container mx-auto px-6 py-12 max-w-7xl">
+        <header className="mb-8 md:mb-12">
+          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 tracking-tight mb-2">
+            Admin Dashboard
+          </h1>
+          <p className="text-gray-600">
+            Oversigt over alle QR-koder og scanninger
+          </p>
         </header>
 
-        {/* Controls */}
-        <div className="bg-white rounded-xl p-4 md:p-6 shadow-sm border border-gray-200 mb-6 md:mb-8">
+        <div className="bg-white rounded-2xl p-4 md:p-6 shadow-sm border border-gray-200/80 mb-6 md:mb-8">
           <div className="flex flex-wrap items-center gap-4">
             <button
               onClick={loadData}
-              className="px-5 py-2.5 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-all duration-200"
+              className="px-5 py-2.5 bg-gray-900 text-white rounded-xl font-medium hover:bg-gray-800 transition-all duration-200 shadow-sm"
             >
               🔄 Opdater
             </button>
             <button
               onClick={deleteAllQR}
-              className="px-5 py-2.5 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-all duration-200"
+              className="px-5 py-2.5 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 transition-all duration-200"
             >
               🗑️ Slet Alle
             </button>
@@ -255,13 +252,13 @@ export default function AdminDashboard() {
 
         {/* Stats Summary */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6 mb-8">
-          <div className="bg-white rounded-xl p-6 md:p-8 shadow-sm border border-gray-200 text-center">
+          <div className="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-gray-200/80 text-center">
             <div className="text-4xl md:text-5xl font-bold text-gray-900 mb-2">
               {qrCodes.length}
             </div>
             <div className="text-gray-600 font-medium">QR Koder</div>
           </div>
-          <div className="bg-white rounded-xl p-6 md:p-8 shadow-sm border border-gray-200 text-center">
+          <div className="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-gray-200/80 text-center">
             <div className="text-4xl md:text-5xl font-bold text-gray-900 mb-2">
               {totalScans}
             </div>
@@ -271,12 +268,12 @@ export default function AdminDashboard() {
 
         {/* Content */}
         {loading ? (
-          <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
+          <div className="bg-white rounded-2xl p-12 shadow-sm border border-gray-200/80 text-center">
             <div className="text-gray-600 text-lg">Indlæser data...</div>
           </div>
         ) : qrCodes.length === 0 ? (
-          <div className="bg-white rounded-xl p-12 md:p-16 shadow-sm border border-gray-200 text-center">
-            <h2 className="text-2xl font-semibold text-gray-900 mb-3">
+          <div className="bg-white rounded-2xl p-12 md:p-16 shadow-sm border border-gray-200/80 text-center">
+            <h2 className="text-2xl font-bold text-gray-900 mb-3">
               Ingen QR-koder endnu
             </h2>
             <p className="text-gray-600 mb-8">
@@ -284,7 +281,7 @@ export default function AdminDashboard() {
             </p>
             <Link 
               href="/tools/qr-generator"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-all duration-200"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-amber-500 text-white rounded-xl font-semibold hover:bg-amber-600 transition-all duration-200 shadow-lg shadow-amber-500/25"
             >
               Gå til QR Generator
             </Link>
@@ -301,7 +298,7 @@ export default function AdminDashboard() {
               return (
                 <div 
                   key={qrId} 
-                  className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 hover:shadow-md transition-all duration-300 hover:-translate-y-1"
+                  className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200/80 hover:shadow-lg hover:border-amber-200/60 transition-all duration-300"
                 >
                   {/* Header */}
                   <div className="flex justify-between items-center mb-4 pb-4 border-b border-gray-200">
@@ -361,13 +358,13 @@ export default function AdminDashboard() {
                     <button
                       onClick={() => downloadQR(qrId)}
                       disabled={!qrImages[qrId]}
-                      className="flex-1 px-4 py-2.5 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                      className="flex-1 px-4 py-2.5 bg-gray-900 text-white rounded-xl font-medium hover:bg-gray-800 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed"
                     >
                       ⬇️ Download
                     </button>
                     <button
                       onClick={() => deleteQR(qrId)}
-                      className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-all duration-200"
+                      className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 transition-all duration-200"
                     >
                       🗑️ Slet
                     </button>
@@ -377,8 +374,8 @@ export default function AdminDashboard() {
             })}
           </div>
         )}
-      </div>
-    </div>
+        </div>
+      </PageShell>
     </>
   )
 }
