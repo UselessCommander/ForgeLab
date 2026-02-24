@@ -61,7 +61,7 @@ export default function DashboardClient() {
       <SiteNav
         rightSlot={
           <div className="flex items-center gap-3">
-            <Link href="/analytics" className="text-sm text-gray-600 hover:text-gray-900 font-medium transition-colors">
+            <Link href="/admin" className="text-sm text-gray-600 hover:text-gray-900 font-medium transition-colors">
               Analytics
             </Link>
             <LogoutButton />
