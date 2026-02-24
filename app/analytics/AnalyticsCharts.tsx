@@ -435,7 +435,7 @@ export default function AnalyticsCharts() {
         <p className="text-sm text-red-600 mb-4">{error}</p>
       )}
 
-      {!loading && !error && !hasRealData && (
+      {!loading && !error && !hasQrData && (
         <p className="text-sm text-gray-500 mb-4">
           Du har endnu ingen trackede QR-koder. Aktiver tracking i QR Code Generator for at se data her.
         </p>
