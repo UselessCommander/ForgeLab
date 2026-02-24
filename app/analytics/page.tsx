@@ -3,24 +3,41 @@ import { BarChart3, ArrowRight, LogIn, TrendingUp, Clock, MapPin, Download } fro
 import PageShell from '@/components/PageShell'
 import SiteNav from '@/components/SiteNav'
 import AnalyticsCharts from './AnalyticsCharts'
+import LogoutButton from '@/components/LogoutButton'
+import { getCurrentUserId } from '@/lib/auth'
 
 export const metadata = {
   title: 'Analytics Dashboard | ForgeLab',
   description: 'Real-time statistik over QR-scanninger. Se antal scanninger, tidspunkter og enkeltscan-detaljer i ForgeLab Analytics Dashboard.',
 }
 
-export default function AnalyticsPage() {
+export default async function AnalyticsPage() {
+  const userId = await getCurrentUserId()
+  const isLoggedIn = !!userId
+
   return (
     <PageShell>
       <SiteNav
         rightSlot={
-          <Link
-            href="/login"
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-900 text-white rounded-xl font-medium hover:bg-gray-800 transition-all duration-200 shadow-sm hover:shadow-md"
-          >
-            <LogIn className="w-4 h-4" />
-            Log ind
-          </Link>
+          isLoggedIn ? (
+            <div className="flex items-center gap-3">
+              <Link
+                href="/dashboard"
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:text-gray-900 font-medium transition-colors"
+              >
+                ← Dashboard
+              </Link>
+              <LogoutButton />
+            </div>
+          ) : (
+            <Link
+              href="/login"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-900 text-white rounded-xl font-medium hover:bg-gray-800 transition-all duration-200 shadow-sm hover:shadow-md"
+            >
+              <LogIn className="w-4 h-4" />
+              Log ind
+            </Link>
+          )
         }
       />
       <main className="container mx-auto px-6 py-16 max-w-5xl">
@@ -70,19 +87,35 @@ export default function AnalyticsPage() {
             </p>
           </section>
 
-          <div className="rounded-2xl bg-white border border-gray-200/80 shadow-sm p-8 text-center">
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">Se dit dashboard</h3>
-            <p className="text-gray-600 mb-6">
-              Log ind for at se real-time statistik over dine QR-scanninger.
-            </p>
-            <Link
-              href="/login"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-amber-500 text-white rounded-xl font-semibold hover:bg-amber-600 transition-all duration-200 shadow-lg shadow-amber-500/25 hover:shadow-xl hover:shadow-amber-500/30"
-            >
-              Log ind
-              <ArrowRight className="w-4 h-4" />
-            </Link>
-          </div>
+          {isLoggedIn ? (
+            <div className="rounded-2xl bg-white border border-gray-200/80 shadow-sm p-8 text-center">
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Gå til dit dashboard</h3>
+              <p className="text-gray-600 mb-6">
+                Se alle dine projekter og værktøjer samlet ét sted.
+              </p>
+              <Link
+                href="/dashboard"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-amber-500 text-white rounded-xl font-semibold hover:bg-amber-600 transition-all duration-200 shadow-lg shadow-amber-500/25 hover:shadow-xl hover:shadow-amber-500/30"
+              >
+                Åbn dashboard
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+          ) : (
+            <div className="rounded-2xl bg-white border border-gray-200/80 shadow-sm p-8 text-center">
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Se dit dashboard</h3>
+              <p className="text-gray-600 mb-6">
+                Log ind for at se real-time statistik over dine QR-scanninger.
+              </p>
+              <Link
+                href="/login"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-amber-500 text-white rounded-xl font-semibold hover:bg-amber-600 transition-all duration-200 shadow-lg shadow-amber-500/25 hover:shadow-xl hover:shadow-amber-500/30"
+              >
+                Log ind
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+          )}
 
           <div className="mt-10 text-center">
             <Link href="/" className="text-gray-500 hover:text-gray-900 font-medium transition-colors">

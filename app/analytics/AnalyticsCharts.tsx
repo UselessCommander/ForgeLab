@@ -338,10 +338,13 @@ export default function AnalyticsCharts() {
     }
   }, [stats])
 
-  const hasRealData = !!stats && Object.keys(stats).length > 0
+  // Har brugeren overhovedet QR-koder?
+  const hasQrData = !!stats && Object.keys(stats).length > 0
+  // Har brugeren faktiske scanninger?
+  const hasScanData = hasQrData && totalScans > 0
 
   const weeklyData = useMemo(() => {
-    if (!hasRealData || totalScans === 0 || !stats) return demoWeeklyData
+    if (!hasScanData || !stats) return demoWeeklyData
 
     const counts = Array(7).fill(0)
     Object.values(stats).forEach((qr) => {
@@ -355,10 +358,10 @@ export default function AnalyticsCharts() {
 
     // Hvis alt er 0 (ingen timestamps), brug demo
     return counts.every((c) => c === 0) ? demoWeeklyData : counts
-  }, [hasRealData, totalScans, stats])
+  }, [hasScanData, stats])
 
   const donutData = useMemo(() => {
-    if (!hasRealData || totalScans === 0 || !stats) return demoDonutData
+    if (!hasScanData || !stats) return demoDonutData
 
     const deviceBuckets: Record<'Mobil' | 'Desktop' | 'Tablet' | 'Andet', number> = {
       Mobil: 0,
@@ -384,10 +387,10 @@ export default function AnalyticsCharts() {
       { label: 'Tablet', value: deviceBuckets.Tablet, color: '#7dd3fc' },
       { label: 'Andet', value: deviceBuckets.Andet, color: '#bae6fd' },
     ]
-  }, [hasRealData, totalScans, stats])
+  }, [hasScanData, stats])
 
   const trendData = useMemo(() => {
-    if (!hasRealData || totalScans === 0 || !stats) return demoTrendData
+    if (!hasScanData || !stats) return demoTrendData
 
     // Trend: scanninger per dag de seneste 7 dage (kronologisk)
     const now = new Date()
@@ -415,7 +418,7 @@ export default function AnalyticsCharts() {
     }
 
     return buckets.every((c) => c === 0) ? demoTrendData : buckets
-  }, [hasRealData, totalScans, stats])
+  }, [hasScanData, stats])
 
   return (
     <section className="mb-14">
@@ -442,11 +445,11 @@ export default function AnalyticsCharts() {
         totalScans={totalScans}
         totalQrCodes={totalQrCodes}
         lastScanAt={lastScanAt}
-        hasRealData={hasRealData}
+        hasRealData={hasQrData}
       />
 
       <h3 className="text-sm font-semibold text-gray-700 mt-6 mb-2">
-        Visuelle grafer {hasRealData ? '(baseret på dine data)' : '(demo indtil du har data)'}
+        Visuelle grafer {hasScanData ? '(baseret på dine data)' : '(demo indtil du har scanninger)'}
       </h3>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -457,7 +460,7 @@ export default function AnalyticsCharts() {
             boxShadow: '0 25px 50px -12px rgba(14, 165, 233, 0.15), 0 0 0 1px rgba(14, 165, 233, 0.05)',
           }}
         >
-          <BarChart3D weeklyData={weeklyData} days={demoDays} isDemo={!hasRealData} />
+          <BarChart3D weeklyData={weeklyData} days={demoDays} isDemo={!hasScanData} />
         </div>
         <div
           className="bg-white rounded-2xl p-6 border border-sky-100 shadow-lg shadow-sky-100/50 transition-all duration-300 hover:shadow-xl hover:shadow-sky-200/40 hover:-translate-y-0.5"
@@ -466,7 +469,7 @@ export default function AnalyticsCharts() {
             boxShadow: '0 25px 50px -12px rgba(14, 165, 233, 0.15), 0 0 0 1px rgba(14, 165, 233, 0.05)',
           }}
         >
-          <DonutChart3D donutData={donutData} isDemo={!hasRealData} />
+          <DonutChart3D donutData={donutData} isDemo={!hasScanData} />
         </div>
         <div
           className="bg-white rounded-2xl p-6 border border-sky-100 shadow-lg shadow-sky-100/50 transition-all duration-300 hover:shadow-xl hover:shadow-sky-200/40 hover:-translate-y-0.5 lg:col-span-1"
@@ -475,7 +478,7 @@ export default function AnalyticsCharts() {
             boxShadow: '0 25px 50px -12px rgba(14, 165, 233, 0.15), 0 0 0 1px rgba(14, 165, 233, 0.05)',
           }}
         >
-          <LineChart3D trendData={trendData} isDemo={!hasRealData} />
+          <LineChart3D trendData={trendData} isDemo={!hasScanData} />
         </div>
       </div>
     </section>
