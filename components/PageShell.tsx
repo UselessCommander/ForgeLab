@@ -1,5 +1,7 @@
 'use client'
 
+import CookieConsent from '@/components/CookieConsent'
+
 /** Wraps page content with landing-style background (grid + gradient). Use on all internal pages. */
 export default function PageShell({ children }: { children: React.ReactNode }) {
   return (
@@ -8,7 +10,9 @@ export default function PageShell({ children }: { children: React.ReactNode }) {
       <div className="fixed inset-0 bg-gradient-to-b from-white/80 via-transparent to-amber-50/30 pointer-events-none" />
       <div className="relative z-10">
         {children}
+        <CookieConsent />
       </div>
     </div>
   )
 }
+

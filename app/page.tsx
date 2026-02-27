@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import ForgeLabLogo from '@/components/ForgeLabLogo'
+import CookieConsent from '@/components/CookieConsent'
 import {
   QrCode,
   BarChart3,
@@ -301,6 +302,7 @@ export default function LandingPage() {
             </p>
           </div>
         </footer>
+        <CookieConsent />
       </div>
     </div>
   )

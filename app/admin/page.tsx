@@ -5,6 +5,7 @@ import Link from 'next/link'
 import Script from 'next/script'
 import PageShell from '@/components/PageShell'
 import SiteNav from '@/components/SiteNav'
+import AnalyticsCharts from '@/app/analytics/AnalyticsCharts'
 
 declare global {
   interface Window {
@@ -22,6 +23,21 @@ interface QRData {
     userAgent?: string
     referer?: string
   }>
+}
+
+function detectDevice(userAgent?: string): 'Mobil' | 'Desktop' | 'Tablet' | 'Andet' {
+  if (!userAgent) return 'Andet'
+  const ua = userAgent.toLowerCase()
+  if (ua.includes('ipad') || ua.includes('tablet')) return 'Tablet'
+  if (
+    ua.includes('iphone') ||
+    (ua.includes('android') && ua.includes('mobile')) ||
+    ua.includes('mobile')
+  ) {
+    return 'Mobil'
+  }
+  if (ua.includes('windows') || ua.includes('macintosh') || ua.includes('linux')) return 'Desktop'
+  return 'Andet'
 }
 
 export default function AdminDashboard() {
@@ -203,6 +219,18 @@ export default function AdminDashboard() {
   const qrCodes = Object.keys(data)
   const totalScans = qrCodes.reduce((sum, id) => sum + (data[id]?.count || 0), 0)
 
+  const recentScans = qrCodes
+    .flatMap((qrId) =>
+      data[qrId]?.scans?.map((scan) => ({
+        qrId,
+        timestamp: scan.timestamp,
+        userAgent: scan.userAgent,
+        ip: scan.ip,
+      })) ?? []
+    )
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    .slice(0, 10)
+
   return (
     <>
       <Script
@@ -266,6 +294,13 @@ export default function AdminDashboard() {
           </div>
         </div>
 
+        {/* Overordnet grafer for brugerens QR-data */}
+        {qrCodes.length > 0 && (
+          <div className="mb-10">
+            <AnalyticsCharts />
+          </div>
+        )}
+
         {/* Content */}
         {loading ? (
           <div className="bg-white rounded-2xl p-12 shadow-sm border border-gray-200/80 text-center">
@@ -291,9 +326,15 @@ export default function AdminDashboard() {
             {qrCodes.map(qrId => {
               const qrData = data[qrId]
               const createdAt = qrData.createdAt ? new Date(qrData.createdAt).toLocaleString('da-DK') : 'Ukendt'
-              const lastScan = qrData.scans && qrData.scans.length > 0 
-                ? new Date(qrData.scans[qrData.scans.length - 1].timestamp).toLocaleString('da-DK')
+              const lastScanEntry = qrData.scans && qrData.scans.length > 0
+                ? qrData.scans[qrData.scans.length - 1]
+                : null
+              const lastScan = lastScanEntry
+                ? new Date(lastScanEntry.timestamp).toLocaleString('da-DK')
                 : 'Ingen scanninger endnu'
+              const lastDevice = lastScanEntry
+                ? detectDevice(lastScanEntry.userAgent)
+                : 'Ingen data'
 
               return (
                 <div 
@@ -334,10 +375,14 @@ export default function AdminDashboard() {
                   </div>
 
                   {/* Stats */}
-                  <div className="space-y-3 mb-4">
-                    <div className="flex justify-between items-center text-sm">
+                  <div className="space-y-2 mb-4 text-sm">
+                    <div className="flex justify-between items-center">
                       <span className="text-gray-600 font-medium">Sidste scan:</span>
-                      <span className="text-gray-900 font-medium">{lastScan}</span>
+                      <span className="text-gray-900 font-medium text-right">{lastScan}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600 font-medium">Seneste enhed:</span>
+                      <span className="text-gray-900 font-medium">{lastDevice}</span>
                     </div>
                   </div>
 
@@ -372,6 +417,45 @@ export default function AdminDashboard() {
                 </div>
               )
             })}
+          </div>
+        )}
+
+        {/* Seneste scanninger på tværs af alle QR-koder */}
+        {recentScans.length > 0 && (
+          <div className="mt-10">
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">Seneste scanninger</h2>
+            <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
+              <div className="max-h-80 overflow-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="px-4 py-2 text-left font-medium text-gray-600">Tidspunkt</th>
+                      <th className="px-4 py-2 text-left font-medium text-gray-600">QR ID</th>
+                      <th className="px-4 py-2 text-left font-medium text-gray-600">Enhed</th>
+                      <th className="px-4 py-2 text-left font-medium text-gray-600">IP</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentScans.map((scan) => (
+                      <tr key={`${scan.qrId}-${scan.timestamp}`} className="border-b border-gray-100 last:border-0">
+                        <td className="px-4 py-2 text-gray-900">
+                          {new Date(scan.timestamp).toLocaleString('da-DK')}
+                        </td>
+                        <td className="px-4 py-2 text-gray-700 font-mono text-xs">
+                          {scan.qrId.substring(0, 12)}...
+                        </td>
+                        <td className="px-4 py-2 text-gray-700">
+                          {detectDevice(scan.userAgent)}
+                        </td>
+                        <td className="px-4 py-2 text-gray-500 text-xs">
+                          {scan.ip}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         )}
         </div>

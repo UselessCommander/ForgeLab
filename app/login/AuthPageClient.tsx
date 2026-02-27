@@ -23,6 +23,22 @@ function LoginFormInner({
   const searchParams = useSearchParams()
 
   useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const storedRemember = window.localStorage.getItem('forgelab_remember_me')
+      const storedUsername = window.localStorage.getItem('forgelab_remember_username')
+      if (storedRemember === 'true') {
+        setRememberMe(true)
+        if (storedUsername) {
+          setUsername(storedUsername)
+        }
+      }
+    } catch {
+      // Ignore localStorage errors
+    }
+  }, [])
+
+  useEffect(() => {
     if (searchParams.get('registered') === 'true') {
       setSuccess('Bruger oprettet! Du kan nu logge ind.')
     }
@@ -39,6 +55,21 @@ function LoginFormInner({
         body: JSON.stringify({ username, password, rememberMe }),
       })
       if (response.ok) {
+        try {
+          if (typeof window !== 'undefined') {
+            if (rememberMe) {
+              window.localStorage.setItem('forgelab_remember_me', 'true')
+              window.localStorage.setItem('forgelab_remember_username', username)
+              document.cookie = `forgelab_remember_me=true; max-age=${60 * 60 * 24 * 365}; path=/`
+            } else {
+              window.localStorage.removeItem('forgelab_remember_me')
+              window.localStorage.removeItem('forgelab_remember_username')
+              document.cookie = 'forgelab_remember_me=; max-age=0; path=/'
+            }
+          }
+        } catch {
+          // Ignore storage errors
+        }
         router.push('/dashboard')
       } else {
         const data = await response.json()
