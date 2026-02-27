@@ -22,6 +22,30 @@ function LoginFormInner({
   const router = useRouter()
   const searchParams = useSearchParams()
 
+  // Hvis brugeren allerede har en gyldig session-cookie, så send direkte til dashboard
+  useEffect(() => {
+    let cancelled = false
+
+    const checkSession = async () => {
+      try {
+        const response = await fetch('/api/auth/me', { cache: 'no-store' })
+        if (!response.ok) return
+        const data = await response.json()
+        if (!cancelled && data.authenticated) {
+          router.replace('/dashboard')
+        }
+      } catch {
+        // Ignorer fejl – brugeren kan altid logge ind manuelt
+      }
+    }
+
+    checkSession()
+
+    return () => {
+      cancelled = true
+    }
+  }, [router])
+
   useEffect(() => {
     if (typeof window === 'undefined') return
     try {
