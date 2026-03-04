@@ -79,25 +79,29 @@ export default function TryQRGeneratorPage() {
         onLoad={() => setQrCodeLoaded(true)}
       />
       <div className="min-h-screen bg-[#fafbfc]">
-        <div className="border-b border-gray-200/80 bg-white/80 backdrop-blur-sm sticky top-0 z-10">
+        <div className="fixed inset-0 bg-[linear-gradient(to_right,#f0f1f3_1px,transparent_1px),linear-gradient(to_bottom,#f0f1f3_1px,transparent_1px)] bg-[size:24px_24px] opacity-60 pointer-events-none" />
+        <div className="fixed inset-0 bg-gradient-to-b from-white/80 via-transparent to-amber-50/30 pointer-events-none" />
+        <nav className="relative z-10 border-b border-gray-200/80 bg-white/70 backdrop-blur-md sticky top-0 z-20">
           <div className="container mx-auto px-6 py-4">
             <div className="flex justify-between items-center">
-              <Link href="/" className="flex items-center gap-3">
-                <ForgeLabLogo size={28} />
-                <span className="font-semibold text-gray-900">ForgeLab</span>
+              <Link href="/" className="flex items-center gap-3 group">
+                <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 group-hover:bg-amber-500/20 transition-colors">
+                  <ForgeLabLogo size={28} />
+                </div>
+                <span className="text-xl font-semibold text-gray-900 tracking-tight">ForgeLab</span>
               </Link>
               <Link
                 href="/login"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-xl font-medium hover:bg-amber-600 transition-colors"
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-900 text-white rounded-xl font-medium hover:bg-gray-800 transition-all duration-200 shadow-sm hover:shadow-md"
               >
                 Log ind for tracking
                 <ArrowRight className="w-4 h-4" />
               </Link>
             </div>
           </div>
-        </div>
+        </nav>
 
-        <div className="container mx-auto px-6 py-12 max-w-4xl">
+        <div className="relative z-10 container mx-auto px-6 py-12 max-w-4xl">
           <div className="text-center mb-10">
             <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 mb-4">
               <QrCode className="w-7 h-7" />

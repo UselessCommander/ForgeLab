@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import ForgeLabLogo from '@/components/ForgeLabLogo'
+import { useProjectToolData } from '@/lib/useProjectToolData'
 
 interface Task {
   id: string
@@ -22,6 +23,9 @@ export default function GanttChart() {
       progress: 0
     }
   ])
+
+  // Automatically save/load data when in a project
+  useProjectToolData('gantt-chart', tasks, setTasks)
 
   const addTask = () => {
     const newTask: Task = {

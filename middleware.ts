@@ -15,15 +15,21 @@ export function middleware(request: NextRequest) {
     }
   }
   
+  // Redirect /register to unified auth page
+  if (request.nextUrl.pathname === '/register') {
+    return NextResponse.redirect(new URL('/login?mode=register', request.url))
+  }
+
   // Public routes that don't require authentication
-  const publicRoutes = ['/', '/login', '/register', '/api/auth/login', '/api/auth/register', '/try/qr-generator', '/analytics', '/vaerktoejer']
+  const publicRoutes = ['/', '/login', '/api/auth/login', '/api/auth/register', '/try/qr-generator', '/analytics', '/vaerktoejer']
   const isPublicRoute = publicRoutes.some(route => request.nextUrl.pathname === route)
   const isPublicToolsExplore = request.nextUrl.pathname.startsWith('/vaerktoejer/')
   const isAbTestVote = request.nextUrl.pathname.startsWith('/tools/ab-test/v/')
-  const isPublic = isPublicRoute || isPublicToolsExplore || isAbTestVote
+  const isSurveyRespond = request.nextUrl.pathname.startsWith('/survey/respond/')
+  const isPublic = isPublicRoute || isPublicToolsExplore || isAbTestVote || isSurveyRespond
 
-  // API routes that don't require authentication (tracking, ab-test respond)
-  const publicApiRoutes = ['/api/track', '/api/auth', '/api/ab-test/respond']
+  // API routes that don't require authentication (tracking, ab-test respond, surveys)
+  const publicApiRoutes = ['/api/track', '/api/auth', '/api/ab-test/respond', '/api/surveys']
   const isPublicApiRoute = publicApiRoutes.some(route => request.nextUrl.pathname.startsWith(route))
   
   // If accessing protected route without authentication

@@ -1,4 +1,4 @@
-﻿import { cookies } from 'next/headers'
+import { cookies } from 'next/headers'
 import { getUserByUsername, verifyPassword, type User } from './users'
 
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin'
@@ -38,13 +38,15 @@ export async function isAuthenticated(): Promise<boolean> {
   return userId !== null
 }
 
-export async function setSession(userId: string) {
+export async function setSession(userId: string, rememberMe: boolean = false) {
   const cookieStore = await cookies()
+  // If rememberMe is true, set cookie to 1 year (365 days), otherwise 7 days
+  const maxAge = rememberMe ? 60 * 60 * 24 * 365 : 60 * 60 * 24 * 7
   cookieStore.set('forgelab_session', JSON.stringify({ userId }), {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    maxAge: 60 * 60 * 24 * 7 // 7 days
+    maxAge
   })
 }
 

@@ -1,7 +1,8 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import ForgeLabLogo from '@/components/ForgeLabLogo'
 import { ArrowRight, LogIn } from 'lucide-react'
+import PageShell from '@/components/PageShell'
+import SiteNav from '@/components/SiteNav'
 import { getVaerktoejBySlug, getAllSlugs } from '@/lib/vaerktoejer-data'
 import { getToolIcon } from '@/lib/vaerktoejer-icons'
 import { ToolIllustration } from '../components/ToolIllustration'
@@ -31,33 +32,24 @@ export default async function VaerktoejSlugPage({ params }: PageProps) {
   const { Icon, bg, text } = getToolIcon(slug)
 
   return (
-    <div className="min-h-screen bg-[#fafbfc]">
-      <div className="fixed inset-0 bg-[linear-gradient(to_right,#f0f1f3_1px,transparent_1px),linear-gradient(to_bottom,#f0f1f3_1px,transparent_1px)] bg-[size:24px_24px] opacity-60 pointer-events-none" />
-      <div className="relative z-10">
-        <nav className="border-b border-gray-200/80 bg-white/80 backdrop-blur-sm sticky top-0 z-50">
-          <div className="container mx-auto px-6 py-4">
-            <div className="flex justify-between items-center">
-              <Link href="/" className="flex items-center gap-3">
-                <ForgeLabLogo size={28} />
-                <span className="font-semibold text-gray-900">ForgeLab</span>
-              </Link>
-              <div className="flex items-center gap-4">
-                <Link href="/vaerktoejer" className="text-gray-600 hover:text-gray-900">
-                  Værktøjer
-                </Link>
-                <Link
-                  href="/login"
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-violet-500 text-white rounded-xl font-medium hover:bg-violet-600 transition-colors"
-                >
-                  <LogIn className="w-4 h-4" />
-                  Log ind
-                </Link>
-              </div>
-            </div>
+    <PageShell>
+      <SiteNav
+        rightSlot={
+          <div className="flex items-center gap-4">
+            <Link href="/vaerktoejer" className="text-sm text-gray-600 hover:text-gray-900 font-medium transition-colors">
+              Værktøjer
+            </Link>
+            <Link
+              href="/login"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-900 text-white rounded-xl font-medium hover:bg-gray-800 transition-all duration-200 shadow-sm hover:shadow-md"
+            >
+              <LogIn className="w-4 h-4" />
+              Log ind
+            </Link>
           </div>
-        </nav>
-
-        <main className="container mx-auto px-6 py-12 max-w-4xl">
+        }
+      />
+      <main className="container mx-auto px-6 py-12 max-w-4xl">
           <nav className="text-sm text-gray-500 mb-8">
             <Link href="/" className="hover:text-gray-900">Forside</Link>
             <span className="mx-2">/</span>
@@ -68,7 +60,7 @@ export default async function VaerktoejSlugPage({ params }: PageProps) {
 
           <div className="flex flex-col md:flex-row md:items-start gap-8 md:gap-12 mb-12">
             <div className="flex-shrink-0 w-full md:w-[280px]">
-              <div className="bg-white rounded-2xl border border-gray-200/80 shadow-lg shadow-gray-200/50 p-6 flex items-center justify-center min-h-[200px]">
+              <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-6 flex items-center justify-center min-h-[200px]">
                 <ToolIllustration slug={slug} />
               </div>
             </div>
@@ -104,7 +96,7 @@ export default async function VaerktoejSlugPage({ params }: PageProps) {
             </div>
             <Link
               href="/login"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-violet-500 text-white rounded-xl font-semibold hover:bg-violet-600 transition-colors shrink-0"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-amber-500 text-white rounded-xl font-semibold hover:bg-amber-600 transition-all duration-200 shadow-lg shadow-amber-500/25 shrink-0"
             >
               Log ind
               <ArrowRight className="w-4 h-4" />
@@ -120,7 +112,6 @@ export default async function VaerktoejSlugPage({ params }: PageProps) {
             </Link>
           </div>
         </main>
-      </div>
-    </div>
+    </PageShell>
   )
 }

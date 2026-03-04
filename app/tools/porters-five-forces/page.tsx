@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import ForgeLabLogo from '@/components/ForgeLabLogo'
+import { useProjectToolData } from '@/lib/useProjectToolData'
 
 export default function PortersFiveForces() {
   const [forces, setForces] = useState({
@@ -12,6 +13,9 @@ export default function PortersFiveForces() {
     substitutes: [''],
     newEntrants: ['']
   })
+
+  // Automatically save/load data when in a project
+  useProjectToolData('porters-five-forces', forces, setForces)
 
   const updateForce = (category: keyof typeof forces, index: number, value: string) => {
     const newForces = { ...forces }

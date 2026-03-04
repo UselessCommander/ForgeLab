@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import ForgeLabLogo from '@/components/ForgeLabLogo'
+import { useProjectToolData } from '@/lib/useProjectToolData'
 
 export default function ValuePropositionCanvas() {
   const [customerProfile, setCustomerProfile] = useState({
@@ -16,6 +17,16 @@ export default function ValuePropositionCanvas() {
     painRelievers: [''],
     gainCreators: ['']
   })
+
+  // Combine customerProfile and valueMap into one state object for saving
+  const valuePropositionData = { customerProfile, valueMap }
+  const setValuePropositionData = (data: typeof valuePropositionData) => {
+    setCustomerProfile(data.customerProfile)
+    setValueMap(data.valueMap)
+  }
+
+  // Automatically save/load data when in a project
+  useProjectToolData('value-proposition-canvas', valuePropositionData, setValuePropositionData)
 
   const updateCustomerField = (category: keyof typeof customerProfile, index: number, value: string) => {
     const newProfile = { ...customerProfile }
