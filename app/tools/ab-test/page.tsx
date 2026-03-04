@@ -151,12 +151,67 @@ export default function AbTestPage() {
                 >
                   {resultsLoading ? 'Henter...' : 'Se resultater'}
                 </button>
-                {results && (
-                  <ul className="mt-2 space-y-1 text-sm text-gray-600">
-                    {results.map((r) => (
-                      <li key={r.label}>Variant {r.label}: {r.count} stemmer</li>
-                    ))}
-                  </ul>
+                {results && results.length > 0 && (() => {
+                  const total = results.reduce((s, r) => s + r.count, 0)
+                  if (total === 0) {
+                    return <p className="mt-2 text-sm text-gray-500">Ingen stemmer endnu. Del linket for at indsamle svar.</p>
+                  }
+                  const colors = ['#7c3aed', '#a78bfa', '#c4b5fd', '#8b5cf6', '#6d28d9', '#5b21b6'] // violet scale
+                  const maxCount = Math.max(...results.map((r) => r.count), 1)
+                  return (
+                    <div className="mt-4 space-y-4">
+                      <p className="text-sm text-gray-500">{total} stemmer i alt</p>
+                      <div className="flex flex-col sm:flex-row gap-6 items-start">
+                        <div className="flex-1 min-w-0 w-full">
+                          <div className="space-y-3">
+                            {results.map((r, i) => (
+                              <div key={r.label} className="flex items-center gap-3">
+                                <span className="text-sm font-medium text-gray-700 w-20 shrink-0">Variant {r.label}</span>
+                                <div className="flex-1 h-8 bg-gray-100 rounded-lg overflow-hidden">
+                                  <div
+                                    className="h-full rounded-lg transition-all duration-500"
+                                    style={{
+                                      width: `${total ? (r.count / maxCount) * 100 : 0}%`,
+                                      backgroundColor: colors[i % colors.length],
+                                    }}
+                                  />
+                                </div>
+                                <span className="text-sm font-semibold text-gray-900 w-10 text-right">{r.count}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        {total > 0 && (
+                          <div className="shrink-0 flex flex-col items-center gap-2">
+                            <div
+                              className="w-32 h-32 rounded-full border-4 border-white shadow-inner"
+                              style={{
+                                background: `conic-gradient(${results
+                                  .map((r, i) => {
+                                    const start = (results.slice(0, i).reduce((s, x) => s + x.count, 0) / total) * 100
+                                    const end = (results.slice(0, i + 1).reduce((s, x) => s + x.count, 0) / total) * 100
+                                    return `${colors[i % colors.length]} ${start}% ${end}%`
+                                  })
+                                  .join(', ')})`,
+                              }}
+                            />
+                            <p className="text-xs text-gray-500">Fordeling</p>
+                          </div>
+                        )}
+                      </div>
+                      <ul className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-600">
+                        {results.map((r, i) => (
+                          <li key={r.label} className="inline-flex items-center gap-2">
+                            <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: colors[i % colors.length] }} />
+                            Variant {r.label}: {r.count} stemmer
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )
+                })()}
+                {results && results.length === 0 && (
+                  <p className="mt-2 text-sm text-gray-500">Ingen stemmer endnu. Del linket for at indsamle svar.</p>
                 )}
               </div>
               <button

@@ -50,44 +50,59 @@ export default function AbTestVoteClient({ testId, title, variants }: Props) {
     )
   }
 
-  return (
-    <div className="max-w-4xl mx-auto">
-      <div className="text-center mb-8">
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">{title || 'A/B/N Test'}</h1>
-        <p className="text-gray-600">Vælg den variant du bedst kan lide.</p>
-      </div>
+  const n = variants.length
+  const isTwo = n === 2
+  const gridCols =
+    n <= 2
+      ? 'grid-cols-1 sm:grid-cols-2'
+      : n === 3
+        ? 'grid-cols-1 sm:grid-cols-3'
+        : n === 4
+          ? 'grid-cols-2 sm:grid-cols-4'
+          : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4'
+  const maxWidth = isTwo ? 'max-w-6xl' : n === 3 ? 'max-w-5xl' : 'max-w-6xl'
+  const gap = isTwo ? 'gap-6 sm:gap-8' : n === 3 ? 'gap-6' : 'gap-4'
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {variants.map((v) => (
-          <div
-            key={v.id}
-            className="bg-white rounded-2xl border-2 border-gray-200 overflow-hidden shadow-sm hover:border-violet-300 hover:shadow-md transition-all"
-          >
-            <div className="aspect-[4/3] bg-gray-100 relative">
-              {v.type === 'url' ? (
-                <iframe
-                  src={v.value}
-                  title={`Variant ${v.label}`}
-                  className="absolute inset-0 w-full h-full border-0"
-                  sandbox="allow-scripts allow-same-origin"
-                />
-              ) : (
-                <img src={v.value} alt={`Variant ${v.label}`} className="w-full h-full object-contain" />
-              )}
+  return (
+    <div className="min-h-[80vh] flex flex-col items-center justify-center px-4 py-8">
+      <div className={`w-full ${maxWidth} mx-auto`}>
+        <div className="text-center mb-8">
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">{title || 'A/B/N Test'}</h1>
+          <p className="text-gray-600">Vælg den variant du bedst kan lide.</p>
+        </div>
+
+        <div className={`grid grid-cols-1 ${gridCols} ${gap}`}>
+          {variants.map((v) => (
+            <div
+              key={v.id}
+              className="bg-white rounded-2xl border-2 border-gray-200 overflow-hidden shadow-sm hover:border-violet-300 hover:shadow-md transition-all"
+            >
+              <div className="aspect-[4/3] bg-gray-100 relative">
+                {v.type === 'url' ? (
+                  <iframe
+                    src={v.value}
+                    title={`Variant ${v.label}`}
+                    className="absolute inset-0 w-full h-full border-0"
+                    sandbox="allow-scripts allow-same-origin"
+                  />
+                ) : (
+                  <img src={v.value} alt={`Variant ${v.label}`} className="w-full h-full object-contain" />
+                )}
+              </div>
+              <div className={isTwo ? 'p-5' : 'p-4'}>
+                <p className="font-medium text-gray-900 mb-3">Variant {v.label}</p>
+                <button
+                  type="button"
+                  onClick={() => submit(v.id)}
+                  disabled={loading}
+                  className="w-full py-3 bg-violet-600 text-white rounded-xl font-medium hover:bg-violet-700 disabled:opacity-50"
+                >
+                  Vælg denne
+                </button>
+              </div>
             </div>
-            <div className="p-4">
-              <p className="font-medium text-gray-900 mb-3">Variant {v.label}</p>
-              <button
-                type="button"
-                onClick={() => submit(v.id)}
-                disabled={loading}
-                className="w-full py-3 bg-violet-600 text-white rounded-xl font-medium hover:bg-violet-700 disabled:opacity-50"
-              >
-                Vælg denne
-              </button>
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
   )
