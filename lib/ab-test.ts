@@ -30,11 +30,15 @@ export interface AbTest {
   created_at: string
 }
 
+export type CreateAbTestResult =
+  | { ok: true; test: AbTest; magicSlug: string }
+  | { ok: false; error: string }
+
 export async function createAbTest(
   userId: string,
   title: string,
   variants: { label: string; type: VariantType; value: string }[]
-): Promise<{ test: AbTest; magicSlug: string } | null> {
+): Promise<CreateAbTestResult> {
   const testId = generateId()
   let magicSlug = generateMagicSlug()
   const { data: existing } = await supabase.from('ab_tests').select('id').eq('magic_slug', magicSlug).single()
@@ -49,7 +53,11 @@ export async function createAbTest(
 
   if (testError) {
     console.error('createAbTest test error:', testError)
-    return null
+    const msg = testError.message || ''
+    if (msg.includes('does not exist') || msg.includes('relation')) {
+      return { ok: false, error: 'A/B-test tabellerne findes ikke i databasen. Kør migrationen supabase/migrations/002_ab_test.sql i Supabase.' }
+    }
+    return { ok: false, error: testError.message || 'Databasefejl ved oprettelse af test' }
   }
 
   for (let i = 0; i < variants.length; i++) {
@@ -65,10 +73,16 @@ export async function createAbTest(
     })
     if (varError) {
       console.error('createAbTest variant error:', varError)
+      const msg = varError.message || ''
+      if (msg.includes('does not exist') || msg.includes('relation')) {
+        return { ok: false, error: 'A/B-test tabellerne findes ikke i databasen. Kør migrationen supabase/migrations/002_ab_test.sql i Supabase.' }
+      }
+      return { ok: false, error: varError.message || 'Databasefejl ved oprettelse af varianter' }
     }
   }
 
   return {
+    ok: true,
     test: { id: testId, user_id: userId, title: title || 'A/B/N Test', magic_slug: magicSlug, created_at: new Date().toISOString() },
     magicSlug,
   }

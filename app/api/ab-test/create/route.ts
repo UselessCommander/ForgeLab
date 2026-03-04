@@ -24,8 +24,8 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await createAbTest(userId, title?.trim() || 'A/B/N Test', variants)
-    if (!result) {
-      return NextResponse.json({ error: 'Kunne ikke oprette test' }, { status: 500 })
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error }, { status: 500 })
     }
 
     const baseUrl = getBaseUrl()
