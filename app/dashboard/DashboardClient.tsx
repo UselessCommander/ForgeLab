@@ -98,6 +98,25 @@ export default function DashboardClient() {
             </div>
           )}
         </section>
+        <section className="mb-16">
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Hurtig adgang</h2>
+          <p className="text-gray-600 mb-4">Værktøjer du kan åbne direkte uden at tilføje til et projekt.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Link
+              href="/tools/ab-test"
+              className="flex items-center gap-4 p-5 rounded-2xl border border-gray-200/80 bg-white shadow-sm hover:shadow-lg hover:border-violet-200/60 transition-all duration-300 group"
+            >
+              <div className="flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center bg-violet-100 text-violet-600">
+                <span className="text-xl" aria-hidden>🔀</span>
+              </div>
+              <div className="min-w-0 flex-1">
+                <h4 className="font-medium text-gray-900 group-hover:text-violet-700">A/B/N Test</h4>
+                <p className="text-xs text-gray-500">Opret A/B- eller A/B/N-tests med links eller billeder. Del et magic link – testpersoner vælger den variant de bedst kan lide.</p>
+              </div>
+              <span className="flex-shrink-0 text-violet-600 font-medium text-sm">Åbn →</span>
+            </Link>
+          </div>
+        </section>
         <section>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Tilgængelige værktøjer</h2>
           <p className="text-gray-600 mb-6">Tilføj værktøjer til et projekt via projektets sidebjælke.</p>
