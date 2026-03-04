@@ -54,6 +54,15 @@ function detectDevice(userAgent?: string): 'Mobil' | 'Desktop' | 'Tablet' | 'And
   return 'Andet'
 }
 
+function getRefererLabel(referer?: string): string {
+  if (!referer?.trim()) return 'Direkte'
+  try {
+    return new URL(referer).hostname
+  } catch {
+    return referer.length > 35 ? referer.slice(0, 35) + '…' : referer
+  }
+}
+
 function BarChart3D({ weeklyData, days, isDemo }: { weeklyData: number[]; days: string[]; isDemo: boolean }) {
   if (!weeklyData.length) {
     return (
@@ -217,9 +226,10 @@ function StatsCards3D(props: {
   totalScans: number
   totalQrCodes: number
   lastScanAt: string | null
+  uniqueIPs: number
   hasRealData: boolean
 }) {
-  const { totalScans, totalQrCodes, lastScanAt, hasRealData } = props
+  const { totalScans, totalQrCodes, lastScanAt, uniqueIPs, hasRealData } = props
 
   const stats = hasRealData
     ? [
@@ -232,6 +242,11 @@ function StatsCards3D(props: {
           label: 'Samlet antal scanninger',
           value: String(totalScans),
           sub: 'Alle trackede QR-koder',
+        },
+        {
+          label: 'Unikke IP-adresser',
+          value: String(uniqueIPs),
+          sub: 'Estimat på unikke besøgende',
         },
         {
           label: 'Seneste scan',
@@ -247,7 +262,7 @@ function StatsCards3D(props: {
         { label: 'Top enhed', value: 'Mobil', sub: '52%' },
       ]
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
       {stats.map((s, i) => (
         <div
           key={i}
@@ -312,29 +327,29 @@ export default function AnalyticsCharts() {
     fetchStats()
   }, [])
 
-  const { totalScans, totalQrCodes, lastScanAt } = useMemo(() => {
+  const { totalScans, totalQrCodes, lastScanAt, uniqueIPs } = useMemo(() => {
     if (!stats) {
-      return { totalScans: 0, totalQrCodes: 0, lastScanAt: null as string | null }
+      return { totalScans: 0, totalQrCodes: 0, lastScanAt: null as string | null, uniqueIPs: 0 }
     }
 
     const ids = Object.keys(stats)
     const total = ids.reduce((sum, id) => sum + (stats[id]?.count || 0), 0)
     let latest: string | null = null
+    const ipSet = new Set<string>()
 
     for (const id of ids) {
       const scans = stats[id]?.scans || []
-      if (scans.length > 0) {
-        const ts = scans[scans.length - 1].timestamp
-        if (!latest || new Date(ts) > new Date(latest)) {
-          latest = ts
-        }
-      }
+      scans.forEach((s) => {
+        if (s.ip) ipSet.add(s.ip)
+        if (s.timestamp && (!latest || new Date(s.timestamp) > new Date(latest))) latest = s.timestamp
+      })
     }
 
     return {
       totalScans: total,
       totalQrCodes: ids.length,
       lastScanAt: latest,
+      uniqueIPs: ipSet.size,
     }
   }, [stats])
 
@@ -420,6 +435,68 @@ export default function AnalyticsCharts() {
     return buckets.every((c) => c === 0) ? demoTrendData : buckets
   }, [hasScanData, stats])
 
+  // Per-QR oversigt (alle QR-koder med count og link)
+  const perQRList = useMemo(() => {
+    if (!stats) return []
+    return Object.entries(stats)
+      .map(([id, qr]) => ({
+        id,
+        originalUrl: qr.originalUrl || '',
+        count: qr.count || 0,
+        createdAt: qr.createdAt || '',
+      }))
+      .sort((a, b) => b.count - a.count)
+  }, [stats])
+
+  // Referer / trafikkilde
+  const refererData = useMemo(() => {
+    if (!hasScanData || !stats) return []
+    const map: Record<string, number> = {}
+    Object.values(stats).forEach((qr) => {
+      qr.scans.forEach((scan) => {
+        const label = getRefererLabel(scan.referer)
+        map[label] = (map[label] || 0) + 1
+      })
+    })
+    const colors = ['#0ea5e9', '#38bdf8', '#7dd3fc', '#bae6fd', '#e0f2fe', '#f0f9ff']
+    return Object.entries(map)
+      .sort((a, b) => b[1] - a[1])
+      .map(([label, value], i) => ({ label, value, color: colors[i % colors.length] }))
+  }, [hasScanData, stats])
+
+  // Scanninger per time (0–23)
+  const hourlyData = useMemo(() => {
+    if (!hasScanData || !stats) return Array(24).fill(0)
+    const counts = Array(24).fill(0)
+    Object.values(stats).forEach((qr) => {
+      qr.scans.forEach((scan) => {
+        const h = new Date(scan.timestamp).getHours()
+        if (h >= 0 && h < 24) counts[h] += 1
+      })
+    })
+    return counts
+  }, [hasScanData, stats])
+
+  // Seneste scanninger (flad liste med qr-info)
+  const recentScansList = useMemo(() => {
+    if (!stats) return []
+    const list: { timestamp: string; ip?: string; userAgent?: string; referer?: string; qrId: string; originalUrl: string }[] = []
+    Object.entries(stats).forEach(([qrId, qr]) => {
+      (qr.scans || []).forEach((s) => {
+        list.push({
+          timestamp: s.timestamp,
+          ip: s.ip,
+          userAgent: s.userAgent,
+          referer: s.referer,
+          qrId,
+          originalUrl: qr.originalUrl || '',
+        })
+      })
+    })
+    list.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    return list.slice(0, 25)
+  }, [stats])
+
   return (
     <section className="mb-14">
       <h2 className="text-2xl font-bold text-gray-900 mb-2">Dine QR Analytics</h2>
@@ -445,6 +522,7 @@ export default function AnalyticsCharts() {
         totalScans={totalScans}
         totalQrCodes={totalQrCodes}
         lastScanAt={lastScanAt}
+        uniqueIPs={uniqueIPs}
         hasRealData={hasQrData}
       />
 
@@ -481,6 +559,124 @@ export default function AnalyticsCharts() {
           <LineChart3D trendData={trendData} isDemo={!hasScanData} />
         </div>
       </div>
+
+      {hasQrData && perQRList.length > 0 && (
+        <>
+          <h3 className="text-sm font-semibold text-gray-700 mt-10 mb-2">Statistik per QR-kode</h3>
+          <div className="bg-white rounded-2xl p-6 border border-sky-100 shadow-lg overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200 text-left text-gray-500 uppercase tracking-wider">
+                    <th className="pb-2 pr-4">Link / destination</th>
+                    <th className="pb-2 pr-4 text-right">Scanninger</th>
+                    <th className="pb-2">Oprettet</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {perQRList.map((row) => (
+                    <tr key={row.id} className="border-b border-gray-100 last:border-0">
+                      <td className="py-3 pr-4">
+                        <span className="text-gray-900 font-medium truncate max-w-[200px] sm:max-w-xs inline-block" title={row.originalUrl}>
+                          {row.originalUrl || row.id}
+                        </span>
+                      </td>
+                      <td className="py-3 pr-4 text-right font-semibold text-sky-700">{row.count}</td>
+                      <td className="py-3 text-gray-500">{row.createdAt ? new Date(row.createdAt).toLocaleDateString('da-DK') : '–'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+
+      {hasScanData && (refererData.length > 0 || hourlyData.some((n) => n > 0)) && (
+        <>
+          <h3 className="text-sm font-semibold text-gray-700 mt-10 mb-2">Trafikkilder og tidsfordeling</h3>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {refererData.length > 0 && (
+              <div className="bg-white rounded-2xl p-6 border border-sky-100 shadow-lg">
+                <p className="text-xs font-medium text-sky-600/80 uppercase tracking-wider mb-4">Kilde (referer)</p>
+                <div className="flex flex-wrap items-center gap-4">
+                  <div className="w-36 h-36 rounded-full border-4 border-white shadow-inner flex-shrink-0" style={{
+                    background: `conic-gradient(${refererData
+                      .map((d, i) => {
+                        const total = refererData.reduce((s, x) => s + x.value, 0)
+                        const start = (refererData.slice(0, i).reduce((s, x) => s + x.value, 0) / total) * 100
+                        const end = (refererData.slice(0, i + 1).reduce((s, x) => s + x.value, 0) / total) * 100
+                        return `${d.color} ${start}% ${end}%`
+                      })
+                      .join(', ')})`,
+                  }} />
+                  <div className="flex flex-col gap-1">
+                    {refererData.map((d, i) => {
+                      const total = refererData.reduce((s, x) => s + x.value, 0)
+                      return (
+                        <span key={i} className="inline-flex items-center gap-2 text-sm">
+                          <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: d.color }} />
+                          {d.label}: {d.value} ({Math.round((d.value / total) * 100)}%)
+                        </span>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+            <div className="bg-white rounded-2xl p-6 border border-sky-100 shadow-lg">
+              <p className="text-xs font-medium text-sky-600/80 uppercase tracking-wider mb-4">Scanninger per time (døgn)</p>
+              <div className="flex items-end justify-between gap-0.5 h-[120px]">
+                {hourlyData.map((val, i) => {
+                  const max = Math.max(...hourlyData, 1)
+                  const h = (val / max) * 100
+                  return (
+                    <div key={i} className="flex-1 flex flex-col items-center group" title={`${i}-${i + 1}: ${val} scans`}>
+                      <div
+                        className="w-full rounded-t min-h-[4px] bg-sky-500/80 hover:bg-sky-500 transition-all"
+                        style={{ height: `${Math.max(h, 4)}%` }}
+                      />
+                      {i % 4 === 0 && <span className="text-[9px] text-gray-400 mt-1">{i}</span>}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {hasScanData && recentScansList.length > 0 && (
+        <>
+          <h3 className="text-sm font-semibold text-gray-700 mt-10 mb-2">Seneste scanninger</h3>
+          <div className="bg-white rounded-2xl p-6 border border-sky-100 shadow-lg overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200 text-left text-gray-500 uppercase tracking-wider">
+                    <th className="pb-2 pr-4">Tidspunkt</th>
+                    <th className="pb-2 pr-4">Enhed</th>
+                    <th className="pb-2 pr-4">Kilde (referer)</th>
+                    <th className="pb-2 pr-4 hidden sm:table-cell">IP</th>
+                    <th className="pb-2">Destination</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentScansList.map((s, i) => (
+                    <tr key={i} className="border-b border-gray-100 last:border-0">
+                      <td className="py-2 pr-4 whitespace-nowrap text-gray-700">{new Date(s.timestamp).toLocaleString('da-DK')}</td>
+                      <td className="py-2 pr-4">{detectDevice(s.userAgent)}</td>
+                      <td className="py-2 pr-4 max-w-[120px] truncate" title={s.referer || 'Direkte'}>{getRefererLabel(s.referer)}</td>
+                      <td className="py-2 pr-4 hidden sm:table-cell text-gray-500 font-mono text-xs">{s.ip || '–'}</td>
+                      <td className="py-2 max-w-[140px] truncate text-gray-600" title={s.originalUrl}>{s.originalUrl || s.qrId}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
     </section>
   )
 }
