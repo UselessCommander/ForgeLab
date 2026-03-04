@@ -19,10 +19,11 @@ export function middleware(request: NextRequest) {
   const publicRoutes = ['/', '/login', '/register', '/api/auth/login', '/api/auth/register', '/try/qr-generator', '/analytics', '/vaerktoejer']
   const isPublicRoute = publicRoutes.some(route => request.nextUrl.pathname === route)
   const isPublicToolsExplore = request.nextUrl.pathname.startsWith('/vaerktoejer/')
-  const isPublic = isPublicRoute || isPublicToolsExplore
-  
-  // API routes that don't require authentication (tracking endpoints)
-  const publicApiRoutes = ['/api/track', '/api/auth']
+  const isAbTestVote = request.nextUrl.pathname.startsWith('/tools/ab-test/v/')
+  const isPublic = isPublicRoute || isPublicToolsExplore || isAbTestVote
+
+  // API routes that don't require authentication (tracking, ab-test respond)
+  const publicApiRoutes = ['/api/track', '/api/auth', '/api/ab-test/respond']
   const isPublicApiRoute = publicApiRoutes.some(route => request.nextUrl.pathname.startsWith(route))
   
   // If accessing protected route without authentication
