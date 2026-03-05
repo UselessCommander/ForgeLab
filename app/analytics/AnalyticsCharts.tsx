@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 
 // Fallback demo data for visualizations (used hvis ingen rigtige data endnu)
@@ -315,63 +315,71 @@ export default function AnalyticsCharts({ qrId }: AnalyticsChartsProps = {}) {
   const [stats, setStats] = useState<StatsResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null)
+
+  const fetchStats = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const base = typeof window !== 'undefined' ? window.location.origin : ''
+      const url = qrId ? `${base}/api/stats/${encodeURIComponent(qrId)}` : `${base}/api/stats`
+      const response = await fetch(url, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+          Pragma: 'no-cache',
+          Expires: '0',
+        },
+      })
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          setError('Log ind for at se dine analytics.')
+        } else if (response.status === 403) {
+          setError('Ingen adgang til denne QR-kode.')
+        } else {
+          setError('Kunne ikke hente analytics-data.')
+        }
+        return
+      }
+
+      const data = (await response.json()) as unknown
+      if (data && typeof data === 'object' && data !== null) {
+        if (qrId) {
+          const raw = data as { count?: number; createdAt?: string; originalUrl?: string; scans?: ScanEntry[] }
+          setStats({
+            [qrId]: {
+              userId: '',
+              count: raw.count ?? 0,
+              createdAt: raw.createdAt ?? '',
+              originalUrl: raw.originalUrl ?? '',
+              scans: raw.scans ?? [],
+            },
+          })
+        } else {
+          setStats(data as StatsResponse)
+        }
+        setLastUpdated(new Date().toLocaleTimeString('da-DK'))
+      } else {
+        setError('Uventet dataformat fra serveren.')
+      }
+    } catch (err) {
+      console.error('Fejl ved indlæsning af analytics-data:', err)
+      setError('Fejl ved indlæsning af analytics-data.')
+    } finally {
+      setLoading(false)
+    }
+  }, [qrId])
 
   useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        setLoading(true)
-        setError(null)
-        const base = typeof window !== 'undefined' ? window.location.origin : ''
-        const url = qrId ? `${base}/api/stats/${encodeURIComponent(qrId)}` : `${base}/api/stats`
-        const response = await fetch(url, {
-          cache: 'no-store',
-          headers: {
-            'Cache-Control': 'no-store, no-cache, must-revalidate',
-            Pragma: 'no-cache',
-            Expires: '0',
-          },
-        })
-
-        if (!response.ok) {
-          if (response.status === 401) {
-            setError('Log ind for at se dine analytics.')
-          } else if (response.status === 403) {
-            setError('Ingen adgang til denne QR-kode.')
-          } else {
-            setError('Kunne ikke hente analytics-data.')
-          }
-          return
-        }
-
-        const data = (await response.json()) as unknown
-        if (data && typeof data === 'object' && data !== null) {
-          if (qrId) {
-            const raw = data as { count?: number; createdAt?: string; originalUrl?: string; scans?: ScanEntry[] }
-            setStats({
-              [qrId]: {
-                userId: '',
-                count: raw.count ?? 0,
-                createdAt: raw.createdAt ?? '',
-                originalUrl: raw.originalUrl ?? '',
-                scans: raw.scans ?? [],
-              },
-            })
-          } else {
-            setStats(data as StatsResponse)
-          }
-        } else {
-          setError('Uventet dataformat fra serveren.')
-        }
-      } catch (err) {
-        console.error('Fejl ved indlæsning af analytics-data:', err)
-        setError('Fejl ved indlæsning af analytics-data.')
-      } finally {
-        setLoading(false)
-      }
-    }
-
     fetchStats()
-  }, [qrId])
+  }, [fetchStats])
+
+  // Let siden autoopdatere hver 30. sekund, så grafer følger med nye scans
+  useEffect(() => {
+    const id = setInterval(fetchStats, 30000)
+    return () => clearInterval(id)
+  }, [fetchStats])
 
   const { totalScans, totalQrCodes, lastScanAt, uniqueIPs } = useMemo(() => {
     if (!stats) {
@@ -553,6 +561,11 @@ export default function AnalyticsCharts({ qrId }: AnalyticsChartsProps = {}) {
           ? 'Grafer og statistik kun for denne QR-kode.'
           : 'Oversigt over dine trackede QR-koder. Data er bundet til din bruger og gemt i databasen, så det er persistent.'}
       </p>
+      {lastUpdated && (
+        <p className="text-xs text-gray-400 mb-3">
+          Sidst opdateret: {lastUpdated}
+        </p>
+      )}
 
       {loading && (
         <p className="text-sm text-gray-500 mb-4">Indlæser dine analytics-data...</p>
@@ -688,13 +701,21 @@ export default function AnalyticsCharts({ qrId }: AnalyticsChartsProps = {}) {
                 {hourlyData.map((val, i) => {
                   const max = Math.max(...hourlyData, 1)
                   const h = (val / max) * 100
+                  const showHourLabel = val > 0 || i % 3 === 0
                   return (
-                    <div key={i} className="flex-1 flex flex-col items-center group" title={`${i}-${i + 1}: ${val} scans`}>
+                    <div key={i} className="flex-1 flex flex-col items-center group" title={`${i}:00–${i + 1}:00 • ${val} scanninger`}>
+                      {val > 0 && (
+                        <span className="text-[9px] font-semibold text-sky-700 mb-0.5 leading-none">
+                          {val}
+                        </span>
+                      )}
                       <div
                         className="w-full rounded-t min-h-[4px] bg-sky-500/80 hover:bg-sky-500 transition-all"
                         style={{ height: `${Math.max(h, 4)}%` }}
                       />
-                      {i % 4 === 0 && <span className="text-[9px] text-gray-400 mt-1">{i}</span>}
+                      <span className="text-[9px] text-gray-400 mt-1">
+                        {showHourLabel ? i : ''}
+                      </span>
                     </div>
                   )
                 })}
