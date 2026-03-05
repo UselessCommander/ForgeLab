@@ -25,7 +25,7 @@ export default function ProjectCard({ project }: ProjectCardProps) {
   return (
     <Link
       href={`/dashboard/projects/${project.id}`}
-      className="group flex flex-col gap-3 p-6 rounded-2xl border border-gray-200/80 bg-white shadow-sm hover:shadow-lg hover:border-amber-200/60 transition-all duration-300"
+      className="group flex flex-col gap-3 p-5 rounded-2xl border border-gray-200/80 bg-white shadow-sm hover:shadow-lg hover:border-amber-200/70 hover:-translate-y-0.5 transition-all duration-200"
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-3 min-w-0">
@@ -33,17 +33,24 @@ export default function ProjectCard({ project }: ProjectCardProps) {
             <FolderOpen className="w-5 h-5" />
           </div>
           <div className="min-w-0">
-            <h3 className="font-semibold text-gray-900 truncate">{project.name}</h3>
+            <h3 className="font-semibold text-gray-900 truncate group-hover:text-amber-700">
+              {project.name}
+            </h3>
             {project.description && (
               <p className="text-sm text-gray-500 truncate mt-0.5">{project.description}</p>
             )}
           </div>
         </div>
       </div>
-      <div className="flex items-center gap-3 text-xs text-gray-400">
-        <span>{formatDate(project.updatedAt)}</span>
+      <div className="flex items-center gap-3 text-[11px] text-gray-400">
+        <span className="inline-flex items-center gap-1">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+          Opdateret {formatDate(project.updatedAt)}
+        </span>
         <span>·</span>
-        <span>{toolCount} værktøj{toolCount !== 1 ? 'er' : ''}</span>
+        <span>
+          {toolCount} værktøj{toolCount !== 1 ? 'er' : ''}
+        </span>
       </div>
     </Link>
   )
