@@ -333,7 +333,7 @@ export default function AnalyticsCharts() {
     }
 
     const ids = Object.keys(stats)
-    const total = ids.reduce((sum, id) => sum + (stats[id]?.count || 0), 0)
+    const total = ids.reduce((sum, id) => sum + (stats[id]?.scans?.length ?? 0), 0)
     let latest: string | null = null
     const ipSet = new Set<string>()
 
@@ -435,14 +435,14 @@ export default function AnalyticsCharts() {
     return buckets.every((c) => c === 0) ? demoTrendData : buckets
   }, [hasScanData, stats])
 
-  // Per-QR oversigt (alle QR-koder med count og link)
+  // Per-QR oversigt (antal = faktiske scans fra arrayet, ikke qr_codes.count)
   const perQRList = useMemo(() => {
     if (!stats) return []
     return Object.entries(stats)
       .map(([id, qr]) => ({
         id,
         originalUrl: qr.originalUrl || '',
-        count: qr.count || 0,
+        count: qr.scans?.length ?? 0,
         createdAt: qr.createdAt || '',
       }))
       .sort((a, b) => b.count - a.count)
