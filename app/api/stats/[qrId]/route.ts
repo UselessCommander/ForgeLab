@@ -24,6 +24,7 @@ export async function GET(
             return NextResponse.json({ 
                 count: 0, 
                 createdAt: null,
+                originalUrl: '',
                 scans: []
             });
         }
@@ -39,6 +40,7 @@ export async function GET(
         return NextResponse.json({
             count: qrCode.count,
             createdAt: qrCode.createdAt,
+            originalUrl: qrCode.originalUrl ?? '',
             scans: qrCode.scans
         });
     } catch (error: any) {

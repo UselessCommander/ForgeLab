@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 
 // Fallback demo data for visualizations (used hvis ingen rigtige data endnu)
 const demoWeeklyData = [42, 68, 55, 89, 72, 95, 110]
@@ -185,38 +186,62 @@ function LineChart3D({ trendData, isDemo }: { trendData: number[]; isDemo: boole
     )
   }
 
-  const max = Math.max(...trendData)
+  const max = Math.max(...trendData, 1)
   const points = trendData
     .map((v, i) => {
-      const x = (i / (trendData.length - 1)) * 100
+      const x = (trendData.length <= 1 ? 50 : (i / (trendData.length - 1))) * 100
       const y = 100 - (v / max) * 100
       return `${x},${y}`
     })
     .join(' ')
   const areaPoints = `0,100 ${points} 100,100`
+
+  // Dage for x-aksen: seneste 7 dage (index 0 = 6 dage siden, index 6 = i dag)
+  const dayLabels = trendData.map((_, i) => {
+    const d = new Date()
+    d.setDate(d.getDate() - (trendData.length - 1 - i))
+    return d.toLocaleDateString('da-DK', { weekday: 'short', day: 'numeric', month: 'numeric' })
+  })
+
   return (
     <div className="relative">
       <p className="text-xs font-medium text-sky-600/80 uppercase tracking-wider mb-4">
         Trend 7 dage{isDemo ? ' (demo)' : ''}
       </p>
-      <div className="h-[140px] relative" style={{ perspective: '120px' }}>
-        <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full">
-          <defs>
-            <linearGradient id="lineAreaGrad" x1="0" y1="1" x2="0" y2="0">
-              <stop offset="0%" stopColor="#0ea5e9" stopOpacity="0.35" />
-              <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0.02" />
-            </linearGradient>
-          </defs>
-          <polygon points={areaPoints} fill="url(#lineAreaGrad)" />
-          <polyline
-            points={points}
-            fill="none"
-            stroke="#0ea5e9"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
+      <div className="flex gap-1 items-end">
+        <div className="flex flex-col justify-between text-[10px] text-gray-500 font-medium shrink-0 pr-1 h-[140px]">
+          <span>{max}</span>
+          <span>0</span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="h-[120px] relative" style={{ perspective: '120px' }}>
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full">
+              <defs>
+                <linearGradient id="lineAreaGrad" x1="0" y1="1" x2="0" y2="0">
+                  <stop offset="0%" stopColor="#0ea5e9" stopOpacity="0.35" />
+                  <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0.02" />
+                </linearGradient>
+              </defs>
+              <polygon points={areaPoints} fill="url(#lineAreaGrad)" />
+              <polyline
+                points={points}
+                fill="none"
+                stroke="#0ea5e9"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </div>
+          <div className="flex justify-between gap-0.5 mt-1">
+            {dayLabels.map((label, i) => (
+              <div key={i} className="flex flex-col items-center flex-1 min-w-0">
+                <span className="text-[10px] font-semibold text-sky-700">{trendData[i]}</span>
+                <span className="text-[9px] text-gray-500 truncate w-full text-center" title={label}>{label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -281,7 +306,12 @@ function StatsCards3D(props: {
   )
 }
 
-export default function AnalyticsCharts() {
+type AnalyticsChartsProps = {
+  /** Når sat vises kun analytics for denne QR-kode (hentes fra /api/stats/[qrId]) */
+  qrId?: string
+}
+
+export default function AnalyticsCharts({ qrId }: AnalyticsChartsProps = {}) {
   const [stats, setStats] = useState<StatsResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -292,7 +322,8 @@ export default function AnalyticsCharts() {
         setLoading(true)
         setError(null)
         const base = typeof window !== 'undefined' ? window.location.origin : ''
-        const response = await fetch(`${base}/api/stats`, {
+        const url = qrId ? `${base}/api/stats/${encodeURIComponent(qrId)}` : `${base}/api/stats`
+        const response = await fetch(url, {
           cache: 'no-store',
           headers: {
             'Cache-Control': 'no-store, no-cache, must-revalidate',
@@ -304,6 +335,8 @@ export default function AnalyticsCharts() {
         if (!response.ok) {
           if (response.status === 401) {
             setError('Log ind for at se dine analytics.')
+          } else if (response.status === 403) {
+            setError('Ingen adgang til denne QR-kode.')
           } else {
             setError('Kunne ikke hente analytics-data.')
           }
@@ -311,8 +344,21 @@ export default function AnalyticsCharts() {
         }
 
         const data = (await response.json()) as unknown
-        if (data && typeof data === 'object') {
-          setStats(data as StatsResponse)
+        if (data && typeof data === 'object' && data !== null) {
+          if (qrId) {
+            const raw = data as { count?: number; createdAt?: string; originalUrl?: string; scans?: ScanEntry[] }
+            setStats({
+              [qrId]: {
+                userId: '',
+                count: raw.count ?? 0,
+                createdAt: raw.createdAt ?? '',
+                originalUrl: raw.originalUrl ?? '',
+                scans: raw.scans ?? [],
+              },
+            })
+          } else {
+            setStats(data as StatsResponse)
+          }
         } else {
           setError('Uventet dataformat fra serveren.')
         }
@@ -325,7 +371,7 @@ export default function AnalyticsCharts() {
     }
 
     fetchStats()
-  }, [])
+  }, [qrId])
 
   const { totalScans, totalQrCodes, lastScanAt, uniqueIPs } = useMemo(() => {
     if (!stats) {
@@ -499,10 +545,13 @@ export default function AnalyticsCharts() {
 
   return (
     <section className="mb-14">
-      <h2 className="text-2xl font-bold text-gray-900 mb-2">Dine QR Analytics</h2>
+      <h2 className="text-2xl font-bold text-gray-900 mb-2">
+        {qrId ? 'Analytics for denne QR-kode' : 'Dine QR Analytics'}
+      </h2>
       <p className="text-gray-600 mb-4 max-w-xl">
-        Oversigt over dine trackede QR-koder. Data er bundet til din bruger og gemt i databasen, så det er
-        persistent.
+        {qrId
+          ? 'Grafer og statistik kun for denne QR-kode.'
+          : 'Oversigt over dine trackede QR-koder. Data er bundet til din bruger og gemt i databasen, så det er persistent.'}
       </p>
 
       {loading && (
@@ -560,7 +609,7 @@ export default function AnalyticsCharts() {
         </div>
       </div>
 
-      {hasQrData && perQRList.length > 0 && (
+      {hasQrData && perQRList.length > 0 && !qrId && (
         <>
           <h3 className="text-sm font-semibold text-gray-700 mt-10 mb-2">Statistik per QR-kode</h3>
           <div className="bg-white rounded-2xl p-6 border border-sky-100 shadow-lg overflow-hidden">
@@ -570,7 +619,8 @@ export default function AnalyticsCharts() {
                   <tr className="border-b border-gray-200 text-left text-gray-500 uppercase tracking-wider">
                     <th className="pb-2 pr-4">Link / destination</th>
                     <th className="pb-2 pr-4 text-right">Scanninger</th>
-                    <th className="pb-2">Oprettet</th>
+                    <th className="pb-2 pr-4">Oprettet</th>
+                    <th className="pb-2 text-right">Analytics</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -582,7 +632,15 @@ export default function AnalyticsCharts() {
                         </span>
                       </td>
                       <td className="py-3 pr-4 text-right font-semibold text-sky-700">{row.count}</td>
-                      <td className="py-3 text-gray-500">{row.createdAt ? new Date(row.createdAt).toLocaleDateString('da-DK') : '–'}</td>
+                      <td className="py-3 pr-4 text-gray-500">{row.createdAt ? new Date(row.createdAt).toLocaleDateString('da-DK') : '–'}</td>
+                      <td className="py-3 text-right">
+                        <Link
+                          href={`/analytics/${row.id}`}
+                          className="text-sky-600 hover:text-sky-700 font-medium text-sm"
+                        >
+                          Se →
+                        </Link>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

@@ -219,18 +219,6 @@ export default function AdminDashboard() {
   const qrCodes = Object.keys(data)
   const totalScans = qrCodes.reduce((sum, id) => sum + (data[id]?.count || 0), 0)
 
-  const recentScans = qrCodes
-    .flatMap((qrId) =>
-      data[qrId]?.scans?.map((scan) => ({
-        qrId,
-        timestamp: scan.timestamp,
-        userAgent: scan.userAgent,
-        ip: scan.ip,
-      })) ?? []
-    )
-    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-    .slice(0, 10)
-
   return (
     <>
       <Script
@@ -399,20 +387,28 @@ export default function AdminDashboard() {
                   )}
 
                   {/* Action Buttons */}
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => downloadQR(qrId)}
-                      disabled={!qrImages[qrId]}
-                      className="flex-1 px-4 py-2.5 bg-gray-900 text-white rounded-xl font-medium hover:bg-gray-800 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  <div className="flex flex-col gap-2">
+                    <Link
+                      href={`/analytics/${qrId}`}
+                      className="w-full px-4 py-2.5 bg-sky-600 text-white rounded-xl font-medium hover:bg-sky-700 transition-all duration-200 text-center"
                     >
-                      ⬇️ Download
-                    </button>
-                    <button
-                      onClick={() => deleteQR(qrId)}
-                      className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 transition-all duration-200"
-                    >
-                      🗑️ Slet
-                    </button>
+                      📊 Se analytics
+                    </Link>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => downloadQR(qrId)}
+                        disabled={!qrImages[qrId]}
+                        className="flex-1 px-4 py-2.5 bg-gray-900 text-white rounded-xl font-medium hover:bg-gray-800 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                      >
+                        ⬇️ Download
+                      </button>
+                      <button
+                        onClick={() => deleteQR(qrId)}
+                        className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 transition-all duration-200"
+                      >
+                        🗑️ Slet
+                      </button>
+                    </div>
                   </div>
                 </div>
               )
@@ -420,44 +416,6 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* Seneste scanninger på tværs af alle QR-koder */}
-        {recentScans.length > 0 && (
-          <div className="mt-10">
-            <h2 className="text-xl font-semibold text-gray-900 mb-3">Seneste scanninger</h2>
-            <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
-              <div className="max-h-80 overflow-auto">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-gray-50 border-b border-gray-200">
-                    <tr>
-                      <th className="px-4 py-2 text-left font-medium text-gray-600">Tidspunkt</th>
-                      <th className="px-4 py-2 text-left font-medium text-gray-600">QR ID</th>
-                      <th className="px-4 py-2 text-left font-medium text-gray-600">Enhed</th>
-                      <th className="px-4 py-2 text-left font-medium text-gray-600">IP</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recentScans.map((scan) => (
-                      <tr key={`${scan.qrId}-${scan.timestamp}`} className="border-b border-gray-100 last:border-0">
-                        <td className="px-4 py-2 text-gray-900">
-                          {new Date(scan.timestamp).toLocaleString('da-DK')}
-                        </td>
-                        <td className="px-4 py-2 text-gray-700 font-mono text-xs">
-                          {scan.qrId.substring(0, 12)}...
-                        </td>
-                        <td className="px-4 py-2 text-gray-700">
-                          {detectDevice(scan.userAgent)}
-                        </td>
-                        <td className="px-4 py-2 text-gray-500 text-xs">
-                          {scan.ip}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
         </div>
       </PageShell>
     </>
