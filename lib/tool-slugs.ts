@@ -11,6 +11,7 @@ export const TOOL_SLUGS = [
   'empathy-map',
   'card-sorting',
   'maslow-model',
+  'smuk-model',
 ] as const
 
 export type ToolSlug = (typeof TOOL_SLUGS)[number]

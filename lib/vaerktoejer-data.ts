@@ -166,6 +166,20 @@ Hvornår bruger man Maslow Model? Brug værktøjet ved segmentering, positioneri
     `.trim(),
   },
   {
+    slug: 'smuk-model',
+    title: 'SMUK-model',
+    shortDescription:
+      'Vurder og sammenlign segmenter ud fra Størrelse & vækst, Muligheder, Udgifter og Konkurrence.',
+    categories: ['strategi', 'markedsfoering'],
+    longSeoContent: `
+SMUK-modellen er en klassisk dansk model til at vurdere og prioritere segmenter ud fra fire kriterier: Størrelse & vækst, Muligheder for bearbejdning, Udgifter ved bearbejdning og Konkurrencesituationen i segmentet. ForgeLabs SMUK-værktøj giver dig en digital scoringstabel, hvor du kan rate hvert segment fra 1–5 på de fire dimensioner og få en samlet score pr. segment. Det gør det let at sammenligne og vælge de mest attraktive målgrupper til din strategi og markedsføring.
+
+Hvad er SMUK-modellen? Bogstaverne står for Størrelse, Muligheder, Udgifter og Konkurrence. Modellen bruges typisk i segmenterings- og målgruppearbejde til at vurdere, hvor attraktivt et segment er. Ved at arbejde struktureret med de fire felter undgår du at vælge segmenter på mavefornemmelse alene og får et fælles sprog i teamet om, hvorfor et segment er mere eller mindre attraktivt.
+
+Hvornår bruger man SMUK? Brug værktøjet når du opdeler markedet i flere segmenter og skal beslutte, hvilke I vil fokusere på. Det kan være i forbindelse med nye kampagner, produktlanceringer eller når I reviderer jeres målgruppestrategi. I ForgeLab kan du gemme SMUK-analysen i projekter sammen med fx SWOT, Business Model Canvas og andre strategi-værktøjer, så alt hænger sammen ét sted.
+    `.trim(),
+  },
+  {
     slug: 'survey-template',
     title: 'Survey Template',
     shortDescription: 'Byg undersøgelser med forskellige spørgsmålstyper: tekst, flervalgs- og skala-spørgsmål.',

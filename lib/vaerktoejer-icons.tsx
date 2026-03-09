@@ -12,6 +12,7 @@ import {
   Layers,
   Mountain,
   ClipboardList,
+  BarChart3,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -28,6 +29,7 @@ export const TOOL_ICONS: Record<string, { Icon: LucideIcon; bg: string; text: st
   'card-sorting': { Icon: Layers, bg: 'bg-cyan-50', text: 'text-cyan-600' },
   'maslow-model': { Icon: Mountain, bg: 'bg-amber-50', text: 'text-amber-700' },
   'survey-template': { Icon: ClipboardList, bg: 'bg-lime-50', text: 'text-lime-600' },
+  'smuk-model': { Icon: BarChart3, bg: 'bg-sky-50', text: 'text-sky-700' },
 }
 
 export function getToolIcon(slug: string) {
