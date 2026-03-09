@@ -198,13 +198,6 @@ function SmukContent() {
                   />
                 </div>
               ))}
-              <button
-                type="button"
-                onClick={() => removeSegment(data.segments.indexOf(data.segments[index]))}
-                className="hidden"
-              >
-                Fjern
-              </button>
             </div>
           ))}
 
