@@ -5,15 +5,29 @@ import type { DoubleDiamondPhase } from '@/lib/frameworks'
 export type DiamondDiagramSelection = DoubleDiamondPhase | 'hmw'
 
 type Props = {
-  activeSelection: DiamondDiagramSelection
-  onSelect: (selection: DiamondDiagramSelection) => void
+  /** Ingen klik på faser/HMW — bruges fx i projekt-workspace med overlay-ikoner */
+  readOnly?: boolean
+  activeSelection?: DiamondDiagramSelection
+  onSelect?: (selection: DiamondDiagramSelection) => void
 }
 
 const HMW_CX = 600
 const HMW_CY = 350
 
-export default function DoubleDiamondDiagram({ activeSelection, onSelect }: Props) {
+export default function DoubleDiamondDiagram({
+  readOnly = false,
+  activeSelection = 'discover',
+  onSelect,
+}: Props) {
   const quadrantProps = (phase: DoubleDiamondPhase) => {
+    if (readOnly) {
+      return {
+        fill: 'rgba(255, 250, 243, 0.75)',
+        stroke: '#d97706',
+        strokeWidth: 1.4,
+        className: 'pointer-events-none',
+      }
+    }
     const active = activeSelection === phase
     return {
       fill: active ? 'rgba(245, 158, 11, 0.3)' : 'rgba(255, 250, 243, 0.75)',
@@ -48,22 +62,22 @@ export default function DoubleDiamondDiagram({ activeSelection, onSelect }: Prop
       <polygon
         points="100,350 350,150 350,550"
         {...quadrantProps('discover')}
-        onClick={() => onSelect('discover')}
+        onClick={readOnly ? undefined : () => onSelect?.('discover')}
       />
       <polygon
         points="350,150 600,350 350,550"
         {...quadrantProps('define')}
-        onClick={() => onSelect('define')}
+        onClick={readOnly ? undefined : () => onSelect?.('define')}
       />
       <polygon
         points="600,350 850,150 850,550"
         {...quadrantProps('develop')}
-        onClick={() => onSelect('develop')}
+        onClick={readOnly ? undefined : () => onSelect?.('develop')}
       />
       <polygon
         points="850,150 1100,350 850,550"
         {...quadrantProps('deliver')}
-        onClick={() => onSelect('deliver')}
+        onClick={readOnly ? undefined : () => onSelect?.('deliver')}
       />
 
       <g className="pointer-events-none">
@@ -296,22 +310,25 @@ export default function DoubleDiamondDiagram({ activeSelection, onSelect }: Prop
         </text>
       </g>
 
-      {/* HMW — ovenpå, klikbar */}
-      <g onClick={() => onSelect('hmw')} className="cursor-pointer">
+      {/* HMW — klikbar på dashboard, dekorativ når readOnly (overlay kan vise ikoner) */}
+      <g
+        onClick={readOnly ? undefined : () => onSelect?.('hmw')}
+        className={readOnly ? 'pointer-events-none' : 'cursor-pointer'}
+      >
         <circle
           cx={HMW_CX}
           cy={HMW_CY}
           r={32}
-          fill={activeSelection === 'hmw' ? '#f59e0b' : '#ffffff'}
+          fill={readOnly ? '#ffffff' : activeSelection === 'hmw' ? '#f59e0b' : '#ffffff'}
           stroke="#d97706"
-          strokeWidth={activeSelection === 'hmw' ? 3 : 2}
+          strokeWidth={readOnly ? 2 : activeSelection === 'hmw' ? 3 : 2}
         />
         <text
           x={HMW_CX}
           y={HMW_CY + 4}
           textAnchor="middle"
           fontSize={11}
-          fill={activeSelection === 'hmw' ? '#ffffff' : '#000000'}
+          fill={readOnly ? '#000000' : activeSelection === 'hmw' ? '#ffffff' : '#000000'}
           style={{ fontWeight: 700, letterSpacing: '0.1em' }}
         >
           HMW

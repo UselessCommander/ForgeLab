@@ -25,6 +25,7 @@ import {
 import { VAERKTOEJER, getVaerktoejBySlug, getVaerktoejerGroupedByKategori } from '@/lib/vaerktoejer-data'
 import { getToolIcon } from '@/lib/vaerktoejer-icons'
 import { TOOL_SLUGS } from '@/lib/tool-slugs'
+import ProjectDoubleDiamondBoard from '@/components/dashboard/ProjectDoubleDiamondBoard'
 
 interface ProjectWorkspaceClientProps {
   projectId: string
@@ -184,10 +185,6 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const canEdit = project.role === 'owner' || project.role === 'editor'
   const isOwner = project.role === 'owner'
   const toolPhases = project.toolPhases || {}
-  const toolsByPhase = DOUBLE_DIAMOND_PHASES.map((phase) => ({
-    ...phase,
-    tools: projectTools.filter(({ slug }) => toolPhases[slug] === phase.id),
-  }))
 
   const handleInvite = async () => {
     if (!isOwner || !inviteUsername.trim()) return
@@ -404,67 +401,23 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           )}
         </section>
 
-        {framework === 'double-diamond' && toolCount > 0 && (
+        {framework === 'double-diamond' && (
           <section className="mb-10">
-            <h2 className="text-lg md:text-xl font-semibold text-gray-900 mb-3">
-              Double Diamond faser
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {toolsByPhase.map((phase) => (
-                <div
-                  key={phase.id}
-                  className="rounded-2xl border border-gray-200/80 bg-white p-4 shadow-sm"
-                >
-                  <h3 className="font-semibold text-gray-900">{phase.label}</h3>
-                  <p className="text-xs text-gray-500 mt-1 mb-3">{phase.description}</p>
-                  {phase.tools.length === 0 ? (
-                    <p className="text-xs text-gray-400">Ingen værktøjer i denne fase endnu.</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {phase.tools.map(({ slug, tool }) => {
-                        if (!tool) return null
-                        const { Icon, bg, text } = getToolIcon(slug)
-                        return (
-                          <div
-                            key={`${phase.id}-${slug}`}
-                            className="rounded-xl border border-gray-100 bg-gray-50/70 p-3"
-                          >
-                            <div className="flex items-start gap-3">
-                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${bg} ${text}`}>
-                                <Icon className="w-4 h-4" />
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <p className="text-sm font-medium text-gray-900 truncate">{tool.title}</p>
-                                <div className="mt-2 flex items-center gap-2">
-                                  <Link
-                                    href={`/tools/${slug}?projectId=${projectId}`}
-                                    className="inline-flex items-center px-2.5 py-1 rounded-lg bg-gray-900 text-white text-[11px] font-medium"
-                                  >
-                                    Åbn
-                                  </Link>
-                                  <select
-                                    value={(toolPhases[slug] as DoubleDiamondPhase) || 'develop'}
-                                    onChange={(e) => handlePhaseChange(slug, e.target.value as DoubleDiamondPhase)}
-                                    disabled={!canEdit || modifying}
-                                    className="px-2 py-1 rounded-lg border border-gray-200 bg-white text-[11px]"
-                                  >
-                                    {DOUBLE_DIAMOND_PHASES.map((p) => (
-                                      <option key={p.id} value={p.id}>
-                                        {p.label}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+            <h2 className="text-lg md:text-xl font-semibold text-gray-900 mb-2">Double Diamond</h2>
+            <p className="text-sm text-gray-500 mb-4 max-w-3xl">
+              Samme model som på dashboardet: værktøjer i projektet vises som ikoner på den tilhørende fase. Hover
+              (eller tryk længe på mobil) for at se navnet. Fase skifter du under &quot;Værktøjer i projektet&quot;.
+            </p>
+            <ProjectDoubleDiamondBoard
+              projectId={projectId}
+              tools={projectTools.filter((t): t is { slug: string; tool: NonNullable<typeof t.tool> } => !!t.tool)}
+              toolPhases={toolPhases}
+            />
+            {toolCount === 0 && (
+              <p className="mt-3 text-center text-sm text-gray-500">
+                Ingen værktøjer endnu — tilføj et værktøj for at se det som ikon på diamanten.
+              </p>
+            )}
           </section>
         )}
 
