@@ -117,13 +117,23 @@ export default function ProjectDoubleDiamondBoard({
   const router = useRouter()
   const canvasRef = useRef<HTMLDivElement>(null)
 
-  const defaults = useMemo(() => layoutToolMarkers(tools, toolPhases), [tools, toolPhases])
+  // Primitiv nøgle — undgår at `tools` (nyt array hver parent-render) udløser uendelig setState-løkke
+  const layoutInputKey = [...tools]
+    .map((t) => `${t.slug}:${resolvePhase(toolPhases[t.slug])}`)
+    .sort()
+    .join('|')
 
-  const [markers, setMarkers] = useState(() => mergeWithSaved(defaults, savedLayout))
+  const defaults = useMemo(() => layoutToolMarkers(tools, toolPhases), [layoutInputKey])
+  // layoutInputKey afledes af tools + toolPhases — undgår ustabile array-referencer
+
+  const savedKey = JSON.stringify(savedLayout ?? {})
+
+  const [markers, setMarkers] = useState(() => mergeWithSaved(layoutToolMarkers(tools, toolPhases), savedLayout))
 
   useEffect(() => {
     setMarkers(mergeWithSaved(defaults, savedLayout))
-  }, [defaults, savedLayout])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- savedLayout serialiseres i savedKey
+  }, [defaults, savedKey])
 
   const markersRef = useRef(markers)
   markersRef.current = markers
