@@ -10,7 +10,6 @@ export const TOOL_SLUGS = [
   'value-proposition-canvas',
   'empathy-map',
   'card-sorting',
-  'maslow-model',
   'smuk-model',
   'affinity-diagram',
   'scamper',

@@ -153,19 +153,6 @@ Hvornår bruger man Card Sorting? Brug værktøjet når du bygger eller omstrukt
     `.trim(),
   },
   {
-    slug: 'maslow-model',
-    title: 'Maslows behovspyramide',
-    shortDescription: 'Visualisér og arbejd med Maslows behovshierarki i strategi og brugerforståelse.',
-    categories: ['strategi', 'bruger-kultur'],
-    longSeoContent: `
-Maslows behovspyramide beskriver et hierarki af behov: fysiologiske, sikkerhed, socialt tilhør, anerkendelse og selvrealisering. ForgeLabs Maslow Model giver et visuelt værktøj til at diskutere motivation, målgrupper og værditilbud i forhold til disse lag. Brug det i strategi, markedsføring og produktudvikling for at sikre, at tilbud matcher brugerens behovsniveau. Tilgængelig efter login under Flere værktøjer.
-
-Hvad er Maslows behovspyramide? Abraham Maslow beskrev et behovshierarki fra grundlæggende (mad, sikkerhed) til højere (tilhør, anerkendelse, selvrealisering). Modellen bruges til at forstå motivation og til at placere produkter og budskaber i forhold til brugerens behov.
-
-Hvornår bruger man Maslow Model? Brug værktøjet ved segmentering, positionering eller når I diskuterer hvem I skaber værdi for og på hvilket niveau. ForgeLab tilbyder Maslow Model sammen med SWOT, Kompasrose og andre strategi- og bruger-værktøjer — log ind og åbn den under Flere værktøjer.
-    `.trim(),
-  },
-  {
     slug: 'smuk-model',
     title: 'SMUK-model',
     shortDescription:

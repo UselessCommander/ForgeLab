@@ -17,6 +17,8 @@ import { VAERKTOEJER } from '@/lib/vaerktoejer-data'
 import { DOUBLE_DIAMOND_PHASES, getDefaultPhaseForTool, type DoubleDiamondPhase } from '@/lib/frameworks'
 import { getToolIcon } from '@/lib/vaerktoejer-icons'
 
+type DiamondSelection = DoubleDiamondPhase | 'hmw'
+
 export default function DashboardClient() {
   const [projects, setProjects] = useState<Project[]>([])
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -97,10 +99,17 @@ export default function DashboardClient() {
       ? [...projects].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0]
       : null
 
-  const [activePhase, setActivePhase] = useState<DoubleDiamondPhase>('discover')
-  const phaseTools = VAERKTOEJER.filter(
-    (tool) => getDefaultPhaseForTool('double-diamond', tool.slug) === activePhase
-  )
+  const [activeSelection, setActiveSelection] = useState<DiamondSelection>('discover')
+  const phaseTools = VAERKTOEJER.filter((tool) => {
+    // QR should be shown as standalone outside the Double Diamond list.
+    if (tool.slug === 'qr-generator') return false
+    if (activeSelection === 'hmw') return tool.slug === 'hmw'
+    const defaultPhase = getDefaultPhaseForTool('double-diamond', tool.slug)
+    // HMW should be visible both as a dedicated node and in Develop.
+    if (activeSelection === 'develop' && tool.slug === 'hmw') return true
+    return defaultPhase === activeSelection
+  })
+  const standaloneTools = VAERKTOEJER.filter((tool) => tool.slug === 'qr-generator')
   const discoverMethods = [
     'Desk research',
     'Interviews',
@@ -113,7 +122,81 @@ export default function DashboardClient() {
     'Netnografi',
     'Service Safari',
     'Fokusgrupper',
+    "OMD's ECO-system",
+    'Shannon & Weaver',
+    'Lasswell',
   ]
+  const defineMethods = [
+    'RFM-modellen',
+    'Henrik Vejlgaards Trend-diamant',
+    'Diffusionsmodellen (Rogers)',
+    'David Aaker – Identitetsplanlægningsmodel',
+    '4 Basics (trafik, salg, IT, service)',
+    'Marketing Funnel',
+    'Repositioneringskort',
+  ]
+  const methodDescriptions: Record<string, string> = {
+    Brainwriting:
+      'Deltagerne skriver idéer ned individuelt og bygger videre på hinandens input i flere runder.',
+    'Crazy Eights':
+      'Tegn 8 hurtige idéer på 8 minutter for at presse kreativiteten og undgå overthinking.',
+    Mindmapping:
+      'Start med et centralt emne og udforsk idéer som forgreninger for at skabe overblik og sammenhænge.',
+    'Circle writing':
+      'Deltagerne skriver idéer på skift i en cirkel, hvor hver person bygger videre på den forrige.',
+    'Reverse / Evil Brainstorm':
+      'Tænk i det værste eller modsatte scenarie for at afsløre problemer og nye løsninger.',
+    Skitser:
+      'Visualisér idéer hurtigt med simple tegninger for at gøre dem konkrete og diskuterbare.',
+    Krydsmetoden:
+      'Vælg to forskellige temaer, lav en liste af ord for hver, og kombiner dem tilfældigt på tværs for at tvinge nye og uventede idéer frem.',
+    Idéblomsten:
+      'Udforsk en idé i flere retninger ved at forgrene den ud i variationer og perspektiver.',
+    'Lightning demos':
+      'Gennemgå hurtigt eksisterende løsninger for at hente inspiration og genbruge gode mønstre.',
+  }
+  const developMethods = [
+    'Brainwriting',
+    'Crazy Eights',
+    'Mindmapping',
+    'Circle writing',
+    'Reverse / Evil Brainstorm',
+    'Skitser',
+    'Krydsmetoden',
+    'Idéblomsten',
+    'Lightning demos',
+    'Moodboard',
+    'Crossing the Chasm',
+    'AIDA / AIDAS',
+    'AISAS',
+    'See-Think-Do-Care',
+    'Pirate Funnel (AARRR)',
+  ]
+  const deliverMethods = [
+    'See-Think-Do-Care',
+  ]
+  const renderMethodChip = (method: string) => {
+    const description = methodDescriptions[method]
+    const isHighlightedMethod = method === 'Henrik Vejlgaards Trend-diamant'
+    return (
+      <span key={method} className="relative inline-flex group">
+        <span
+          className={`px-2.5 py-1 text-xs ${
+            isHighlightedMethod
+              ? 'border border-yellow-400 bg-yellow-100 text-yellow-900'
+              : 'border border-amber-300 bg-white text-amber-900'
+          }`}
+        >
+          {method}
+        </span>
+        {description && (
+          <span className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 hidden w-72 -translate-x-1/2 border border-amber-300 bg-white p-2 text-[11px] leading-relaxed text-amber-900 shadow-md group-hover:block">
+            {description}
+          </span>
+        )}
+      </span>
+    )
+  }
   const phaseVisuals: Record<
     DoubleDiamondPhase,
     { points: string; centerX: number; centerY: number; shortType: 'Diverging' | 'Converging' }
@@ -195,8 +278,8 @@ export default function DashboardClient() {
           </div>
         </section>
 
-        {/* Primær indhold: projekter + hurtig adgang */}
-        <section className="mb-12 grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)] gap-8">
+        {/* Primær indhold: projekter */}
+        <section className="mb-12">
           {/* Projekter */}
           <div>
             <div className="flex items-center justify-between mb-4">
@@ -243,42 +326,6 @@ export default function DashboardClient() {
               </div>
             )}
           </div>
-
-          {/* Hurtig adgang */}
-          <aside className="lg:pl-2">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-lg font-semibold text-gray-900">Hurtig adgang</h2>
-            </div>
-            <p className="text-xs md:text-sm text-gray-500 mb-4">
-              Hop direkte ind i nøgleværktøjer uden først at oprette et projekt.
-            </p>
-            <div className="space-y-3">
-              <Link
-                href="/tools/ab-test"
-                className="flex items-stretch gap-4 p-5 rounded-2xl border border-gray-200/90 bg-white shadow-sm hover:shadow-lg hover:border-violet-200/70 transition-all duration-200 group"
-              >
-                <div className="flex-shrink-0 w-11 h-11 rounded-xl flex items-center justify-center bg-violet-100 text-violet-600 group-hover:bg-violet-600 group-hover:text-white transition-colors">
-                  <span className="text-xl" aria-hidden>
-                    🔀
-                  </span>
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h3 className="font-medium text-gray-900 group-hover:text-violet-700">
-                    A/B/N Test
-                  </h3>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    Del et magic link og lad brugere vælge mellem varianter. Ideel til hurtige design- og indholdsvalg.
-                  </p>
-                </div>
-                <div className="flex flex-col items-end justify-between text-right">
-                  <span className="text-[11px] font-medium text-violet-600 group-hover:text-violet-700">
-                    Åbn værktøj
-                  </span>
-                  <span className="text-[10px] text-gray-400">2–3 min opsætning</span>
-                </div>
-              </Link>
-            </div>
-          </aside>
         </section>
 
         {/* Tilgængelige værktøjer */}
@@ -300,14 +347,21 @@ export default function DashboardClient() {
               >
                 <line x1="30" y1="150" x2="770" y2="150" stroke="#e8c9a5" strokeWidth="1.5" />
                 <line x1="360" y1="150" x2="440" y2="150" stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="4 6" />
-                <g>
-                  <circle cx="400" cy="150" r="22" fill="#ffffff" stroke="#d97706" strokeWidth="2" />
+                <g onClick={() => setActiveSelection('hmw')} className="cursor-pointer">
+                  <circle
+                    cx="400"
+                    cy="150"
+                    r="22"
+                    fill={activeSelection === 'hmw' ? '#f59e0b' : '#ffffff'}
+                    stroke={activeSelection === 'hmw' ? '#b45309' : '#d97706'}
+                    strokeWidth={2}
+                  />
                   <text
                     x="400"
                     y="154"
                     textAnchor="middle"
                     fontSize="11"
-                    fill="#b45309"
+                    fill={activeSelection === 'hmw' ? '#ffffff' : '#b45309'}
                     style={{ fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}
                   >
                     HMW
@@ -318,9 +372,9 @@ export default function DashboardClient() {
 
                 {DOUBLE_DIAMOND_PHASES.map((phase) => {
                   const visual = phaseVisuals[phase.id]
-                  const isActive = activePhase === phase.id
+                  const isActive = activeSelection === phase.id
                   return (
-                    <g key={phase.id} onClick={() => setActivePhase(phase.id)} className="cursor-pointer">
+                    <g key={phase.id} onClick={() => setActiveSelection(phase.id)} className="cursor-pointer">
                       <polygon
                         points={visual.points}
                         fill={isActive ? '#f59e0b' : '#fffaf3'}
@@ -356,23 +410,51 @@ export default function DashboardClient() {
             <div className="mt-5">
               <div className="inline-flex items-center gap-2 text-xs uppercase tracking-widest text-neutral-500 mb-3">
                 <span className="w-2 h-2 rounded-full bg-black" />
-                {DOUBLE_DIAMOND_PHASES.find((p) => p.id === activePhase)?.label}
+                {activeSelection === 'hmw'
+                  ? 'HMW'
+                  : DOUBLE_DIAMOND_PHASES.find((p) => p.id === activeSelection)?.label}
               </div>
 
-              {activePhase === 'discover' && (
+              {activeSelection === 'discover' && (
                 <div className="mb-4 border border-amber-200 bg-amber-50/60 p-3">
                   <p className="text-xs uppercase tracking-widest text-amber-800 mb-2">
                     Discover metoder (ikke nødvendigvis tools)
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    {discoverMethods.map((method) => (
-                      <span
-                        key={method}
-                        className="px-2.5 py-1 text-xs border border-amber-300 bg-white text-amber-900"
-                      >
-                        {method}
-                      </span>
-                    ))}
+                    {discoverMethods.map((method) => renderMethodChip(method))}
+                  </div>
+                </div>
+              )}
+
+              {activeSelection === 'define' && (
+                <div className="mb-4 border border-amber-200 bg-amber-50/60 p-3">
+                  <p className="text-xs uppercase tracking-widest text-amber-800 mb-2">
+                    Define metoder (ikke nødvendigvis tools)
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {defineMethods.map((method) => renderMethodChip(method))}
+                  </div>
+                </div>
+              )}
+
+              {activeSelection === 'develop' && (
+                <div className="mb-4 border border-amber-200 bg-amber-50/60 p-3">
+                  <p className="text-xs uppercase tracking-widest text-amber-800 mb-2">
+                    Develop metoder (ikke nødvendigvis tools)
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {developMethods.map((method) => renderMethodChip(method))}
+                  </div>
+                </div>
+              )}
+
+              {activeSelection === 'deliver' && (
+                <div className="mb-4 border border-amber-200 bg-amber-50/60 p-3">
+                  <p className="text-xs uppercase tracking-widest text-amber-800 mb-2">
+                    Deliver metoder (ikke nødvendigvis tools)
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {deliverMethods.map((method) => renderMethodChip(method))}
                   </div>
                 </div>
               )}
@@ -400,10 +482,15 @@ export default function DashboardClient() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {VAERKTOEJER.slice(0, 6).map((tool) => (
-              <AvailableToolCard key={tool.slug} tool={tool} />
-            ))}
+          <div>
+            <h3 className="text-sm md:text-base font-semibold text-gray-900 mb-3">
+              Standalone værktøjer (uden for Double Diamond)
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {standaloneTools.map((tool) => (
+                <AvailableToolCard key={tool.slug} tool={tool} />
+              ))}
+            </div>
           </div>
         </section>
       </div>

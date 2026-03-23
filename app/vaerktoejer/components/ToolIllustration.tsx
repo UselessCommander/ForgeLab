@@ -11,7 +11,6 @@ const ILLUSTRATION_COLORS: Record<string, { fill: string; stroke: string; accent
   'value-proposition-canvas': { fill: '#ccfbf1', stroke: '#0d9488', accent: '#0f766e' },
   'empathy-map': { fill: '#fce7f3', stroke: '#db2777', accent: '#be185d' },
   'card-sorting': { fill: '#cffafe', stroke: '#0891b2', accent: '#0e7490' },
-  'maslow-model': { fill: '#fef3c7', stroke: '#b45309', accent: '#92400e' },
 }
 
 function getColors(slug: string) {
@@ -199,22 +198,6 @@ export function ToolIllustration({ slug }: { slug: string }) {
           ))}
           <circle cx="140" cy="56" r="20" fill={c.accent} opacity="0.3" />
           <text x="140" y="61" textAnchor="middle" fill={c.accent} fontSize="12" fontFamily="system-ui">?</text>
-        </svg>
-      )
-
-    case 'maslow-model':
-      return (
-        <svg viewBox="0 0 140 180" className="w-full h-auto max-h-[280px]" aria-hidden>
-          <rect width="140" height="180" rx="12" fill={c.fill} stroke={c.stroke} strokeWidth="2" />
-          {/* Pyramid tiers */}
-          <path d="M 70 20 L 120 170 L 20 170 Z" fill="none" stroke={c.stroke} strokeWidth="2" />
-          <path d="M 70 20 L 105 120 L 35 120 Z" fill="white" stroke={c.stroke} strokeWidth="1.5" opacity="0.9" />
-          <path d="M 70 20 L 92 85 L 48 85 Z" fill="white" stroke={c.stroke} strokeWidth="1.5" opacity="0.95" />
-          <path d="M 70 20 L 82 55 L 58 55 Z" fill={c.accent} opacity="0.5" stroke={c.stroke} strokeWidth="1.5" />
-          <text x="70" y="42" textAnchor="middle" fill={c.accent} fontSize="8" fontFamily="system-ui">Selvreal.</text>
-          <text x="70" y="72" textAnchor="middle" fill={c.stroke} fontSize="8" fontFamily="system-ui">Anerkendelse</text>
-          <text x="70" y="102" textAnchor="middle" fill={c.stroke} fontSize="8" fontFamily="system-ui">Socialt</text>
-          <text x="70" y="155" textAnchor="middle" fill={c.stroke} fontSize="8" fontFamily="system-ui">Behov</text>
         </svg>
       )
 
