@@ -101,6 +101,28 @@ export default function DashboardClient() {
   const phaseTools = VAERKTOEJER.filter(
     (tool) => getDefaultPhaseForTool('double-diamond', tool.slug) === activePhase
   )
+  const discoverMethods = [
+    'Desk research',
+    'Interviews',
+    'Ekspertinterviews',
+    'Dagbogsstudier',
+    'Feltobservationer',
+    'Voxpop',
+    'Survey / spørgeskema',
+    'Shadowing',
+    'Netnografi',
+    'Service Safari',
+    'Fokusgrupper',
+  ]
+  const phaseVisuals: Record<
+    DoubleDiamondPhase,
+    { points: string; centerX: number; centerY: number; shortType: 'Diverging' | 'Converging' }
+  > = {
+    discover: { points: '70,150 215,32 215,268', centerX: 160, centerY: 150, shortType: 'Diverging' },
+    define: { points: '215,32 360,150 215,268', centerX: 270, centerY: 150, shortType: 'Converging' },
+    develop: { points: '440,150 585,32 585,268', centerX: 530, centerY: 150, shortType: 'Diverging' },
+    deliver: { points: '585,32 730,150 585,268', centerX: 640, centerY: 150, shortType: 'Converging' },
+  }
 
   return (
     <PageShell>
@@ -269,27 +291,66 @@ export default function DashboardClient() {
           </p>
 
           <div className="swiss-panel p-4 md:p-6 mb-5">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-              {DOUBLE_DIAMOND_PHASES.map((phase) => {
-                const isActive = activePhase === phase.id
-                return (
-                  <button
-                    key={phase.id}
-                    type="button"
-                    onClick={() => setActivePhase(phase.id)}
-                    className={`text-left px-3 py-3 border transition-colors ${
-                      isActive
-                        ? 'bg-black text-white border-black'
-                        : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-100'
-                    }`}
+            <div className="rounded-xl border border-neutral-200 bg-white p-3 md:p-4 mb-5 overflow-x-auto">
+              <svg
+                viewBox="0 0 800 300"
+                className="w-full min-w-[720px] h-auto"
+                role="img"
+                aria-label="Interaktiv Double Diamond model"
+              >
+                <line x1="30" y1="150" x2="770" y2="150" stroke="#e8c9a5" strokeWidth="1.5" />
+                <line x1="360" y1="150" x2="440" y2="150" stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="4 6" />
+                <g>
+                  <circle cx="400" cy="150" r="22" fill="#ffffff" stroke="#d97706" strokeWidth="2" />
+                  <text
+                    x="400"
+                    y="154"
+                    textAnchor="middle"
+                    fontSize="11"
+                    fill="#b45309"
+                    style={{ fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}
                   >
-                    <p className="text-xs uppercase tracking-widest">{phase.label}</p>
-                    <p className={`text-[11px] mt-1 ${isActive ? 'text-neutral-300' : 'text-neutral-500'}`}>
-                      {phase.description}
-                    </p>
-                  </button>
-                )
-              })}
+                    HMW
+                  </text>
+                </g>
+                <text x="18" y="145" textAnchor="end" fill="#b45309" fontSize="11">Problem</text>
+                <text x="782" y="145" textAnchor="start" fill="#b45309" fontSize="11">Solution</text>
+
+                {DOUBLE_DIAMOND_PHASES.map((phase) => {
+                  const visual = phaseVisuals[phase.id]
+                  const isActive = activePhase === phase.id
+                  return (
+                    <g key={phase.id} onClick={() => setActivePhase(phase.id)} className="cursor-pointer">
+                      <polygon
+                        points={visual.points}
+                        fill={isActive ? '#f59e0b' : '#fffaf3'}
+                        stroke={isActive ? '#b45309' : '#d97706'}
+                        strokeWidth={isActive ? 2.5 : 1.5}
+                      />
+                      <text
+                        x={visual.centerX}
+                        y={visual.centerY - 8}
+                        textAnchor="middle"
+                        fontSize="12"
+                        fill={isActive ? '#ffffff' : '#9a3412'}
+                        style={{ fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}
+                      >
+                        {phase.label}
+                      </text>
+                      <text
+                        x={visual.centerX}
+                        y={visual.centerY + 12}
+                        textAnchor="middle"
+                        fontSize="10"
+                        fill={isActive ? '#ffedd5' : '#b45309'}
+                        style={{ letterSpacing: '0.06em', textTransform: 'uppercase' }}
+                      >
+                        {visual.shortType}
+                      </text>
+                    </g>
+                  )
+                })}
+              </svg>
             </div>
 
             <div className="mt-5">
@@ -297,6 +358,25 @@ export default function DashboardClient() {
                 <span className="w-2 h-2 rounded-full bg-black" />
                 {DOUBLE_DIAMOND_PHASES.find((p) => p.id === activePhase)?.label}
               </div>
+
+              {activePhase === 'discover' && (
+                <div className="mb-4 border border-amber-200 bg-amber-50/60 p-3">
+                  <p className="text-xs uppercase tracking-widest text-amber-800 mb-2">
+                    Discover metoder (ikke nødvendigvis tools)
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {discoverMethods.map((method) => (
+                      <span
+                        key={method}
+                        className="px-2.5 py-1 text-xs border border-amber-300 bg-white text-amber-900"
+                      >
+                        {method}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {phaseTools.map((tool) => {
                   const { Icon, bg, text } = getToolIcon(tool.slug)

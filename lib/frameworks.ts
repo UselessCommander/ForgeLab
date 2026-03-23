@@ -15,8 +15,8 @@ export const DOUBLE_DIAMOND_PHASES: Array<{
 
 // Default forslag til placering af værktøjer i Double Diamond
 const DOUBLE_DIAMOND_TOOL_DEFAULTS: Record<string, DoubleDiamondPhase> = {
-  'empathy-map': 'discover',
-  'persona-canvas': 'discover',
+  'empathy-map': 'define',
+  'persona-canvas': 'define',
   'affinity-diagram': 'define',
   'card-sorting': 'define',
   'swot-generator': 'define',
@@ -25,7 +25,7 @@ const DOUBLE_DIAMOND_TOOL_DEFAULTS: Record<string, DoubleDiamondPhase> = {
   'five-whys': 'define',
   'dikw-pyramiden': 'define',
   pestel: 'discover',
-  brugerrejse: 'discover',
+  brugerrejse: 'define',
   'value-proposition-canvas': 'develop',
   'business-model-canvas': 'develop',
   'gallup-kompasrose': 'develop',
