@@ -8,8 +8,16 @@ export interface Project {
   name: string
   description: string
   toolIds: string[]
+  role?: 'owner' | 'editor' | 'viewer'
   updatedAt: string
   createdAt: string
+}
+
+export interface ProjectMember {
+  user_id: string
+  username?: string
+  role: 'owner' | 'editor' | 'viewer'
+  created_at: string
 }
 
 // GET /api/projects - Get all projects for current user
@@ -218,6 +226,62 @@ export async function saveProjectToolData(
 
   if (!response.ok) {
     throw new Error('Failed to save tool data')
+  }
+
+  return true
+}
+
+// GET /api/projects/[projectId]/members - Get project members
+export async function getProjectMembers(projectId: string): Promise<ProjectMember[]> {
+  const response = await fetch(`/api/projects/${projectId}/members`, {
+    method: 'GET',
+    credentials: 'include',
+  })
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch project members')
+  }
+
+  return await response.json()
+}
+
+// POST /api/projects/[projectId]/members - Invite member by username
+export async function inviteProjectMember(
+  projectId: string,
+  username: string,
+  role: 'editor' | 'viewer' = 'editor'
+): Promise<boolean> {
+  const response = await fetch(`/api/projects/${projectId}/members`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify({ username, role }),
+  })
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Failed to invite member' }))
+    throw new Error(error.error || 'Failed to invite member')
+  }
+
+  return true
+}
+
+// DELETE /api/projects/[projectId]/members - Remove project member
+export async function removeProjectMember(projectId: string, userId: string): Promise<boolean> {
+  const response = await fetch(`/api/projects/${projectId}/members`, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify({ userId }),
+  })
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Failed to remove member' }))
+    throw new Error(error.error || 'Failed to remove member')
   }
 
   return true

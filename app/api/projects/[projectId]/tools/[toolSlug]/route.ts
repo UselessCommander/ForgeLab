@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUserId } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
+import { canEditProject } from '@/lib/project-access'
 
 // DELETE /api/projects/[projectId]/tools/[toolSlug] - Remove a tool from a project
 export async function DELETE(
@@ -15,15 +16,8 @@ export async function DELETE(
 
     const { projectId, toolSlug } = await params
 
-    // Verify project belongs to user
-    const { data: project, error: checkError } = await supabase
-      .from('projects')
-      .select('id')
-      .eq('id', projectId)
-      .eq('user_id', userId)
-      .single()
-
-    if (checkError || !project) {
+    const canEdit = await canEditProject(projectId, userId)
+    if (!canEdit) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 })
     }
 

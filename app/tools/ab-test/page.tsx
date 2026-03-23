@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import ForgeLabLogo from '@/components/ForgeLabLogo'
 import { Link2, ImagePlus, Plus, Copy, Check, Trash2 } from 'lucide-react'
+import { useProjectToolData } from '@/lib/useProjectToolData'
 
 type VariantType = 'url' | 'image'
 
@@ -28,6 +29,17 @@ export default function AbTestPage() {
   const [copied, setCopied] = useState(false)
   const [results, setResults] = useState<{ label: string; count: number }[] | null>(null)
   const [resultsLoading, setResultsLoading] = useState(false)
+
+  // Gem udkast i database, når værktøjet bruges i et projekt
+  const abTestDraftData = { title, variants }
+  const setAbTestDraftData = (data: typeof abTestDraftData) => {
+    setTitle(data.title ?? '')
+    setVariants(Array.isArray(data.variants) && data.variants.length >= 2 ? data.variants : [
+      { id: '1', label: 'A', type: 'url', value: '' },
+      { id: '2', label: 'B', type: 'url', value: '' },
+    ])
+  }
+  useProjectToolData('ab-test', abTestDraftData, setAbTestDraftData)
 
   const updateVariant = (id: string, upd: Partial<VariantRow>) => {
     setVariants((prev) => prev.map((v) => (v.id === id ? { ...v, ...upd } : v)))

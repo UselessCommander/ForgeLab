@@ -8,7 +8,11 @@ import {
   getProject,
   addToolToProject,
   removeToolFromProject,
+  getProjectMembers,
+  inviteProjectMember,
+  removeProjectMember,
   type Project,
+  type ProjectMember,
 } from '@/lib/projects'
 import { VAERKTOEJER, getVaerktoejBySlug, getVaerktoejerGroupedByKategori } from '@/lib/vaerktoejer-data'
 import { getToolIcon } from '@/lib/vaerktoejer-icons'
@@ -22,6 +26,9 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const [showAddTool, setShowAddTool] = useState(false)
   const [loading, setLoading] = useState(true)
   const [modifying, setModifying] = useState(false)
+  const [members, setMembers] = useState<ProjectMember[]>([])
+  const [inviteUsername, setInviteUsername] = useState('')
+  const [inviteRole, setInviteRole] = useState<'editor' | 'viewer'>('editor')
 
   useEffect(() => {
     loadProject()
@@ -31,8 +38,9 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const loadProject = async () => {
     try {
       setLoading(true)
-      const p = await getProject(projectId)
+      const [p, m] = await Promise.all([getProject(projectId), getProjectMembers(projectId)])
       setProject(p ?? null)
+      setMembers(m || [])
     } catch (error) {
       console.error('Error loading project:', error)
     } finally {
@@ -41,6 +49,10 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   }
 
   const handleAddTool = async (toolId: string) => {
+    if (project?.role === 'viewer') {
+      alert('Du har kun læseadgang til dette projekt.')
+      return
+    }
     if (modifying) return
     try {
       setModifying(true)
@@ -56,6 +68,10 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   }
 
   const handleRemoveTool = async (toolId: string) => {
+    if (project?.role === 'viewer') {
+      alert('Du har kun læseadgang til dette projekt.')
+      return
+    }
     if (modifying) return
     try {
       setModifying(true)
@@ -106,6 +122,38 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const lastUpdated = project.updatedAt
     ? new Date(project.updatedAt).toLocaleString('da-DK')
     : 'Ukendt'
+  const canEdit = project.role === 'owner' || project.role === 'editor'
+  const isOwner = project.role === 'owner'
+
+  const handleInvite = async () => {
+    if (!isOwner || !inviteUsername.trim()) return
+    try {
+      setModifying(true)
+      await inviteProjectMember(projectId, inviteUsername.trim(), inviteRole)
+      setInviteUsername('')
+      setInviteRole('editor')
+      const m = await getProjectMembers(projectId)
+      setMembers(m || [])
+    } catch (error: any) {
+      alert(error?.message || 'Kunne ikke invitere medlem.')
+    } finally {
+      setModifying(false)
+    }
+  }
+
+  const handleRemoveMember = async (memberUserId: string) => {
+    if (!isOwner) return
+    try {
+      setModifying(true)
+      await removeProjectMember(projectId, memberUserId)
+      const m = await getProjectMembers(projectId)
+      setMembers(m || [])
+    } catch (error: any) {
+      alert(error?.message || 'Kunne ikke fjerne medlem.')
+    } finally {
+      setModifying(false)
+    }
+  }
 
   return (
     <PageShell>
@@ -145,11 +193,14 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                 <span>
                   {toolCount} værktøj{toolCount !== 1 ? 'er' : ''}
                 </span>
+                <span>·</span>
+                <span>Din rolle: {project.role || 'viewer'}</span>
               </div>
             </div>
             <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
               <button
                 onClick={() => setShowAddTool(true)}
+                disabled={!canEdit}
                 className="flex-1 inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 text-white text-sm font-semibold shadow-md shadow-amber-500/30 hover:bg-amber-600 transition-colors"
               >
                 Tilføj værktøj
@@ -161,6 +212,68 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                 >
                   Fortsæt seneste værktøj
                 </Link>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* Deling og samarbejde */}
+        <section className="mb-10">
+          <h2 className="text-lg font-semibold text-gray-900 mb-3">Samarbejde</h2>
+          <div className="rounded-2xl border border-gray-200/80 bg-white p-4 md:p-5 shadow-sm">
+            {isOwner ? (
+              <div className="mb-4 flex flex-col sm:flex-row gap-2">
+                <input
+                  value={inviteUsername}
+                  onChange={(e) => setInviteUsername(e.target.value)}
+                  placeholder="Brugernavn at invitere"
+                  className="flex-1 px-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400"
+                />
+                <select
+                  value={inviteRole}
+                  onChange={(e) => setInviteRole((e.target.value as 'editor' | 'viewer') || 'editor')}
+                  className="px-3 py-2 border border-gray-200 rounded-xl bg-white"
+                >
+                  <option value="editor">Editor</option>
+                  <option value="viewer">Viewer</option>
+                </select>
+                <button
+                  onClick={handleInvite}
+                  disabled={modifying || !inviteUsername.trim()}
+                  className="px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-medium hover:bg-black disabled:opacity-50"
+                >
+                  Inviter
+                </button>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500 mb-4">Kun projektets owner kan invitere/fjerne medlemmer.</p>
+            )}
+
+            <div className="space-y-2">
+              {members.length === 0 ? (
+                <p className="text-sm text-gray-500">Ingen medlemmer fundet.</p>
+              ) : (
+                members.map((member) => (
+                  <div
+                    key={member.user_id}
+                    className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50/80 px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">
+                        {member.username || member.user_id}
+                      </p>
+                      <p className="text-xs text-gray-500">Rolle: {member.role}</p>
+                    </div>
+                    {isOwner && member.role !== 'owner' && (
+                      <button
+                        onClick={() => handleRemoveMember(member.user_id)}
+                        className="text-xs text-red-600 hover:text-red-700 font-medium"
+                      >
+                        Fjern
+                      </button>
+                    )}
+                  </div>
+                ))
               )}
             </div>
           </div>
@@ -222,6 +335,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
               </p>
               <button
                 onClick={() => setShowAddTool(true)}
+                disabled={!canEdit}
                 className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 text-white text-sm font-semibold hover:bg-amber-600 transition-colors shadow-md shadow-amber-500/25"
               >
                 Tilføj første værktøj
@@ -256,6 +370,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                       <button
                         type="button"
                         onClick={() => handleRemoveTool(slug)}
+                        disabled={!canEdit}
                         className="text-[11px] text-gray-400 hover:text-red-600 font-medium"
                       >
                         Fjern fra projekt
@@ -299,6 +414,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                           <button
                             key={tool.slug}
                             onClick={() => handleAddTool(tool.slug)}
+                            disabled={!canEdit}
                             className="w-full flex items-center gap-3 p-4 rounded-2xl border border-gray-200/80 bg-white shadow-sm hover:shadow-lg hover:border-amber-200/60 transition-all duration-200 text-left min-w-0"
                           >
                             <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${bg} ${text}`}>

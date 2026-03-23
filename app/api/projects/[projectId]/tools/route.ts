@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUserId } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
+import { canEditProject } from '@/lib/project-access'
 
 // POST /api/projects/[projectId]/tools - Add a tool to a project
 export async function POST(
@@ -21,15 +22,8 @@ export async function POST(
       return NextResponse.json({ error: 'toolSlug is required' }, { status: 400 })
     }
 
-    // Verify project belongs to user
-    const { data: project, error: checkError } = await supabase
-      .from('projects')
-      .select('id')
-      .eq('id', projectId)
-      .eq('user_id', userId)
-      .single()
-
-    if (checkError || !project) {
+    const canEdit = await canEditProject(projectId, userId)
+    if (!canEdit) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 })
     }
 

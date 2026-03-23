@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUserId } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
+import { canEditProject, canViewProject } from '@/lib/project-access'
 
 // GET /api/projects/[projectId]/tools/[toolSlug]/data - Get tool data
 export async function GET(
@@ -15,15 +16,8 @@ export async function GET(
 
     const { projectId, toolSlug } = await params
 
-    // Verify project belongs to user
-    const { data: project, error: checkError } = await supabase
-      .from('projects')
-      .select('id')
-      .eq('id', projectId)
-      .eq('user_id', userId)
-      .single()
-
-    if (checkError || !project) {
+    const canView = await canViewProject(projectId, userId)
+    if (!canView) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 })
     }
 
@@ -67,15 +61,8 @@ export async function PUT(
       return NextResponse.json({ error: 'data is required' }, { status: 400 })
     }
 
-    // Verify project belongs to user
-    const { data: project, error: checkError } = await supabase
-      .from('projects')
-      .select('id')
-      .eq('id', projectId)
-      .eq('user_id', userId)
-      .single()
-
-    if (checkError || !project) {
+    const canEdit = await canEditProject(projectId, userId)
+    if (!canEdit) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 })
     }
 

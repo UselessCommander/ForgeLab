@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUserId } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
+import { canEditProject, canViewProject, getProjectRole, isProjectOwner } from '@/lib/project-access'
 
 // GET /api/projects/[projectId] - Get a single project
 export async function GET(
@@ -15,11 +16,17 @@ export async function GET(
 
     const { projectId } = await params
 
+    const canView = await canViewProject(projectId, userId)
+    if (!canView) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 })
+    }
+
+    const role = await getProjectRole(projectId, userId)
+
     const { data: project, error: projectError } = await supabase
       .from('projects')
       .select('*')
       .eq('id', projectId)
-      .eq('user_id', userId)
       .single()
 
     if (projectError || !project) {
@@ -38,6 +45,7 @@ export async function GET(
       name: project.name,
       description: project.description || '',
       toolIds: (tools || []).map((t) => t.tool_slug),
+      role: role || 'viewer',
       updatedAt: project.updated_at,
       createdAt: project.created_at,
     })
@@ -62,15 +70,8 @@ export async function PUT(
     const body = await request.json()
     const { name, description, toolIds } = body
 
-    // Verify project belongs to user
-    const { data: existingProject, error: checkError } = await supabase
-      .from('projects')
-      .select('id')
-      .eq('id', projectId)
-      .eq('user_id', userId)
-      .single()
-
-    if (checkError || !existingProject) {
+    const canEdit = await canEditProject(projectId, userId)
+    if (!canEdit) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 })
     }
 
@@ -136,6 +137,7 @@ export async function PUT(
       name: updatedProject.name,
       description: updatedProject.description || '',
       toolIds: (tools || []).map((t) => t.tool_slug),
+      role: (await getProjectRole(projectId, userId)) || 'viewer',
       updatedAt: updatedProject.updated_at,
       createdAt: updatedProject.created_at,
     })
@@ -158,15 +160,8 @@ export async function DELETE(
 
     const { projectId } = await params
 
-    // Verify project belongs to user
-    const { data: existingProject, error: checkError } = await supabase
-      .from('projects')
-      .select('id')
-      .eq('id', projectId)
-      .eq('user_id', userId)
-      .single()
-
-    if (checkError || !existingProject) {
+    const owner = await isProjectOwner(projectId, userId)
+    if (!owner) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 })
     }
 

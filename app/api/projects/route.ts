@@ -10,10 +10,28 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    // Get all project ids where user is a member
+    const { data: memberships, error: membershipError } = await supabase
+      .from('project_members')
+      .select('project_id, role')
+      .eq('user_id', userId)
+
+    if (membershipError) {
+      console.error('Error fetching memberships:', membershipError)
+      return NextResponse.json({ error: 'Failed to fetch projects' }, { status: 500 })
+    }
+
+    const projectIds = (memberships || []).map((m) => m.project_id)
+    if (projectIds.length === 0) {
+      return NextResponse.json([])
+    }
+
+    const roleByProjectId = new Map((memberships || []).map((m) => [m.project_id, m.role]))
+
     const { data: projects, error: projectsError } = await supabase
       .from('projects')
       .select('*')
-      .eq('user_id', userId)
+      .in('id', projectIds)
       .order('updated_at', { ascending: false })
 
     if (projectsError) {
@@ -43,6 +61,7 @@ export async function GET(request: NextRequest) {
           name: project.name,
           description: project.description || '',
           toolIds: (tools || []).map((t) => t.tool_slug),
+          role: roleByProjectId.get(project.id) || 'viewer',
           updatedAt: project.updated_at,
           createdAt: project.created_at,
         }
@@ -86,11 +105,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to create project' }, { status: 500 })
     }
 
+    // Add creator as owner member
+    const { error: memberInsertError } = await supabase.from('project_members').insert({
+      project_id: project.id,
+      user_id: userId,
+      role: 'owner',
+    })
+
+    if (memberInsertError) {
+      console.error('Error creating project owner membership:', memberInsertError)
+      // rollback project to avoid orphan project without owner
+      await supabase.from('projects').delete().eq('id', project.id)
+      return NextResponse.json({ error: 'Failed to create project membership' }, { status: 500 })
+    }
+
     return NextResponse.json({
       id: project.id,
       name: project.name,
       description: project.description || '',
       toolIds: [],
+      role: 'owner',
       updatedAt: project.updated_at,
       createdAt: project.created_at,
     })

@@ -13,6 +13,15 @@ declare global {
 }
 
 type CornerStyle = 'square' | 'rounded' | 'dot' | 'classic'
+type SavedQRCode = {
+  id: string
+  qrId: string | null
+  image: string
+  text: string
+  originalUrl: string
+  createdAt: string
+  scanCount: number
+}
 
 const COLOR_PRESETS = [
   { name: 'Sort', value: '#000000' },
@@ -45,6 +54,8 @@ export default function QRGenerator() {
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [centerText, setCenterText] = useState('')
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const [savedQRCodes, setSavedQRCodes] = useState<SavedQRCode[]>([])
+  const [showSaved, setShowSaved] = useState(false)
 
   // Combine QR generator settings into one state object for saving (exclude UI-only and runtime states)
   const qrGeneratorData = {
@@ -57,7 +68,8 @@ export default function QRGenerator() {
     backgroundColor,
     cornerStyle,
     logoPreview, // Save preview URL, not File object
-    centerText
+    centerText,
+    savedQRCodes,
   }
   const setQRGeneratorData = (data: typeof qrGeneratorData) => {
     setQrText(data.qrText)
@@ -70,21 +82,11 @@ export default function QRGenerator() {
     setCornerStyle(data.cornerStyle)
     setLogoPreview(data.logoPreview)
     setCenterText(data.centerText)
+    setSavedQRCodes(Array.isArray(data.savedQRCodes) ? data.savedQRCodes : [])
   }
 
   // Automatically save/load data when in a project
   useProjectToolData('qr-generator', qrGeneratorData, setQRGeneratorData)
-  const [savedQRCodes, setSavedQRCodes] = useState<Array<{
-    id: string
-    qrId: string | null
-    image: string
-    text: string
-    originalUrl: string
-    createdAt: string
-    scanCount: number
-  }>>([])
-  const [showSaved, setShowSaved] = useState(false)
-  
   const logoInputRef = useRef<HTMLInputElement>(null)
   const statsIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -92,22 +94,7 @@ export default function QRGenerator() {
     if (typeof window !== 'undefined' && window.QRCode) {
       setQrCodeLoaded(true)
     }
-    // Load saved QR codes from localStorage
-    loadSavedQRCodes()
   }, [])
-
-  const loadSavedQRCodes = () => {
-    if (typeof window === 'undefined') return
-    try {
-      const saved = localStorage.getItem('forgelab_saved_qr_codes')
-      if (saved) {
-        const parsed = JSON.parse(saved)
-        setSavedQRCodes(parsed)
-      }
-    } catch (err) {
-      console.error('Fejl ved indlæsning af gemte QR koder:', err)
-    }
-  }
 
   const saveQRCode = (qrId: string | null, image: string, text: string, originalUrl: string, scanCount: number) => {
     if (typeof window === 'undefined') return
@@ -123,7 +110,6 @@ export default function QRGenerator() {
       }
       const updated = [...savedQRCodes, newQRCode]
       setSavedQRCodes(updated)
-      localStorage.setItem('forgelab_saved_qr_codes', JSON.stringify(updated))
     } catch (err) {
       console.error('Fejl ved gemning af QR kode:', err)
     }
@@ -134,7 +120,6 @@ export default function QRGenerator() {
     try {
       const updated = savedQRCodes.filter(qr => qr.id !== id)
       setSavedQRCodes(updated)
-      localStorage.setItem('forgelab_saved_qr_codes', JSON.stringify(updated))
     } catch (err) {
       console.error('Fejl ved sletning af QR kode:', err)
     }
@@ -420,9 +405,6 @@ export default function QRGenerator() {
           qr.qrId === qrId ? { ...qr, scanCount: count } : qr
         )
         setSavedQRCodes(updated)
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('forgelab_saved_qr_codes', JSON.stringify(updated))
-        }
       }
     } catch (err) {
       console.error('Kunne ikke hente statistik:', err)
@@ -508,7 +490,6 @@ export default function QRGenerator() {
         try {
           const imageData = await generateQRCode(finalText, false)
           setFinalQRImage(imageData)
-          // Save to localStorage
           saveQRCode(data.qrId, imageData, finalText, urlToTrack, 0)
         } catch (err: any) {
           setError('Fejl ved generering af QR kode: ' + err.message)
@@ -523,7 +504,6 @@ export default function QRGenerator() {
       try {
         const imageData = await generateQRCode(finalText, false)
         setFinalQRImage(imageData)
-        // Save to localStorage
         saveQRCode(null, imageData, finalText, finalText, 0)
       } catch (err: any) {
         setError('Fejl ved generering af QR kode: ' + err.message)
