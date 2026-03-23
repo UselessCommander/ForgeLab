@@ -18,6 +18,7 @@ import {
   Lightbulb,
   CircleHelp,
   Search,
+  Building2,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -42,6 +43,7 @@ export const TOOL_ICONS: Record<string, { Icon: LucideIcon; bg: string; text: st
   brugerrejse: { Icon: Route, bg: 'bg-cyan-50', text: 'text-cyan-700' },
   'dikw-pyramiden': { Icon: Layers, bg: 'bg-slate-50', text: 'text-slate-700' },
   brainstorming: { Icon: Lightbulb, bg: 'bg-amber-50', text: 'text-amber-700' },
+  pestel: { Icon: Building2, bg: 'bg-blue-50', text: 'text-blue-700' },
 }
 
 export function getToolIcon(slug: string) {

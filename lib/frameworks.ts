@@ -23,6 +23,7 @@ const DOUBLE_DIAMOND_TOOL_DEFAULTS: Record<string, DoubleDiamondPhase> = {
   hmw: 'define',
   'five-whys': 'define',
   'dikw-pyramiden': 'define',
+  pestel: 'discover',
   brugerrejse: 'discover',
   'value-proposition-canvas': 'develop',
   'business-model-canvas': 'develop',

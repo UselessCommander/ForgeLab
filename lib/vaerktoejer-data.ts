@@ -289,6 +289,20 @@ Hvad er brainstorming? Brainstorming er en kreativ metode til at generere mange 
 Hvornår bruger man brainstorming? Brug værktøjet i den tidlige udviklingsfase, når I skal udforske flere mulige løsninger. I ForgeLab kan brainstorms gemmes i projektet og kobles med de øvrige værktøjer.
     `.trim(),
   },
+  {
+    slug: 'pestel',
+    title: 'PESTEL',
+    shortDescription:
+      'Analysér omverdenens påvirkning med PESTEL: politiske, økonomiske, sociale, teknologiske, miljømæssige og juridiske faktorer.',
+    categories: ['strategi'],
+    longSeoContent: `
+PESTEL er et klassisk strategiværktøj til omverdensanalyse. Modellen hjælper med at identificere eksterne faktorer, der kan påvirke virksomhed, projekt eller marked: Political, Economic, Social, Technological, Environmental og Legal. ForgeLabs PESTEL-værktøj gør det enkelt at samle observationer i hver kategori og skabe et samlet beslutningsgrundlag.
+
+Hvad er PESTEL? PESTEL bruges til at forstå muligheder og risici i omgivelserne, før man vælger strategi eller lancerer nye initiativer. Når faktorerne er kortlagt, bliver det lettere at prioritere handlinger og scenarier.
+
+Hvornår bruger man PESTEL? Brug værktøjet i den tidlige analysefase, ved markedsvurdering eller før større strategiske beslutninger. I ForgeLab kan PESTEL gemmes direkte i projekter sammen med øvrige værktøjer.
+    `.trim(),
+  },
 ]
 
 export function getVaerktoejBySlug(slug: string): Vaerktoej | undefined {

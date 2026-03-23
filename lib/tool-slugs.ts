@@ -19,6 +19,7 @@ export const TOOL_SLUGS = [
   'brugerrejse',
   'dikw-pyramiden',
   'brainstorming',
+  'pestel',
 ] as const
 
 export type ToolSlug = (typeof TOOL_SLUGS)[number]
