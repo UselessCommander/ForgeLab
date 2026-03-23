@@ -1,8 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
-import ForgeLabLogo from '@/components/ForgeLabLogo'
+import ToolLayout from '@/components/ToolLayout'
 import { useProjectToolData } from '@/lib/useProjectToolData'
 
 export default function PortersFiveForces() {
@@ -39,158 +38,196 @@ export default function PortersFiveForces() {
     setForces(newForces)
   }
 
+  const forceConfig: Array<{
+    key: keyof typeof forces
+    title: string
+    shortTitle: string
+    colorClass: string
+    positionClass: string
+  }> = [
+    {
+      key: 'newEntrants',
+      title: 'Threat of New Entrants',
+      shortTitle: 'New Entrants',
+      colorClass: 'border-orange-300 bg-orange-50',
+      positionClass: 'lg:top-2 lg:left-1/2 lg:-translate-x-1/2',
+    },
+    {
+      key: 'substitutes',
+      title: 'Threat of Substitutes',
+      shortTitle: 'Substitutes',
+      colorClass: 'border-purple-300 bg-purple-50',
+      positionClass: 'lg:top-24 lg:right-6',
+    },
+    {
+      key: 'buyers',
+      title: 'Bargaining Power of Buyers',
+      shortTitle: 'Buyers',
+      colorClass: 'border-green-300 bg-green-50',
+      positionClass: 'lg:bottom-8 lg:right-20',
+    },
+    {
+      key: 'suppliers',
+      title: 'Bargaining Power of Suppliers',
+      shortTitle: 'Suppliers',
+      colorClass: 'border-blue-300 bg-blue-50',
+      positionClass: 'lg:bottom-8 lg:left-20',
+    },
+    {
+      key: 'rivalry',
+      title: 'Rivalry Among Existing Competitors',
+      shortTitle: 'Rivalry',
+      colorClass: 'border-cyan-300 bg-cyan-50',
+      positionClass: 'lg:top-24 lg:left-6',
+    },
+  ]
+
   return (
-    <div className="min-h-screen px-4 py-8 md:py-12 bg-gradient-to-br from-gray-50 to-gray-100">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <header className="mb-8">
-          <div className="bg-white rounded-2xl p-6 md:p-10 shadow-sm border border-gray-200">
-            <Link 
-              href="/dashboard" 
-              className="inline-flex items-center gap-2 text-gray-700 font-medium mb-6 hover:text-gray-900 transition-colors"
-            >
-              <span>←</span>
-              <span>Tilbage til Dashboard</span>
-            </Link>
-            <div className="flex items-center gap-4 mb-2">
-              <ForgeLabLogo size={48} />
-              <h1 className="text-3xl md:text-4xl font-semibold text-gray-900">
-                Porter's 5 Forces
-              </h1>
-            </div>
-            <p className="text-gray-600">
-              Analysér branchens konkurrencemæssige kræfter
-            </p>
-          </div>
-        </header>
+    <ToolLayout
+      title="Porter's 5 Forces"
+      description="Analysér branchens konkurrencemæssige kræfter i et samlet 5-forces diagram."
+      backHref="/dashboard"
+      backLabel="Tilbage til Dashboard"
+    >
+      <div className="swiss-panel p-4 md:p-8">
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold text-neutral-900 uppercase tracking-wide">Five Forces Map</h2>
+          <p className="text-sm text-neutral-600">Redigér felterne direkte i modellen. Layoutet følger den klassiske center + 5 kræfter omkring.</p>
+        </div>
 
-        {/* Classic Porter's 5 Forces Diagram Layout */}
-        <div className="bg-white rounded-xl p-8 shadow-lg border-2 border-gray-300">
-          <div className="relative max-w-4xl mx-auto">
-            {/* Center - Industry Competition */}
-            <div className="text-center mb-8">
-              <div className="inline-block border-4 border-red-400 rounded-full p-8 bg-red-50">
-                <h2 className="text-xl font-bold text-red-900 mb-2">Industry Competition</h2>
-                <div className="space-y-2">
-                  {forces.rivalry.map((item, index) => (
-                    <div key={index} className="flex gap-2 justify-center">
-                      <textarea
-                        value={item}
-                        onChange={(e) => updateForce('rivalry', index, e.target.value)}
-                        placeholder="..."
-                        rows={2}
-                        className="w-64 px-3 py-2 text-sm rounded border border-gray-300 bg-white resize-none"
-                      />
-                      {forces.rivalry.length > 1 && (
-                        <button onClick={() => removeItem('rivalry', index)} className="text-red-500 text-sm">×</button>
-                      )}
-                    </div>
-                  ))}
-                  <button onClick={() => addItem('rivalry')} className="text-xs text-red-600">+ Tilføj</button>
-                </div>
+        <div className="lg:hidden grid grid-cols-1 gap-3">
+          {forceConfig.map((force) => (
+            <section key={force.key} className={`border ${force.colorClass} p-3`}>
+              <h3 className="text-sm font-semibold text-neutral-900 mb-2">{force.title}</h3>
+              <div className="space-y-2">
+                {forces[force.key].map((item, index) => (
+                  <div key={`${force.key}-${index}`} className="flex gap-2">
+                    <textarea
+                      value={item}
+                      onChange={(e) => updateForce(force.key, index, e.target.value)}
+                      placeholder="Skriv observation..."
+                      rows={2}
+                      className="flex-1 px-2 py-1 text-xs border border-neutral-300 bg-white resize-none"
+                    />
+                    {forces[force.key].length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeItem(force.key, index)}
+                        className="px-2 text-xs border border-red-200 text-red-600"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => addItem(force.key)}
+                  className="text-xs uppercase tracking-wider text-neutral-700 border border-neutral-300 px-2 py-1"
+                >
+                  + Tilføj
+                </button>
+              </div>
+            </section>
+          ))}
+        </div>
+
+        <div className="hidden lg:block">
+          <div className="relative mx-auto w-full max-w-[920px] h-[760px]">
+            <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 920 760" aria-hidden>
+              <polygon
+                points="460,130 710,300 615,560 305,560 210,300"
+                fill="none"
+                stroke="#c5c5c5"
+                strokeWidth="2"
+                strokeDasharray="6 6"
+              />
+              <line x1="460" y1="370" x2="460" y2="130" stroke="#d0d0d0" strokeWidth="1.5" />
+              <line x1="460" y1="370" x2="710" y2="300" stroke="#d0d0d0" strokeWidth="1.5" />
+              <line x1="460" y1="370" x2="615" y2="560" stroke="#d0d0d0" strokeWidth="1.5" />
+              <line x1="460" y1="370" x2="305" y2="560" stroke="#d0d0d0" strokeWidth="1.5" />
+              <line x1="460" y1="370" x2="210" y2="300" stroke="#d0d0d0" strokeWidth="1.5" />
+            </svg>
+
+            <div className="absolute left-1/2 top-[290px] -translate-x-1/2 w-[260px] min-h-[170px] border-[3px] border-red-400 bg-red-50 p-4 z-10">
+              <h3 className="text-base font-bold text-red-900 text-center mb-2">Industry Rivalry</h3>
+              <div className="space-y-2">
+                {forces.rivalry.map((item, index) => (
+                  <div key={`rivalry-${index}`} className="flex gap-2">
+                    <textarea
+                      value={item}
+                      onChange={(e) => updateForce('rivalry', index, e.target.value)}
+                      placeholder="Skriv observation..."
+                      rows={2}
+                      className="flex-1 px-2 py-1 text-xs border border-neutral-300 bg-white resize-none"
+                    />
+                    {forces.rivalry.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeItem('rivalry', index)}
+                        className="px-2 text-xs border border-red-200 text-red-600"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => addItem('rivalry')}
+                  className="text-xs uppercase tracking-wider text-red-800 border border-red-300 px-2 py-1"
+                >
+                  + Tilføj
+                </button>
               </div>
             </div>
 
-            {/* Top - Threat of New Entrants */}
-            <div className="mb-6 text-center">
-              <div className="inline-block border-2 border-green-400 rounded-lg p-4 bg-green-50">
-                <h3 className="text-sm font-bold text-green-900 mb-2">Threat of New Entrants</h3>
-                <div className="space-y-1">
-                  {forces.newEntrants.map((item, index) => (
-                    <div key={index} className="flex gap-1">
-                      <input
-                        type="text"
-                        value={item}
-                        onChange={(e) => updateForce('newEntrants', index, e.target.value)}
-                        placeholder="..."
-                        className="w-48 px-2 py-1 text-xs rounded border border-gray-300 bg-white"
-                      />
-                      {forces.newEntrants.length > 1 && (
-                        <button onClick={() => removeItem('newEntrants', index)} className="text-red-500 text-xs">×</button>
-                      )}
-                    </div>
-                  ))}
-                  <button onClick={() => addItem('newEntrants')} className="text-xs text-green-600">+</button>
-                </div>
-              </div>
-            </div>
+            {forceConfig
+              .filter((force) => force.key !== 'rivalry')
+              .map((force) => (
+                <section
+                  key={force.key}
+                  className={`absolute w-[230px] min-h-[150px] border-2 p-3 ${force.colorClass} ${force.positionClass}`}
+                >
+                  <h4 className="text-sm font-semibold text-neutral-900 mb-2">{force.title}</h4>
+                  <div className="space-y-2">
+                    {forces[force.key].map((item, index) => (
+                      <div key={`${force.key}-${index}`} className="flex gap-2">
+                        <textarea
+                          value={item}
+                          onChange={(e) => updateForce(force.key, index, e.target.value)}
+                          placeholder="Skriv observation..."
+                          rows={2}
+                          className="flex-1 px-2 py-1 text-xs border border-neutral-300 bg-white resize-none"
+                        />
+                        {forces[force.key].length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeItem(force.key, index)}
+                            className="px-2 text-xs border border-red-200 text-red-600"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => addItem(force.key)}
+                      className="text-xs uppercase tracking-wider text-neutral-700 border border-neutral-300 px-2 py-1"
+                    >
+                      + Tilføj
+                    </button>
+                  </div>
+                </section>
+              ))}
 
-            {/* Bottom Row */}
-            <div className="grid grid-cols-3 gap-4">
-              {/* Left - Bargaining Power of Suppliers */}
-              <div className="border-2 border-orange-400 rounded-lg p-4 bg-orange-50">
-                <h3 className="text-sm font-bold text-orange-900 mb-2">Bargaining Power of Suppliers</h3>
-                <div className="space-y-1">
-                  {forces.suppliers.map((item, index) => (
-                    <div key={index} className="flex gap-1">
-                      <textarea
-                        value={item}
-                        onChange={(e) => updateForce('suppliers', index, e.target.value)}
-                        placeholder="..."
-                        rows={2}
-                        className="flex-1 px-2 py-1 text-xs rounded border border-gray-300 bg-white resize-none"
-                      />
-                      {forces.suppliers.length > 1 && (
-                        <button onClick={() => removeItem('suppliers', index)} className="text-red-500 text-xs">×</button>
-                      )}
-                    </div>
-                  ))}
-                  <button onClick={() => addItem('suppliers')} className="text-xs text-orange-600">+</button>
-                </div>
-              </div>
-
-              {/* Center - Empty space */}
-              <div></div>
-
-              {/* Right - Bargaining Power of Buyers */}
-              <div className="border-2 border-blue-400 rounded-lg p-4 bg-blue-50">
-                <h3 className="text-sm font-bold text-blue-900 mb-2">Bargaining Power of Buyers</h3>
-                <div className="space-y-1">
-                  {forces.buyers.map((item, index) => (
-                    <div key={index} className="flex gap-1">
-                      <textarea
-                        value={item}
-                        onChange={(e) => updateForce('buyers', index, e.target.value)}
-                        placeholder="..."
-                        rows={2}
-                        className="flex-1 px-2 py-1 text-xs rounded border border-gray-300 bg-white resize-none"
-                      />
-                      {forces.buyers.length > 1 && (
-                        <button onClick={() => removeItem('buyers', index)} className="text-red-500 text-xs">×</button>
-                      )}
-                    </div>
-                  ))}
-                  <button onClick={() => addItem('buyers')} className="text-xs text-blue-600">+</button>
-                </div>
-              </div>
-            </div>
-
-            {/* Bottom - Threat of Substitutes */}
-            <div className="mt-6 text-center">
-              <div className="inline-block border-2 border-yellow-400 rounded-lg p-4 bg-yellow-50">
-                <h3 className="text-sm font-bold text-yellow-900 mb-2">Threat of Substitute Products</h3>
-                <div className="space-y-1">
-                  {forces.substitutes.map((item, index) => (
-                    <div key={index} className="flex gap-1">
-                      <input
-                        type="text"
-                        value={item}
-                        onChange={(e) => updateForce('substitutes', index, e.target.value)}
-                        placeholder="..."
-                        className="w-48 px-2 py-1 text-xs rounded border border-gray-300 bg-white"
-                      />
-                      {forces.substitutes.length > 1 && (
-                        <button onClick={() => removeItem('substitutes', index)} className="text-red-500 text-xs">×</button>
-                      )}
-                    </div>
-                  ))}
-                  <button onClick={() => addItem('substitutes')} className="text-xs text-yellow-600">+</button>
-                </div>
-              </div>
+            <div className="absolute right-6 top-6 text-[11px] uppercase tracking-widest text-neutral-500">
+              Five forces model
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </ToolLayout>
   )
 }
