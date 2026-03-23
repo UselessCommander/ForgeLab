@@ -45,6 +45,15 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId])
 
+  /** Skal ligge før eventuelle early returns — ellers “flere hooks end forrige render” (React #310). */
+  const handleDdCanvasLayoutSave = useCallback(
+    async (layout: NonNullable<Project['ddCanvasLayout']>) => {
+      const updated = await updateProject(projectId, { ddCanvasLayout: layout })
+      if (updated) setProject(updated)
+    },
+    [projectId]
+  )
+
   const loadProject = async () => {
     try {
       setLoading(true)
@@ -185,14 +194,6 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const canEdit = project.role === 'owner' || project.role === 'editor'
   const isOwner = project.role === 'owner'
   const toolPhases = project.toolPhases || {}
-
-  const handleDdCanvasLayoutSave = useCallback(
-    async (layout: NonNullable<Project['ddCanvasLayout']>) => {
-      const updated = await updateProject(projectId, { ddCanvasLayout: layout })
-      if (updated) setProject(updated)
-    },
-    [projectId]
-  )
 
   const handleInvite = async () => {
     if (!isOwner || !inviteUsername.trim()) return
