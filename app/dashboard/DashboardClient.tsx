@@ -14,6 +14,8 @@ import {
   type Project,
 } from '@/lib/projects'
 import { VAERKTOEJER } from '@/lib/vaerktoejer-data'
+import { DOUBLE_DIAMOND_PHASES, getDefaultPhaseForTool, type DoubleDiamondPhase } from '@/lib/frameworks'
+import { getToolIcon } from '@/lib/vaerktoejer-icons'
 
 export default function DashboardClient() {
   const [projects, setProjects] = useState<Project[]>([])
@@ -94,6 +96,11 @@ export default function DashboardClient() {
     projectCount > 0
       ? [...projects].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0]
       : null
+
+  const [activePhase, setActivePhase] = useState<DoubleDiamondPhase>('discover')
+  const phaseTools = VAERKTOEJER.filter(
+    (tool) => getDefaultPhaseForTool('double-diamond', tool.slug) === activePhase
+  )
 
   return (
     <PageShell>
@@ -255,13 +262,66 @@ export default function DashboardClient() {
         {/* Tilgængelige værktøjer */}
         <section className="mb-4">
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-lg md:text-xl font-semibold text-gray-900">Værktøjsbibliotek</h2>
+            <h2 className="text-lg md:text-xl font-semibold text-gray-900">Værktøjer i Double Diamond</h2>
           </div>
           <p className="text-xs md:text-sm text-gray-500 mb-5 max-w-2xl">
-            Udforsk alle værktøjer, der kan tilføjes til dine projekter. Vælg de værktøjer, der passer til dit næste eksperiment, og aktiver dem fra projekt-siden.
+            Vælg en fase i modellen og se relevante værktøjer i stedet for en lang liste.
           </p>
+
+          <div className="swiss-panel p-4 md:p-6 mb-5">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {DOUBLE_DIAMOND_PHASES.map((phase) => {
+                const isActive = activePhase === phase.id
+                return (
+                  <button
+                    key={phase.id}
+                    type="button"
+                    onClick={() => setActivePhase(phase.id)}
+                    className={`text-left px-3 py-3 border transition-colors ${
+                      isActive
+                        ? 'bg-black text-white border-black'
+                        : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-100'
+                    }`}
+                  >
+                    <p className="text-xs uppercase tracking-widest">{phase.label}</p>
+                    <p className={`text-[11px] mt-1 ${isActive ? 'text-neutral-300' : 'text-neutral-500'}`}>
+                      {phase.description}
+                    </p>
+                  </button>
+                )
+              })}
+            </div>
+
+            <div className="mt-5">
+              <div className="inline-flex items-center gap-2 text-xs uppercase tracking-widest text-neutral-500 mb-3">
+                <span className="w-2 h-2 rounded-full bg-black" />
+                {DOUBLE_DIAMOND_PHASES.find((p) => p.id === activePhase)?.label}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {phaseTools.map((tool) => {
+                  const { Icon, bg, text } = getToolIcon(tool.slug)
+                  return (
+                    <Link
+                      key={tool.slug}
+                      href={`/vaerktoejer/${tool.slug}`}
+                      className="flex items-center gap-3 p-3 border border-neutral-300 bg-white hover:bg-neutral-50 transition-colors"
+                    >
+                      <div className={`w-9 h-9 border border-neutral-300 flex items-center justify-center ${bg} ${text}`}>
+                        <Icon className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-semibold text-sm text-neutral-900 truncate">{tool.title}</p>
+                        <p className="text-xs text-neutral-500 line-clamp-1">{tool.shortDescription}</p>
+                      </div>
+                    </Link>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {VAERKTOEJER.map((tool) => (
+            {VAERKTOEJER.slice(0, 6).map((tool) => (
               <AvailableToolCard key={tool.slug} tool={tool} />
             ))}
           </div>

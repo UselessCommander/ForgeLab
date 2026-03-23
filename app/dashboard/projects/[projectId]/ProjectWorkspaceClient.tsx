@@ -16,7 +16,12 @@ import {
   type Project,
   type ProjectMember,
 } from '@/lib/projects'
-import { DOUBLE_DIAMOND_PHASES, type DoubleDiamondPhase, type FrameworkId } from '@/lib/frameworks'
+import {
+  DOUBLE_DIAMOND_PHASES,
+  getDefaultPhaseForTool,
+  type DoubleDiamondPhase,
+  type FrameworkId,
+} from '@/lib/frameworks'
 import { VAERKTOEJER, getVaerktoejBySlug, getVaerktoejerGroupedByKategori } from '@/lib/vaerktoejer-data'
 import { getToolIcon } from '@/lib/vaerktoejer-icons'
 
@@ -152,6 +157,12 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     .filter((x) => x.tool)
   const availableToAdd = VAERKTOEJER.filter((t) => !project.toolIds.includes(t.slug))
   const availableByKategori = getVaerktoejerGroupedByKategori((t) => !project.toolIds.includes(t.slug))
+  const availableByPhase = DOUBLE_DIAMOND_PHASES.map((phase) => ({
+    phase,
+    tools: availableToAdd.filter(
+      (tool) => getDefaultPhaseForTool('double-diamond', tool.slug) === phase.id
+    ),
+  })).filter((group) => group.tools.length > 0)
 
   const toolCount = projectTools.length
   const latestTool = projectTools[0] ?? null
@@ -543,6 +554,36 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
             <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
               {availableToAdd.length === 0 ? (
                 <p className="text-gray-500 text-sm">Alle værktøjer er allerede tilføjet.</p>
+              ) : framework === 'double-diamond' ? (
+                availableByPhase.map(({ phase, tools }) => (
+                  <div key={phase.id}>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                      {phase.label}
+                    </p>
+                    <div className="space-y-2">
+                      {tools.map((tool) => {
+                        const { Icon, bg, text } = getToolIcon(tool.slug)
+                        return (
+                          <button
+                            key={tool.slug}
+                            onClick={() => handleAddTool(tool.slug)}
+                            disabled={!canEdit}
+                            className="w-full flex items-center gap-3 p-4 border border-neutral-300 bg-white hover:bg-neutral-50 transition-colors text-left min-w-0"
+                          >
+                            <div className={`w-10 h-10 border border-neutral-300 flex items-center justify-center flex-shrink-0 ${bg} ${text}`}>
+                              <Icon className="w-5 h-5" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="font-medium text-gray-900 truncate">{tool.title}</p>
+                              <p className="text-xs text-gray-500 line-clamp-2">{tool.shortDescription}</p>
+                            </div>
+                            <span className="flex-shrink-0 text-gray-700 text-sm font-medium">+ Tilføj</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))
               ) : (
                 availableByKategori.map(({ kategori, tools }) => (
                   <div key={kategori.id}>
