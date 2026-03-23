@@ -7,6 +7,7 @@ import PageShell from '@/components/PageShell'
 import SiteNav from '@/components/SiteNav'
 import ProjectCard from '@/components/dashboard/ProjectCard'
 import AvailableToolCard from '@/components/dashboard/AvailableToolCard'
+import DoubleDiamondDiagram from '@/components/dashboard/DoubleDiamondDiagram'
 import {
   getProjects,
   createProject,
@@ -196,16 +197,6 @@ export default function DashboardClient() {
       </span>
     )
   }
-  const phaseVisuals: Record<
-    DoubleDiamondPhase,
-    { points: string; centerX: number; centerY: number; shortType: 'Diverging' | 'Converging' }
-  > = {
-    discover: { points: '70,150 215,32 215,268', centerX: 160, centerY: 150, shortType: 'Diverging' },
-    define: { points: '215,32 360,150 215,268', centerX: 270, centerY: 150, shortType: 'Converging' },
-    develop: { points: '440,150 585,32 585,268', centerX: 530, centerY: 150, shortType: 'Diverging' },
-    deliver: { points: '585,32 730,150 585,268', centerX: 640, centerY: 150, shortType: 'Converging' },
-  }
-
   return (
     <PageShell>
       <SiteNav
@@ -338,72 +329,7 @@ export default function DashboardClient() {
 
           <div className="swiss-panel p-4 md:p-6 mb-5">
             <div className="rounded-xl border border-neutral-200 bg-white p-3 md:p-4 mb-5 overflow-x-auto">
-              <svg
-                viewBox="0 0 800 300"
-                className="w-full min-w-[720px] h-auto"
-                role="img"
-                aria-label="Interaktiv Double Diamond model"
-              >
-                <line x1="30" y1="150" x2="770" y2="150" stroke="#e8c9a5" strokeWidth="1.5" />
-                <line x1="360" y1="150" x2="440" y2="150" stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="4 6" />
-                <g onClick={() => setActiveSelection('hmw')} className="cursor-pointer">
-                  <circle
-                    cx="400"
-                    cy="150"
-                    r="22"
-                    fill={activeSelection === 'hmw' ? '#f59e0b' : '#ffffff'}
-                    stroke={activeSelection === 'hmw' ? '#b45309' : '#d97706'}
-                    strokeWidth={2}
-                  />
-                  <text
-                    x="400"
-                    y="154"
-                    textAnchor="middle"
-                    fontSize="11"
-                    fill={activeSelection === 'hmw' ? '#ffffff' : '#b45309'}
-                    style={{ fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}
-                  >
-                    HMW
-                  </text>
-                </g>
-                <text x="18" y="145" textAnchor="end" fill="#b45309" fontSize="11">Problem</text>
-                <text x="782" y="145" textAnchor="start" fill="#b45309" fontSize="11">Solution</text>
-
-                {DOUBLE_DIAMOND_PHASES.map((phase) => {
-                  const visual = phaseVisuals[phase.id]
-                  const isActive = activeSelection === phase.id
-                  return (
-                    <g key={phase.id} onClick={() => setActiveSelection(phase.id)} className="cursor-pointer">
-                      <polygon
-                        points={visual.points}
-                        fill={isActive ? '#f59e0b' : '#fffaf3'}
-                        stroke={isActive ? '#b45309' : '#d97706'}
-                        strokeWidth={isActive ? 2.5 : 1.5}
-                      />
-                      <text
-                        x={visual.centerX}
-                        y={visual.centerY - 8}
-                        textAnchor="middle"
-                        fontSize="12"
-                        fill={isActive ? '#ffffff' : '#9a3412'}
-                        style={{ fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}
-                      >
-                        {phase.label}
-                      </text>
-                      <text
-                        x={visual.centerX}
-                        y={visual.centerY + 12}
-                        textAnchor="middle"
-                        fontSize="10"
-                        fill={isActive ? '#ffedd5' : '#b45309'}
-                        style={{ letterSpacing: '0.06em', textTransform: 'uppercase' }}
-                      >
-                        {visual.shortType}
-                      </text>
-                    </g>
-                  )
-                })}
-              </svg>
+              <DoubleDiamondDiagram activeSelection={activeSelection} onSelect={setActiveSelection} />
             </div>
 
             <div className="mt-5">
