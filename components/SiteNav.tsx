@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import ForgeLabLogo from '@/components/ForgeLabLogo'
 
 interface SiteNavProps {
@@ -12,31 +12,8 @@ interface SiteNavProps {
 }
 
 export default function SiteNav({ rightSlot, showLoginCta = true }: SiteNavProps) {
-  const [homeHref, setHomeHref] = useState<string>('/')
-
-  useEffect(() => {
-    if (typeof document === 'undefined') return
-    try {
-      const cookie = document.cookie.split('; ').find((row) => row.startsWith('forgelab_session='))
-      if (!cookie) return
-      const raw = decodeURIComponent(cookie.split('=')[1] ?? '')
-
-      let isAuthenticated = false
-      try {
-        const parsed = JSON.parse(raw)
-        isAuthenticated = !!parsed?.userId
-      } catch {
-        // Legacy format where value er bare en streng
-        isAuthenticated = raw === 'authenticated'
-      }
-
-      if (isAuthenticated) {
-        setHomeHref('/dashboard')
-      }
-    } catch {
-      // Hvis noget går galt, lader vi bare homeHref være '/'
-    }
-  }, [])
+  const pathname = usePathname()
+  const homeHref = pathname === '/' ? '/' : '/dashboard'
 
   return (
     <nav className="border-b border-gray-200/80 bg-white/70 backdrop-blur-md sticky top-0 z-50">

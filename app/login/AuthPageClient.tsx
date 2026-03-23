@@ -24,6 +24,10 @@ function LoginFormInner({
 
   // Hvis brugeren allerede har en gyldig session-cookie, så send direkte til dashboard
   useEffect(() => {
+    // In register mode we should not auto-redirect from existing session.
+    // User explicitly chose "Opret bruger" flow.
+    if (searchParams.get('mode') === 'register') return
+
     let cancelled = false
 
     const checkSession = async () => {
