@@ -32,15 +32,15 @@ export default function DoubleDiamondDiagram({ activeSelection, onSelect }: Prop
     >
       <defs>
         <style>{`
-          .dd-top { fill: #57534e; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 18px; font-weight: 600; }
-          .dd-phase-title { fill: #fbbf24; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 22px; font-weight: 700; }
-          .dd-phase-sub { fill: #a8a29e; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 11px; }
-          .dd-dv { fill: #44403c; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 13px; font-weight: 600; }
-          .dd-small { fill: #78716c; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 10px; }
-          .dd-tiny { fill: #78716c; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 10px; }
-          .dd-rot { fill: #78716c; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 10px; }
-          .dd-axis { fill: #b45309; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 17px; font-weight: 700; }
-          .dd-foot { fill: #57534e; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 10px; }
+          .dd-top { fill: #000000; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 18px; font-weight: 600; }
+          .dd-phase-title { fill: #000000; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 22px; font-weight: 700; }
+          .dd-phase-sub { fill: #000000; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 11px; }
+          .dd-dv { fill: #000000; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 13px; font-weight: 600; }
+          .dd-small { fill: #000000; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 10px; }
+          .dd-tiny { fill: #000000; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 10px; }
+          .dd-rot { fill: #000000; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 10px; }
+          .dd-axis { fill: #000000; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 17px; font-weight: 700; }
+          .dd-foot { fill: #000000; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 10px; }
         `}</style>
       </defs>
 
@@ -291,7 +291,7 @@ export default function DoubleDiamondDiagram({ activeSelection, onSelect }: Prop
           </text>
         </g>
 
-        <text x={1180} y={635} textAnchor="end" className="dd-tiny" opacity={0.55} style={{ fontSize: 9 }}>
+        <text x={1180} y={635} textAnchor="end" className="dd-tiny" style={{ fontSize: 9 }}>
           Efter Double Diamond (research → synthesis → ideation → delivery)
         </text>
       </g>
@@ -311,7 +311,7 @@ export default function DoubleDiamondDiagram({ activeSelection, onSelect }: Prop
           y={HMW_CY + 4}
           textAnchor="middle"
           fontSize={11}
-          fill={activeSelection === 'hmw' ? '#ffffff' : '#b45309'}
+          fill={activeSelection === 'hmw' ? '#ffffff' : '#000000'}
           style={{ fontWeight: 700, letterSpacing: '0.1em' }}
         >
           HMW

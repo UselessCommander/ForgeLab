@@ -40,7 +40,7 @@ export default async function AnalyticsPage() {
           )
         }
       />
-      <main className="container mx-auto px-6 py-16 max-w-5xl">
+      <main className="layout-page py-16">
         <div className="text-center mb-12">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 mb-6">
             <BarChart3 className="w-8 h-8" />

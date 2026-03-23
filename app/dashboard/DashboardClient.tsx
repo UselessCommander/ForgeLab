@@ -209,19 +209,19 @@ export default function DashboardClient() {
           </div>
         }
       />
-      <div className="container mx-auto px-6 py-10 max-w-5xl">
+      <div className="layout-page py-10">
         {/* Hero / topsektion */}
         <section className="mb-10">
           <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-amber-500 via-amber-500/90 to-amber-600 text-white p-6 md:p-8 shadow-[0_20px_45px_rgba(249,115,22,0.35)]">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-              <div className="max-w-xl">
+              <div className="max-w-2xl md:max-w-3xl">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-100/90 mb-1">
                   Dit ForgeLab dashboard
                 </p>
                 <h1 className="text-2xl md:text-3xl lg:text-4xl font-semibold tracking-tight mb-2">
                   {greeting}, klar til næste eksperiment?
                 </h1>
-                <p className="text-sm md:text-base text-amber-50/90 max-w-xl">
+                <p className="text-sm md:text-base text-amber-50/90 max-w-2xl">
                   Opret et nyt projekt på få sekunder, tilføj værktøjer som A/B/N test eller spørgeskemaer – og følg resultaterne direkte i Analytics.
                 </p>
                 <div className="flex flex-wrap items-center gap-3 mt-5">
@@ -304,7 +304,7 @@ export default function DashboardClient() {
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
                 {projects.map((p) => (
                   <ProjectCard
                     key={p.id}
@@ -323,7 +323,7 @@ export default function DashboardClient() {
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-lg md:text-xl font-semibold text-gray-900">Værktøjer i Double Diamond</h2>
           </div>
-          <p className="text-xs md:text-sm text-gray-500 mb-5 max-w-2xl">
+          <p className="text-xs md:text-sm text-gray-500 mb-5 max-w-4xl">
             Vælg en fase i modellen og se relevante værktøjer i stedet for en lang liste.
           </p>
 
@@ -384,7 +384,7 @@ export default function DashboardClient() {
                 </div>
               )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
                 {phaseTools.map((tool) => {
                   const { Icon, bg, text } = getToolIcon(tool.slug)
                   return (
@@ -411,7 +411,7 @@ export default function DashboardClient() {
             <h3 className="text-sm md:text-base font-semibold text-gray-900 mb-3">
               Standalone værktøjer (uden for Double Diamond)
             </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
               {standaloneTools.map((tool) => (
                 <AvailableToolCard key={tool.slug} tool={tool} />
               ))}

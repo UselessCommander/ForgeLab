@@ -236,7 +236,7 @@ export default function AdminDashboard() {
             </Link>
           }
         />
-        <div className="container mx-auto px-6 py-12 max-w-7xl">
+        <div className="layout-page py-12">
         <header className="mb-8 md:mb-12">
           <h1 className="text-3xl md:text-4xl font-bold text-gray-900 tracking-tight mb-2">
             Admin Dashboard

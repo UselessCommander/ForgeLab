@@ -29,7 +29,7 @@ export default function ToolLayout({
   if (isEmbed) {
     return (
       <div className="min-h-full px-4 py-6 bg-[#fafbfc]">
-        <div className="max-w-5xl mx-auto">{children}</div>
+        <div className="max-w-[1600px] mx-auto w-full px-4 sm:px-6">{children}</div>
       </div>
     )
   }
@@ -38,8 +38,8 @@ export default function ToolLayout({
     <div className="min-h-screen bg-[#fafbfc] text-gray-900 overflow-hidden">
       <div className="fixed inset-0 bg-[linear-gradient(to_right,#f0f1f3_1px,transparent_1px),linear-gradient(to_bottom,#f0f1f3_1px,transparent_1px)] bg-[size:24px_24px] opacity-60 pointer-events-none" />
       <div className="fixed inset-0 bg-gradient-to-b from-white/80 via-transparent to-amber-50/30 pointer-events-none" />
-      <div className="relative z-10 px-4 py-8 md:py-12">
-        <div className="max-w-7xl mx-auto">
+      <div className="relative z-10 py-8 md:py-12">
+        <div className="layout-page">
           <header className="mb-8">
             <div className="bg-white rounded-2xl p-6 md:p-10 shadow-sm border border-gray-200/80">
               <Link

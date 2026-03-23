@@ -50,7 +50,7 @@ export default async function AnalyticsQRPage({ params }: Props) {
           )
         }
       />
-      <main className="container mx-auto px-6 py-12 max-w-5xl">
+      <main className="layout-page py-12">
         <div className="mb-8">
           <Link
             href="/analytics"

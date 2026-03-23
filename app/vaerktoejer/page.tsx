@@ -24,7 +24,7 @@ export default function VaerktoejerPage() {
           </Link>
         }
       />
-      <main className="container mx-auto px-6 py-16 max-w-5xl">
+      <main className="layout-page py-16">
         <div className="text-center mb-14">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 mb-6">
             <LayoutGrid className="w-8 h-8" />
@@ -41,7 +41,7 @@ export default function VaerktoejerPage() {
           {getVaerktoejerGroupedByKategori().map(({ kategori, tools }) => (
             <section key={kategori.id}>
               <h2 className="text-lg font-semibold text-gray-900 mb-4">{kategori.label}</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {tools.map((v) => {
                   const { Icon, bg, text } = getToolIcon(v.slug)
                   return (

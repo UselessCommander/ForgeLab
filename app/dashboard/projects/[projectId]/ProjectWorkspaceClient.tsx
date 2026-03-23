@@ -132,7 +132,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     return (
       <PageShell>
         <SiteNav />
-        <div className="container mx-auto px-6 py-16 max-w-5xl">
+        <div className="layout-page py-16">
           <p className="text-gray-500">Indlæser projekt…</p>
         </div>
       </PageShell>
@@ -143,11 +143,13 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     return (
       <PageShell>
         <SiteNav />
-        <div className="container mx-auto px-6 py-16 max-w-3xl">
-          <p className="text-gray-500 mb-4">Projekt ikke fundet.</p>
-          <Link href="/dashboard" className="text-amber-600 hover:text-amber-700 font-medium">
-            ← Tilbage til dashboard
-          </Link>
+        <div className="layout-page py-16">
+          <div className="max-w-3xl">
+            <p className="text-gray-500 mb-4">Projekt ikke fundet.</p>
+            <Link href="/dashboard" className="text-amber-600 hover:text-amber-700 font-medium">
+              ← Tilbage til dashboard
+            </Link>
+          </div>
         </div>
       </PageShell>
     )
@@ -231,7 +233,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           </div>
         }
       />
-      <div className="container mx-auto px-6 py-10 max-w-5xl">
+      <div className="layout-page py-10">
         {/* Header */}
         <section className="mb-10">
           <div className="flex items-center gap-2 text-xs text-gray-400 mb-3">
