@@ -8,12 +8,15 @@ import {
   getProject,
   addToolToProject,
   removeToolFromProject,
+  updateProject,
+  updateProjectToolPhases,
   getProjectMembers,
   inviteProjectMember,
   removeProjectMember,
   type Project,
   type ProjectMember,
 } from '@/lib/projects'
+import { DOUBLE_DIAMOND_PHASES, type DoubleDiamondPhase, type FrameworkId } from '@/lib/frameworks'
 import { VAERKTOEJER, getVaerktoejBySlug, getVaerktoejerGroupedByKategori } from '@/lib/vaerktoejer-data'
 import { getToolIcon } from '@/lib/vaerktoejer-icons'
 
@@ -85,6 +88,40 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     }
   }
 
+  const handleFrameworkChange = async (framework: FrameworkId) => {
+    if (!canEdit || modifying || !project) return
+    try {
+      setModifying(true)
+      await updateProject(projectId, { framework })
+      await loadProject()
+    } catch (error) {
+      console.error('Error updating framework:', error)
+      alert('Kunne ikke opdatere framework. Prøv igen.')
+    } finally {
+      setModifying(false)
+    }
+  }
+
+  const handlePhaseChange = async (toolSlug: string, phase: DoubleDiamondPhase) => {
+    if (!canEdit || modifying || !project) return
+    try {
+      setModifying(true)
+      await updateProjectToolPhases(projectId, { [toolSlug]: phase })
+      setProject({
+        ...project,
+        toolPhases: {
+          ...(project.toolPhases || {}),
+          [toolSlug]: phase,
+        },
+      })
+    } catch (error) {
+      console.error('Error updating tool phase:', error)
+      alert('Kunne ikke flytte værktøjet til ny fase. Prøv igen.')
+    } finally {
+      setModifying(false)
+    }
+  }
+
   if (loading) {
     return (
       <PageShell>
@@ -118,12 +155,18 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
 
   const toolCount = projectTools.length
   const latestTool = projectTools[0] ?? null
+  const framework = project.framework || 'none'
 
   const lastUpdated = project.updatedAt
     ? new Date(project.updatedAt).toLocaleString('da-DK')
     : 'Ukendt'
   const canEdit = project.role === 'owner' || project.role === 'editor'
   const isOwner = project.role === 'owner'
+  const toolPhases = project.toolPhases || {}
+  const toolsByPhase = DOUBLE_DIAMOND_PHASES.map((phase) => ({
+    ...phase,
+    tools: projectTools.filter(({ slug }) => toolPhases[slug] === phase.id),
+  }))
 
   const handleInvite = async () => {
     if (!isOwner || !inviteUsername.trim()) return
@@ -195,6 +238,10 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                 </span>
                 <span>·</span>
                 <span>Din rolle: {project.role || 'viewer'}</span>
+                <span>·</span>
+                <span>
+                  Framework: {framework === 'double-diamond' ? 'Double Diamond' : 'Ingen'}
+                </span>
               </div>
             </div>
             <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
@@ -214,6 +261,21 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                 </Link>
               )}
             </div>
+          </div>
+          <div className="mt-4 rounded-2xl border border-gray-200/80 bg-white p-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Framework</label>
+            <select
+              value={framework}
+              onChange={(e) => handleFrameworkChange((e.target.value as FrameworkId) || 'none')}
+              disabled={!canEdit || modifying}
+              className="w-full sm:w-72 px-3 py-2 border border-gray-200 rounded-xl bg-white text-sm"
+            >
+              <option value="none">Ingen framework</option>
+              <option value="double-diamond">Double Diamond</option>
+            </select>
+            <p className="text-xs text-gray-500 mt-2">
+              Når Double Diamond er valgt, placeres værktøjer i faser og kan flyttes mellem dem.
+            </p>
           </div>
         </section>
 
@@ -321,6 +383,70 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           )}
         </section>
 
+        {framework === 'double-diamond' && toolCount > 0 && (
+          <section className="mb-10">
+            <h2 className="text-lg md:text-xl font-semibold text-gray-900 mb-3">
+              Double Diamond faser
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {toolsByPhase.map((phase) => (
+                <div
+                  key={phase.id}
+                  className="rounded-2xl border border-gray-200/80 bg-white p-4 shadow-sm"
+                >
+                  <h3 className="font-semibold text-gray-900">{phase.label}</h3>
+                  <p className="text-xs text-gray-500 mt-1 mb-3">{phase.description}</p>
+                  {phase.tools.length === 0 ? (
+                    <p className="text-xs text-gray-400">Ingen værktøjer i denne fase endnu.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {phase.tools.map(({ slug, tool }) => {
+                        if (!tool) return null
+                        const { Icon, bg, text } = getToolIcon(slug)
+                        return (
+                          <div
+                            key={`${phase.id}-${slug}`}
+                            className="rounded-xl border border-gray-100 bg-gray-50/70 p-3"
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${bg} ${text}`}>
+                                <Icon className="w-4 h-4" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-medium text-gray-900 truncate">{tool.title}</p>
+                                <div className="mt-2 flex items-center gap-2">
+                                  <Link
+                                    href={`/tools/${slug}?projectId=${projectId}`}
+                                    className="inline-flex items-center px-2.5 py-1 rounded-lg bg-gray-900 text-white text-[11px] font-medium"
+                                  >
+                                    Åbn
+                                  </Link>
+                                  <select
+                                    value={(toolPhases[slug] as DoubleDiamondPhase) || 'develop'}
+                                    onChange={(e) => handlePhaseChange(slug, e.target.value as DoubleDiamondPhase)}
+                                    disabled={!canEdit || modifying}
+                                    className="px-2 py-1 rounded-lg border border-gray-200 bg-white text-[11px]"
+                                  >
+                                    {DOUBLE_DIAMOND_PHASES.map((p) => (
+                                      <option key={p.id} value={p.id}>
+                                        {p.label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* Værktøjer i projektet */}
         <section className="mb-6">
           <div className="flex items-center justify-between mb-2">
@@ -361,12 +487,28 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                       </div>
                     </div>
                     <div className="flex items-center justify-between gap-3">
-                      <Link
-                        href={`/tools/${slug}?projectId=${projectId}`}
-                        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-900 text-white text-xs font-medium hover:bg-black transition-colors"
-                      >
-                        Åbn værktøj
-                      </Link>
+                      <div className="flex items-center gap-2">
+                        <Link
+                          href={`/tools/${slug}?projectId=${projectId}`}
+                          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-900 text-white text-xs font-medium hover:bg-black transition-colors"
+                        >
+                          Åbn værktøj
+                        </Link>
+                        {framework === 'double-diamond' && (
+                          <select
+                            value={(toolPhases[slug] as DoubleDiamondPhase) || 'develop'}
+                            onChange={(e) => handlePhaseChange(slug, e.target.value as DoubleDiamondPhase)}
+                            disabled={!canEdit || modifying}
+                            className="px-2 py-2 rounded-lg border border-gray-200 bg-white text-xs"
+                          >
+                            {DOUBLE_DIAMOND_PHASES.map((phase) => (
+                              <option key={phase.id} value={phase.id}>
+                                {phase.label}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
                       <button
                         type="button"
                         onClick={() => handleRemoveTool(slug)}

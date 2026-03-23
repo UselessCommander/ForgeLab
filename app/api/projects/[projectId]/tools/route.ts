@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUserId } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import { canEditProject } from '@/lib/project-access'
+import { getDefaultPhaseForTool, normalizeFramework } from '@/lib/frameworks'
 
 // POST /api/projects/[projectId]/tools - Add a tool to a project
 export async function POST(
@@ -49,11 +50,20 @@ export async function POST(
 
     const nextOrder = tools && tools.length > 0 ? (tools[0].order_index || 0) + 1 : 0
 
+    const { data: project } = await supabase
+      .from('projects')
+      .select('framework')
+      .eq('id', projectId)
+      .single()
+
+    const framework = normalizeFramework(project?.framework)
+
     // Add tool
     const { error: insertError } = await supabase.from('project_tools').insert({
       project_id: projectId,
       tool_slug: toolSlug,
       order_index: nextOrder,
+      framework_phase: getDefaultPhaseForTool(framework, toolSlug),
     })
 
     if (insertError) {

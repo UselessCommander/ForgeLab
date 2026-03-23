@@ -2,12 +2,15 @@
  * Project & tool association - Database-backed via API
  * Supports: projects, project_tools, per-project tool state
  */
+import type { FrameworkId, FrameworkPhase } from '@/lib/frameworks'
 
 export interface Project {
   id: string
   name: string
   description: string
   toolIds: string[]
+  framework?: FrameworkId
+  toolPhases?: Record<string, FrameworkPhase>
   role?: 'owner' | 'editor' | 'viewer'
   updatedAt: string
   createdAt: string
@@ -87,7 +90,7 @@ export async function getProject(id: string): Promise<Project | null> {
 // PUT /api/projects/[projectId] - Update a project
 export async function updateProject(
   id: string,
-  updates: Partial<Pick<Project, 'name' | 'description' | 'toolIds'>>
+  updates: Partial<Pick<Project, 'name' | 'description' | 'toolIds' | 'framework' | 'toolPhases'>>
 ): Promise<Project | null> {
   const response = await fetch(`/api/projects/${id}`, {
     method: 'PUT',
@@ -178,6 +181,26 @@ export async function reorderProjectTools(projectId: string, toolIds: string[]):
 
   if (!response.ok) {
     throw new Error('Failed to reorder project tools')
+  }
+
+  return true
+}
+
+export async function updateProjectToolPhases(
+  projectId: string,
+  toolPhases: Record<string, FrameworkPhase>
+): Promise<boolean> {
+  const response = await fetch(`/api/projects/${projectId}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify({ toolPhases }),
+  })
+
+  if (!response.ok) {
+    throw new Error('Failed to update project tool phases')
   }
 
   return true

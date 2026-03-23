@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUserId } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
+import { normalizeFramework } from '@/lib/frameworks'
 
 // GET /api/projects - Get all projects for current user
 export async function GET(request: NextRequest) {
@@ -44,7 +45,7 @@ export async function GET(request: NextRequest) {
       (projects || []).map(async (project) => {
         const { data: tools, error: toolsError } = await supabase
           .from('project_tools')
-          .select('tool_slug')
+          .select('tool_slug, framework_phase')
           .eq('project_id', project.id)
           .order('order_index', { ascending: true })
 
@@ -56,11 +57,17 @@ export async function GET(request: NextRequest) {
           }
         }
 
+        const toolPhases = Object.fromEntries(
+          (tools || []).map((t) => [t.tool_slug, t.framework_phase || null])
+        )
+
         return {
           id: project.id,
           name: project.name,
           description: project.description || '',
           toolIds: (tools || []).map((t) => t.tool_slug),
+          framework: normalizeFramework(project.framework),
+          toolPhases,
           role: roleByProjectId.get(project.id) || 'viewer',
           updatedAt: project.updated_at,
           createdAt: project.created_at,
@@ -96,6 +103,7 @@ export async function POST(request: NextRequest) {
         user_id: userId,
         name: name.trim(),
         description: description.trim() || '',
+        framework: 'none',
       })
       .select()
       .single()
@@ -124,6 +132,8 @@ export async function POST(request: NextRequest) {
       name: project.name,
       description: project.description || '',
       toolIds: [],
+      framework: normalizeFramework(project.framework),
+      toolPhases: {},
       role: 'owner',
       updatedAt: project.updated_at,
       createdAt: project.created_at,

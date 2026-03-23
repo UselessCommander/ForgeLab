@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUserId } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import { canEditProject, canViewProject, getProjectRole, isProjectOwner } from '@/lib/project-access'
+import { getDefaultPhaseForTool, normalizeFramework, type FrameworkPhase } from '@/lib/frameworks'
 
 // GET /api/projects/[projectId] - Get a single project
 export async function GET(
@@ -36,15 +37,25 @@ export async function GET(
     // Fetch tools for the project
     const { data: tools, error: toolsError } = await supabase
       .from('project_tools')
-      .select('tool_slug')
+      .select('tool_slug, framework_phase')
       .eq('project_id', projectId)
       .order('order_index', { ascending: true })
+
+    if (toolsError) {
+      return NextResponse.json({ error: 'Failed to fetch project tools' }, { status: 500 })
+    }
+
+    const toolPhases = Object.fromEntries(
+      (tools || []).map((t) => [t.tool_slug, t.framework_phase || null])
+    )
 
     return NextResponse.json({
       id: project.id,
       name: project.name,
       description: project.description || '',
       toolIds: (tools || []).map((t) => t.tool_slug),
+      framework: normalizeFramework(project.framework),
+      toolPhases,
       role: role || 'viewer',
       updatedAt: project.updated_at,
       createdAt: project.created_at,
@@ -68,7 +79,13 @@ export async function PUT(
 
     const { projectId } = await params
     const body = await request.json()
-    const { name, description, toolIds } = body
+    const { name, description, toolIds, framework, toolPhases } = body as {
+      name?: string
+      description?: string
+      toolIds?: string[]
+      framework?: string
+      toolPhases?: Record<string, FrameworkPhase>
+    }
 
     const canEdit = await canEditProject(projectId, userId)
     if (!canEdit) {
@@ -79,6 +96,7 @@ export async function PUT(
     const updates: any = {}
     if (name !== undefined) updates.name = name.trim()
     if (description !== undefined) updates.description = description.trim() || ''
+    if (framework !== undefined) updates.framework = normalizeFramework(framework)
 
     if (Object.keys(updates).length > 0) {
       const { error: updateError } = await supabase
@@ -92,6 +110,18 @@ export async function PUT(
       }
     }
 
+    const { data: currentProject, error: currentProjectError } = await supabase
+      .from('projects')
+      .select('framework')
+      .eq('id', projectId)
+      .single()
+
+    if (currentProjectError) {
+      return NextResponse.json({ error: 'Failed to fetch project framework' }, { status: 500 })
+    }
+
+    const effectiveFramework = normalizeFramework(updates.framework ?? currentProject.framework)
+
     // Update tools if provided
     if (Array.isArray(toolIds)) {
       // Delete existing tools
@@ -103,6 +133,7 @@ export async function PUT(
           project_id: projectId,
           tool_slug: toolSlug,
           order_index: index,
+          framework_phase: toolPhases?.[toolSlug] ?? getDefaultPhaseForTool(effectiveFramework, toolSlug),
         }))
 
         const { error: toolsError } = await supabase.from('project_tools').insert(toolsToInsert)
@@ -110,6 +141,20 @@ export async function PUT(
         if (toolsError) {
           console.error('Error updating project tools:', toolsError)
           return NextResponse.json({ error: 'Failed to update project tools' }, { status: 500 })
+        }
+      }
+    }
+
+    if (!Array.isArray(toolIds) && toolPhases && typeof toolPhases === 'object') {
+      for (const [toolSlug, phase] of Object.entries(toolPhases)) {
+        const { error: phaseUpdateError } = await supabase
+          .from('project_tools')
+          .update({ framework_phase: phase ?? getDefaultPhaseForTool(effectiveFramework, toolSlug) })
+          .eq('project_id', projectId)
+          .eq('tool_slug', toolSlug)
+
+        if (phaseUpdateError) {
+          return NextResponse.json({ error: 'Failed to update tool phase' }, { status: 500 })
         }
       }
     }
@@ -128,15 +173,21 @@ export async function PUT(
     // Fetch tools
     const { data: tools } = await supabase
       .from('project_tools')
-      .select('tool_slug')
+      .select('tool_slug, framework_phase')
       .eq('project_id', projectId)
       .order('order_index', { ascending: true })
+
+    const updatedToolPhases = Object.fromEntries(
+      (tools || []).map((t) => [t.tool_slug, t.framework_phase || null])
+    )
 
     return NextResponse.json({
       id: updatedProject.id,
       name: updatedProject.name,
       description: updatedProject.description || '',
       toolIds: (tools || []).map((t) => t.tool_slug),
+      framework: normalizeFramework(updatedProject.framework),
+      toolPhases: updatedToolPhases,
       role: (await getProjectRole(projectId, userId)) || 'viewer',
       updatedAt: updatedProject.updated_at,
       createdAt: updatedProject.created_at,

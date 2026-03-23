@@ -12,6 +12,7 @@ export const TOOL_SLUGS = [
   'card-sorting',
   'maslow-model',
   'smuk-model',
+  'affinity-diagram',
 ] as const
 
 export type ToolSlug = (typeof TOOL_SLUGS)[number]

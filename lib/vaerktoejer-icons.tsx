@@ -13,6 +13,7 @@ import {
   Mountain,
   ClipboardList,
   BarChart3,
+  Workflow,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -30,6 +31,7 @@ export const TOOL_ICONS: Record<string, { Icon: LucideIcon; bg: string; text: st
   'maslow-model': { Icon: Mountain, bg: 'bg-amber-50', text: 'text-amber-700' },
   'survey-template': { Icon: ClipboardList, bg: 'bg-lime-50', text: 'text-lime-600' },
   'smuk-model': { Icon: BarChart3, bg: 'bg-sky-50', text: 'text-sky-700' },
+  'affinity-diagram': { Icon: Workflow, bg: 'bg-violet-50', text: 'text-violet-700' },
 }
 
 export function getToolIcon(slug: string) {

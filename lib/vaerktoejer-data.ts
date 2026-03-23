@@ -192,6 +192,19 @@ Hvad er et survey template? En survey-skabelon er en genbruelig struktur af spø
 Hvornår bruger man Survey Template? Brug det til brugerinterviews, NPS-målinger, tilfredshedsundersøgelser, evaluering af workshops eller events, eller når du vil indsamle struktureret feedback fra kunder eller medarbejdere. Log ind og find Survey Template under Flere værktøjer.
     `.trim(),
   },
+  {
+    slug: 'affinity-diagram',
+    title: 'Affinity Diagram',
+    shortDescription: 'Gruppér idéer, observationer og noter i temaer for at skabe overblik og indsigter.',
+    categories: ['innovation-design', 'bruger-kultur'],
+    longSeoContent: `
+Affinity Diagram er et værktøj til at organisere mange idéer og observationer i meningsfulde temaer. Du starter med rå noter (fx brugerindsigter, interviewcitater eller workshop-idéer) og samler dem derefter i grupper med fælles mønstre. ForgeLabs Affinity Diagram gør processen digital og overskuelig: skriv noter, opret temaer, flyt noter mellem grupper og find de vigtigste indsigter hurtigt.
+
+Hvad er et Affinity Diagram? Metoden bruges især i UX, service design, produktudvikling og strategiworkshops. Når der er meget kvalitativ data, hjælper et affinity diagram med at skabe struktur og prioritere de vigtigste mønstre. I stedet for at se enkeltstående noter får teamet et samlet billede af, hvad der går igen.
+
+Hvornår bruger man Affinity Diagram? Brug værktøjet efter interviews, brainstorming, retrospectives eller research-sessions, hvor I har mange input. Når noter grupperes i temaer, bliver det lettere at beslutte næste handlinger. I ForgeLab kan du gemme diagrammet i projekter sammen med øvrige værktøjer, så hele arbejdsflowet er samlet ét sted.
+    `.trim(),
+  },
 ]
 
 export function getVaerktoejBySlug(slug: string): Vaerktoej | undefined {
