@@ -1,6 +1,5 @@
 'use client'
 
-import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import ForgeLabLogo from '@/components/ForgeLabLogo'
 
@@ -22,8 +21,10 @@ export default function ToolLayout({
   backHref = '/dashboard',
   backLabel = 'Tilbage til Dashboard',
 }: ToolLayoutProps) {
-  const searchParams = useSearchParams()
-  const isEmbed = embed || searchParams.get('embed') === '1'
+  // Avoid useSearchParams() here to keep static prerender stable
+  const isEmbedFromQuery =
+    typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('embed') === '1'
+  const isEmbed = embed || isEmbedFromQuery
 
   if (isEmbed) {
     return (
