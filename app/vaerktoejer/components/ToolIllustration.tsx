@@ -2,6 +2,7 @@
 
 const ILLUSTRATION_COLORS: Record<string, { fill: string; stroke: string; accent: string }> = {
   'qr-generator': { fill: '#fef3c7', stroke: '#f59e0b', accent: '#d97706' },
+  'ab-test': { fill: '#ede9fe', stroke: '#7c3aed', accent: '#5b21b6' },
   'swot-generator': { fill: '#d1fae5', stroke: '#059669', accent: '#047857' },
   'business-model-canvas': { fill: '#e0f2fe', stroke: '#0284c7', accent: '#0369a1' },
   'gantt-chart': { fill: '#ede9fe', stroke: '#7c3aed', accent: '#5b21b6' },
@@ -22,6 +23,20 @@ export function ToolIllustration({ slug }: { slug: string }) {
   const c = getColors(slug)
 
   switch (slug) {
+    case 'ab-test':
+      return (
+        <svg viewBox="0 0 200 120" className="w-full h-auto max-h-[280px]" aria-hidden>
+          <rect width="200" height="120" rx="12" fill={c.fill} stroke={c.stroke} strokeWidth="2" />
+          <rect x="16" y="24" width="80" height="72" rx="8" fill="white" stroke={c.accent} strokeWidth="2" />
+          <text x="56" y="56" textAnchor="middle" fill={c.accent} fontWeight="bold" fontSize="14" fontFamily="system-ui">A</text>
+          <text x="56" y="78" textAnchor="middle" fill={c.stroke} fontSize="10" fontFamily="system-ui">Variant</text>
+          <rect x="104" y="24" width="80" height="72" rx="8" fill="white" stroke={c.accent} strokeWidth="2" />
+          <text x="144" y="56" textAnchor="middle" fill={c.accent} fontWeight="bold" fontSize="14" fontFamily="system-ui">B</text>
+          <text x="144" y="78" textAnchor="middle" fill={c.stroke} fontSize="10" fontFamily="system-ui">Variant</text>
+          <text x="100" y="68" textAnchor="middle" fill={c.accent} fontSize="11" fontWeight="bold" fontFamily="system-ui">vs</text>
+        </svg>
+      )
+
     case 'qr-generator': {
       const qrPattern = (i: number, j: number) => ((i + j) % 3 === 0 || (i * 7 + j) % 5 === 0) && !((i < 3 && j < 3) || (i < 3 && j > 9) || (i > 9 && j < 3))
       return (

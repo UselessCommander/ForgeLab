@@ -24,6 +24,7 @@ import {
 } from '@/lib/frameworks'
 import { VAERKTOEJER, getVaerktoejBySlug, getVaerktoejerGroupedByKategori } from '@/lib/vaerktoejer-data'
 import { getToolIcon } from '@/lib/vaerktoejer-icons'
+import { TOOL_SLUGS } from '@/lib/tool-slugs'
 
 interface ProjectWorkspaceClientProps {
   projectId: string
@@ -152,11 +153,18 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     )
   }
 
+  /** Kun værktøjer i den kanoniske liste (samme som API/projekt-gemning understøtter). */
+  const allowedProjectToolSlugs = new Set<string>(TOOL_SLUGS as readonly string[])
+
   const projectTools = project.toolIds
     .map((id) => ({ slug: id, tool: getVaerktoejBySlug(id) }))
     .filter((x) => x.tool)
-  const availableToAdd = VAERKTOEJER.filter((t) => !project.toolIds.includes(t.slug))
-  const availableByKategori = getVaerktoejerGroupedByKategori((t) => !project.toolIds.includes(t.slug))
+  const availableToAdd = VAERKTOEJER.filter(
+    (t) => allowedProjectToolSlugs.has(t.slug) && !project.toolIds.includes(t.slug)
+  )
+  const availableByKategori = getVaerktoejerGroupedByKategori(
+    (t) => allowedProjectToolSlugs.has(t.slug) && !project.toolIds.includes(t.slug)
+  )
   const availableByPhase = DOUBLE_DIAMOND_PHASES.map((phase) => ({
     phase,
     tools: availableToAdd.filter(

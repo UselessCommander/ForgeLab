@@ -1,6 +1,7 @@
 import {
   LayoutGrid,
   QrCode,
+  GitCompare,
   Grid2X2,
   LayoutTemplate,
   CalendarRange,
@@ -24,6 +25,7 @@ import {
 
 export const TOOL_ICONS: Record<string, { Icon: LucideIcon; bg: string; text: string }> = {
   'qr-generator': { Icon: QrCode, bg: 'bg-amber-50', text: 'text-amber-600' },
+  'ab-test': { Icon: GitCompare, bg: 'bg-violet-50', text: 'text-violet-600' },
   'swot-generator': { Icon: Grid2X2, bg: 'bg-emerald-50', text: 'text-emerald-600' },
   'business-model-canvas': { Icon: LayoutTemplate, bg: 'bg-sky-50', text: 'text-sky-600' },
   'gantt-chart': { Icon: CalendarRange, bg: 'bg-violet-50', text: 'text-violet-600' },

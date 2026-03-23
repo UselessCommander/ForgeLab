@@ -1,6 +1,7 @@
 /** Canonical list of tool slugs for project workspace */
 export const TOOL_SLUGS = [
   'qr-generator',
+  'ab-test',
   'swot-generator',
   'business-model-canvas',
   'gantt-chart',
@@ -12,6 +13,7 @@ export const TOOL_SLUGS = [
   'card-sorting',
   'smuk-model',
   'aaker-identity-model',
+  'survey-template',
   'affinity-diagram',
   'scamper',
   'hmw',

@@ -36,6 +36,20 @@ Sådan kommer du i gang: Besøg "Prøv QR-generator" for at lave en enkelt QR-ko
     `.trim(),
   },
   {
+    slug: 'ab-test',
+    title: 'A/B/N Test',
+    shortDescription:
+      'Sammenlign to eller flere varianter (URL eller billede) med et delbart magic link og se stemmeresultater.',
+    categories: ['markedsfoering', 'innovation-design'],
+    longSeoContent: `
+A/B/N Test i ForgeLab lader dig oprette et simpelt eksperiment med flere varianter — typisk links til forskellige landingssider eller billeder — og dele ét magic link til deltagere. Når folk vælger en variant, registreres stemmen, og du kan følge fordelingen i resultaterne. Perfekt til hurtige design- og indholdsvalg, interne afstemninger eller brugertests uden tunge værktøjer.
+
+Hvad er A/B/N testing? I modsætning til klassisk A/B (to varianter) kan du her teste flere varianter samtidigt (N). Det giver fleksibilitet når I vil sammenligne flere bud på et budskab, et layout eller en kampagne.
+
+Hvornår bruger du A/B/N Test? Brug det når teamet skal vælge mellem konkrete alternativer og gerne vil have et hurtigt, struktureret input fra kollegaer eller brugere. Tilføj værktøjet til et projekt for at gemme dit udkast og arbejde videre senere.
+    `.trim(),
+  },
+  {
     slug: 'swot-generator',
     title: 'SWOT Generator',
     shortDescription: 'Analysér styrker, svagheder, muligheder og trusler i et struktureret SWOT-analyse værktøj.',
