@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import ForgeLabLogo from '@/components/ForgeLabLogo'
 import { useProjectToolData } from '@/lib/useProjectToolData'
+import { getProjectToolData } from '@/lib/projects'
 
 export default function TOWSMatrix() {
   const [matrix, setMatrix] = useState({
@@ -30,6 +31,7 @@ export default function TOWSMatrix() {
 
   // Automatically save/load data when in a project
   useProjectToolData('tows-matrix', towsData, setTOWSData)
+  const [importingFromSWOT, setImportingFromSWOT] = useState(false)
 
   const updateMatrix = (category: keyof typeof matrix, index: number, value: string) => {
     const newMatrix = { ...matrix }
@@ -72,6 +74,46 @@ export default function TOWSMatrix() {
     }
   }
 
+  const getProjectId = () => {
+    if (typeof window === 'undefined') return null
+    return new URLSearchParams(window.location.search).get('projectId')
+  }
+
+  const handleImportFromSWOT = async () => {
+    const projectId = getProjectId()
+    if (!projectId) {
+      alert('Åbn TOWS via et projekt for at kunne hente SWOT-data.')
+      return
+    }
+
+    try {
+      setImportingFromSWOT(true)
+      const swotData = await getProjectToolData(projectId, 'swot-generator')
+      if (!swotData || typeof swotData !== 'object') {
+        alert('Kunne ikke hente SWOT-data.')
+        return
+      }
+
+      const asList = (value: unknown) =>
+        Array.isArray(value) ? value.map((item) => String(item ?? '')).filter(Boolean) : []
+
+      const nextStrengths = asList(swotData.strengths)
+      const nextWeaknesses = asList(swotData.weaknesses)
+      const nextOpportunities = asList(swotData.opportunities)
+      const nextThreats = asList(swotData.threats)
+
+      setStrengths(nextStrengths.length ? nextStrengths : [''])
+      setWeaknesses(nextWeaknesses.length ? nextWeaknesses : [''])
+      setOpportunities(nextOpportunities.length ? nextOpportunities : [''])
+      setThreats(nextThreats.length ? nextThreats : [''])
+    } catch (error) {
+      console.error('Error importing SWOT data into TOWS:', error)
+      alert('Kunne ikke hente SWOT-data. Prøv igen.')
+    } finally {
+      setImportingFromSWOT(false)
+    }
+  }
+
   return (
     <div className="min-h-screen px-4 py-8 md:py-12 bg-gradient-to-br from-gray-50 to-gray-100">
       <div className="max-w-7xl mx-auto">
@@ -99,7 +141,17 @@ export default function TOWSMatrix() {
 
         {/* SWOT Lists - Horizontal */}
         <div className="bg-white rounded-xl p-4 mb-6 shadow-lg border-2 border-gray-300">
-          <h2 className="text-lg font-bold mb-4 text-gray-900 uppercase">SWOT Faktorer</h2>
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <h2 className="text-lg font-bold text-gray-900 uppercase">SWOT Faktorer</h2>
+            <button
+              type="button"
+              onClick={handleImportFromSWOT}
+              disabled={importingFromSWOT}
+              className="px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50 text-amber-700 text-sm font-medium hover:bg-amber-100 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {importingFromSWOT ? 'Henter…' : 'Hent fra SWOT'}
+            </button>
+          </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="border-2 border-green-300 rounded p-3 bg-green-50">
               <h3 className="text-sm font-bold text-green-900 mb-2">Strengths</h3>

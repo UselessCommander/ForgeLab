@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import ToolLayout from '@/components/ToolLayout'
 import { useProjectToolData } from '@/lib/useProjectToolData'
+import { getProjectToolData } from '@/lib/projects'
 
 type JourneyStep = {
   id: string
@@ -19,6 +20,13 @@ type JourneyStep = {
 type JourneyData = {
   persona: string
   scenario: string
+  linkedPersona?: {
+    name: string
+    age?: string
+    role?: string
+    context?: string
+    quote?: string
+  } | null
   steps: JourneyStep[]
 }
 
@@ -39,7 +47,16 @@ const emptyStep = (): JourneyStep => ({
 const DEFAULT_DATA: JourneyData = {
   persona: '',
   scenario: '',
+  linkedPersona: null,
   steps: [emptyStep()],
+}
+
+type PersonaCanvasData = {
+  name?: string
+  age?: string
+  role?: string
+  context?: string
+  quote?: string
 }
 
 export default function BrugerrejsePage() {
@@ -47,6 +64,7 @@ export default function BrugerrejsePage() {
   useProjectToolData<JourneyData>('brugerrejse', data, setData)
   const chartRef = useRef<SVGSVGElement | null>(null)
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null)
+  const [importingPersona, setImportingPersona] = useState(false)
 
   const updateMeta = (key: 'persona' | 'scenario', value: string) => {
     setData((prev) => ({ ...prev, [key]: value }))
@@ -72,6 +90,53 @@ export default function BrugerrejsePage() {
       const filtered = prev.steps.filter((step) => step.id !== id)
       return { ...prev, steps: filtered.length > 0 ? filtered : [emptyStep()] }
     })
+  }
+
+  const getProjectId = () => {
+    if (typeof window === 'undefined') return null
+    return new URLSearchParams(window.location.search).get('projectId')
+  }
+
+  const handleImportPersona = async () => {
+    const projectId = getProjectId()
+    if (!projectId) {
+      alert('Åbn Brugerrejse via et projekt for at kunne hente Persona.')
+      return
+    }
+
+    try {
+      setImportingPersona(true)
+      const raw = await getProjectToolData(projectId, 'persona-canvas')
+      if (!raw || typeof raw !== 'object') {
+        alert('Kunne ikke hente Persona Canvas-data.')
+        return
+      }
+
+      const persona = raw as PersonaCanvasData
+      const name = (persona.name || '').trim()
+      if (!name) {
+        alert('Persona Canvas mangler navn. Udfyld persona først.')
+        return
+      }
+
+      const titleParts = [name, persona.role].filter(Boolean)
+      setData((prev) => ({
+        ...prev,
+        persona: titleParts.join(' - '),
+        linkedPersona: {
+          name,
+          age: persona.age || '',
+          role: persona.role || '',
+          context: persona.context || '',
+          quote: persona.quote || '',
+        },
+      }))
+    } catch (error) {
+      console.error('Error importing Persona Canvas into Brugerrejse:', error)
+      alert('Kunne ikke hente persona. Prøv igen.')
+    } finally {
+      setImportingPersona(false)
+    }
   }
 
   const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value))
@@ -141,6 +206,20 @@ export default function BrugerrejsePage() {
     >
       <div className="space-y-4">
         <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="md:col-span-2 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-gray-500">
+              Kobl en persona manuelt fra Persona Canvas (ingen auto-sync).
+            </p>
+            <button
+              type="button"
+              onClick={handleImportPersona}
+              disabled={importingPersona}
+              className="px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50 text-amber-700 text-sm font-medium hover:bg-amber-100 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {importingPersona ? 'Henter…' : 'Hent fra Persona Canvas'}
+            </button>
+          </div>
+
           <div>
             <label className="text-sm font-medium text-gray-700">Persona</label>
             <input
@@ -158,6 +237,27 @@ export default function BrugerrejsePage() {
               placeholder="Fx: Opretter første projekt"
               className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300"
             />
+          </div>
+          <div className="md:col-span-2">
+            {data.linkedPersona?.name ? (
+              <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 text-sm text-amber-900">
+                <p className="font-medium">Koblet persona: {data.linkedPersona.name}</p>
+                <p className="text-xs mt-1 text-amber-800/90">
+                  {[
+                    data.linkedPersona.role,
+                    data.linkedPersona.age ? `${data.linkedPersona.age} år` : '',
+                    data.linkedPersona.context,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ') || 'Ingen ekstra profilinfo'}
+                </p>
+                {data.linkedPersona.quote && (
+                  <p className="text-xs mt-1 italic text-amber-800/90">"{data.linkedPersona.quote}"</p>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-500">Ingen persona koblet endnu.</p>
+            )}
           </div>
         </section>
 

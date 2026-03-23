@@ -16,6 +16,7 @@ export const DOUBLE_DIAMOND_PHASES: Array<{
 // Default forslag til placering af værktøjer i Double Diamond
 const DOUBLE_DIAMOND_TOOL_DEFAULTS: Record<string, DoubleDiamondPhase> = {
   'empathy-map': 'discover',
+  'persona-canvas': 'discover',
   'affinity-diagram': 'define',
   'card-sorting': 'define',
   'swot-generator': 'define',

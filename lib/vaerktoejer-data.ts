@@ -303,6 +303,20 @@ Hvad er PESTEL? PESTEL bruges til at forstå muligheder og risici i omgivelserne
 Hvornår bruger man PESTEL? Brug værktøjet i den tidlige analysefase, ved markedsvurdering eller før større strategiske beslutninger. I ForgeLab kan PESTEL gemmes direkte i projekter sammen med øvrige værktøjer.
     `.trim(),
   },
+  {
+    slug: 'persona-canvas',
+    title: 'Persona Canvas',
+    shortDescription:
+      'Beskriv en tydelig persona med mål, adfærd, pains, gains og kontekst.',
+    categories: ['bruger-kultur', 'innovation-design'],
+    longSeoContent: `
+Persona Canvas hjælper med at konkretisere målgruppen i én samlet profil. I stedet for at tale om "brugeren" generelt, beskriver I en tydelig persona med navn, baggrund, mål, frustrationer, behov og adfærd. ForgeLabs Persona Canvas gør det nemt at samle disse felter struktureret, så teamet får et fælles billede af, hvem I designer for.
+
+Hvad er en persona? En persona er en fiktiv, men datainformeret repræsentation af en brugergruppe. Den bruges til at holde fokus på rigtige behov i beslutninger om produkt, service og kommunikation.
+
+Hvornår bruger man Persona Canvas? Brug værktøjet tidligt i research- og designarbejde, og opdatér det løbende når I får ny indsigt. I ForgeLab kan Persona Canvas gemmes i projektet sammen med fx Empathy Map, Brugerrejse og øvrige værktøjer.
+    `.trim(),
+  },
 ]
 
 export function getVaerktoejBySlug(slug: string): Vaerktoej | undefined {
