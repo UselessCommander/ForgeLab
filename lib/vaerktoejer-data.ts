@@ -167,6 +167,20 @@ Hvornår bruger man SMUK? Brug værktøjet når du opdeler markedet i flere segm
     `.trim(),
   },
   {
+    slug: 'aaker-identity-model',
+    title: 'David Aaker Identitetsmodel',
+    shortDescription:
+      'Definér brandets essens, kerne og udvidede identitet med Aakers 4 brand-perspektiver.',
+    categories: ['strategi', 'markedsfoering'],
+    longSeoContent: `
+David Aakers Brand Identity Model er en klassisk model til at opbygge en stærk, konsistent brandidentitet. Modellen hjælper med at arbejde fra brandets essens i centrum til en bredere, udvidet identitet omkring produkt, organisation, personlighed og symbolik. ForgeLabs værktøj gør det nemt at redigere alle lag i modellen, så teams kan arbejde sammen om brandstrategi i et visuelt overblik.
+
+Hvad er David Aakers identitetsmodel? Aaker opdeler brandidentitet i flere niveauer: Brand Essence (hjertet), Core Identity (den tidløse kerne) og Extended Identity (tekstur, kontekst og detaljer). Derudover bruges fire perspektiver: brandet som produkt, organisation, person og symbol.
+
+Hvornår bruger man modellen? Brug den når I skal definere eller opdatere brandstrategi, positionering og kommunikationsretning. Modellen er særlig god i workshops, rebranding-forløb og strategiarbejde, hvor teamet skal blive enige om en tydelig brandkerne.
+    `.trim(),
+  },
+  {
     slug: 'survey-template',
     title: 'Survey Template',
     shortDescription: 'Byg undersøgelser med forskellige spørgsmålstyper: tekst, flervalgs- og skala-spørgsmål.',

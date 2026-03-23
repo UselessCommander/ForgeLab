@@ -21,6 +21,7 @@ const DOUBLE_DIAMOND_TOOL_DEFAULTS: Record<string, DoubleDiamondPhase> = {
   'card-sorting': 'define',
   'swot-generator': 'define',
   'smuk-model': 'define',
+  'aaker-identity-model': 'define',
   hmw: 'define',
   'five-whys': 'define',
   'dikw-pyramiden': 'define',

@@ -35,6 +35,7 @@ export const TOOL_ICONS: Record<string, { Icon: LucideIcon; bg: string; text: st
   'card-sorting': { Icon: Layers, bg: 'bg-cyan-50', text: 'text-cyan-600' },
   'survey-template': { Icon: ClipboardList, bg: 'bg-lime-50', text: 'text-lime-600' },
   'smuk-model': { Icon: BarChart3, bg: 'bg-sky-50', text: 'text-sky-700' },
+  'aaker-identity-model': { Icon: LayoutGrid, bg: 'bg-amber-50', text: 'text-amber-700' },
   'affinity-diagram': { Icon: Workflow, bg: 'bg-violet-50', text: 'text-violet-700' },
   scamper: { Icon: Lightbulb, bg: 'bg-yellow-50', text: 'text-yellow-700' },
   hmw: { Icon: CircleHelp, bg: 'bg-indigo-50', text: 'text-indigo-700' },

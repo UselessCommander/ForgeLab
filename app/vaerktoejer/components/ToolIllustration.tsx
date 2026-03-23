@@ -11,6 +11,7 @@ const ILLUSTRATION_COLORS: Record<string, { fill: string; stroke: string; accent
   'value-proposition-canvas': { fill: '#ccfbf1', stroke: '#0d9488', accent: '#0f766e' },
   'empathy-map': { fill: '#fce7f3', stroke: '#db2777', accent: '#be185d' },
   'card-sorting': { fill: '#cffafe', stroke: '#0891b2', accent: '#0e7490' },
+  'aaker-identity-model': { fill: '#fef3c7', stroke: '#d97706', accent: '#b45309' },
 }
 
 function getColors(slug: string) {

@@ -130,7 +130,6 @@ export default function DashboardClient() {
     'RFM-modellen',
     'Henrik Vejlgaards Trend-diamant',
     'Diffusionsmodellen (Rogers)',
-    'David Aaker – Identitetsplanlægningsmodel',
     '4 Basics (trafik, salg, IT, service)',
     'Marketing Funnel',
     'Repositioneringskort',

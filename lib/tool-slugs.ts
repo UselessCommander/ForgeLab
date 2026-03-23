@@ -11,6 +11,7 @@ export const TOOL_SLUGS = [
   'empathy-map',
   'card-sorting',
   'smuk-model',
+  'aaker-identity-model',
   'affinity-diagram',
   'scamper',
   'hmw',
