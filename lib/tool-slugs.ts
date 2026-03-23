@@ -13,6 +13,12 @@ export const TOOL_SLUGS = [
   'maslow-model',
   'smuk-model',
   'affinity-diagram',
+  'scamper',
+  'hmw',
+  'five-whys',
+  'brugerrejse',
+  'dikw-pyramiden',
+  'brainstorming',
 ] as const
 
 export type ToolSlug = (typeof TOOL_SLUGS)[number]

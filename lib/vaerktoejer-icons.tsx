@@ -14,6 +14,10 @@ import {
   ClipboardList,
   BarChart3,
   Workflow,
+  Route,
+  Lightbulb,
+  CircleHelp,
+  Search,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -32,6 +36,12 @@ export const TOOL_ICONS: Record<string, { Icon: LucideIcon; bg: string; text: st
   'survey-template': { Icon: ClipboardList, bg: 'bg-lime-50', text: 'text-lime-600' },
   'smuk-model': { Icon: BarChart3, bg: 'bg-sky-50', text: 'text-sky-700' },
   'affinity-diagram': { Icon: Workflow, bg: 'bg-violet-50', text: 'text-violet-700' },
+  scamper: { Icon: Lightbulb, bg: 'bg-yellow-50', text: 'text-yellow-700' },
+  hmw: { Icon: CircleHelp, bg: 'bg-indigo-50', text: 'text-indigo-700' },
+  'five-whys': { Icon: Search, bg: 'bg-emerald-50', text: 'text-emerald-700' },
+  brugerrejse: { Icon: Route, bg: 'bg-cyan-50', text: 'text-cyan-700' },
+  'dikw-pyramiden': { Icon: Layers, bg: 'bg-slate-50', text: 'text-slate-700' },
+  brainstorming: { Icon: Lightbulb, bg: 'bg-amber-50', text: 'text-amber-700' },
 }
 
 export function getToolIcon(slug: string) {

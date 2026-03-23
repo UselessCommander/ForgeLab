@@ -205,6 +205,90 @@ Hvad er et Affinity Diagram? Metoden bruges især i UX, service design, produktu
 Hvornår bruger man Affinity Diagram? Brug værktøjet efter interviews, brainstorming, retrospectives eller research-sessions, hvor I har mange input. Når noter grupperes i temaer, bliver det lettere at beslutte næste handlinger. I ForgeLab kan du gemme diagrammet i projekter sammen med øvrige værktøjer, så hele arbejdsflowet er samlet ét sted.
     `.trim(),
   },
+  {
+    slug: 'scamper',
+    title: 'SCAMPER',
+    shortDescription:
+      'Generér nye idéer ved at udfordre et produkt eller en løsning med SCAMPER-spørgsmål.',
+    categories: ['innovation-design', 'strategi'],
+    longSeoContent: `
+SCAMPER er en kreativ idémetode, der hjælper teams med at forbedre eksisterende produkter, services eller processer gennem syv perspektiver: Substitute, Combine, Adapt, Modify, Put to another use, Eliminate og Reverse. ForgeLabs SCAMPER-værktøj giver dig en struktureret måde at skrive idéer under hver kategori og hurtigt gå fra tanke til handling.
+
+Hvad er SCAMPER? Metoden bruges i innovation, konceptudvikling og workshops, når man vil tænke ud over den første oplagte løsning. Ved at svare systematisk på SCAMPER-spørgsmål opstår ofte både små forbedringer og helt nye koncepter.
+
+Hvornår bruger man SCAMPER? Brug værktøjet i ideation-fasen, når I har en udfordring eller et eksisterende koncept, der skal udvikles. I ForgeLab kan SCAMPER gemmes i projektet sammen med øvrige værktøjer.
+    `.trim(),
+  },
+  {
+    slug: 'hmw',
+    title: 'HMW (How Might We)',
+    shortDescription:
+      'Omsæt indsigter og problemer til stærke How Might We-spørgsmål, der åbner for løsninger.',
+    categories: ['innovation-design', 'bruger-kultur'],
+    longSeoContent: `
+How Might We (HMW) er en metode til at omformulere problemer til åbne, handlingsorienterede spørgsmål. I stedet for at låse sig fast på én løsning, hjælper HMW med at skabe et løsningsrum, som teams kan ideudvikle videre på.
+
+Hvad er HMW? Et godt HMW-spørgsmål tager udgangspunkt i en konkret indsigt og formuleres som "Hvordan kunne vi...". Det skal være bredt nok til at skabe kreativitet og samtidig fokuseret nok til at være relevant.
+
+Hvornår bruger man HMW? Brug værktøjet efter research eller problemdefinition, når I skal oversætte observationer til designudfordringer. I ForgeLab kan HMW-spørgsmål gemmes direkte i projektets workflow.
+    `.trim(),
+  },
+  {
+    slug: 'five-whys',
+    title: "5 Why's",
+    shortDescription:
+      'Find roden til et problem ved at stille “hvorfor?” flere gange i en struktureret analyse.',
+    categories: ['strategi', 'projekt-planlaegning'],
+    longSeoContent: `
+5 Why's er en enkel men effektiv metode til root cause analysis. Ved at spørge "hvorfor?" gentagne gange kommer man bag symptomerne og tættere på den egentlige årsag til et problem.
+
+Hvad er 5 Why's? Metoden bruges i både produktudvikling, drift og forbedringsarbejde. For hvert svar spørger man "hvorfor" igen, indtil man finder en årsag, der er konkret nok til at handle på.
+
+Hvornår bruger man 5 Why's? Brug værktøjet når noget ikke fungerer som forventet, og I vil undgå overfladiske løsninger. I ForgeLab kan du gemme hele analysen i projektet og dele den med teamet.
+    `.trim(),
+  },
+  {
+    slug: 'brugerrejse',
+    title: 'Brugerrejse',
+    shortDescription:
+      'Kortlæg brugerens rejse på tværs af faser, touchpoints, tanker og frustrationer.',
+    categories: ['bruger-kultur', 'innovation-design'],
+    longSeoContent: `
+Brugerrejse (customer/user journey map) hjælper med at visualisere brugerens oplevelse fra første kontakt til efterfølgende brug. Ved at kortlægge faser, touchpoints, følelser og pain points bliver det lettere at prioritere forbedringer.
+
+Hvad er en brugerrejse? En brugerrejse viser trin-for-trin, hvordan en person oplever et produkt eller en service. Den skaber fælles forståelse på tværs af teamet og gør indsigter konkrete.
+
+Hvornår bruger man brugerrejse? Brug værktøjet i research- og opdagelsesfasen, når I vil forstå adfærd, behov og friktion før I designer løsninger. I ForgeLab gemmes brugerrejser direkte i projektet.
+    `.trim(),
+  },
+  {
+    slug: 'dikw-pyramiden',
+    title: 'DIKW-pyramiden',
+    shortDescription:
+      'Strukturér input fra data til visdom med DIKW: Data, Information, Knowledge og Wisdom.',
+    categories: ['strategi', 'innovation-design'],
+    longSeoContent: `
+DIKW-pyramiden hjælper teams med at bevæge sig fra rå data til stærkere beslutninger. Modellen opdeler arbejdet i fire lag: Data, Information, Knowledge og Wisdom. ForgeLabs DIKW-værktøj gør det nemt at skrive og samle indhold i hvert lag, så man kan se sammenhængen mellem observationer, indsigt og handling.
+
+Hvad er DIKW? DIKW står for Data, Information, Knowledge og Wisdom. Modellen bruges til at skabe overblik over, hvordan rå input gradvist bliver mere meningsfuldt og handlingsorienteret.
+
+Hvornår bruger man DIKW-pyramiden? Brug værktøjet når I har mange observationer og skal omsætte dem til konkrete strategiske valg eller designbeslutninger. I ForgeLab gemmes DIKW-arbejdet direkte i projektet.
+    `.trim(),
+  },
+  {
+    slug: 'brainstorming',
+    title: 'Brainstorming',
+    shortDescription:
+      'Indsaml, sorter og prioriter idéer hurtigt med et simpelt brainstorming-board.',
+    categories: ['innovation-design', 'bruger-kultur'],
+    longSeoContent: `
+Brainstorming-værktøjet i ForgeLab er en enkel ramme til hurtig idéudvikling. Tilføj idéer løbende, sortér dem i temaer og marker de mest lovende spor. Det er ideelt til workshops, design sprints og teammøder, hvor tempo og bredde i idéer er vigtigst.
+
+Hvad er brainstorming? Brainstorming er en kreativ metode til at generere mange idéer på kort tid uden at vurdere dem for tidligt. Først producerer man volumen, derefter prioriterer man.
+
+Hvornår bruger man brainstorming? Brug værktøjet i den tidlige udviklingsfase, når I skal udforske flere mulige løsninger. I ForgeLab kan brainstorms gemmes i projektet og kobles med de øvrige værktøjer.
+    `.trim(),
+  },
 ]
 
 export function getVaerktoejBySlug(slug: string): Vaerktoej | undefined {
