@@ -10,6 +10,7 @@ import AvailableToolCard from '@/components/dashboard/AvailableToolCard'
 import {
   getProjects,
   createProject,
+  deleteProject,
   type Project,
 } from '@/lib/projects'
 import { VAERKTOEJER } from '@/lib/vaerktoejer-data'
@@ -21,6 +22,7 @@ export default function DashboardClient() {
   const [newDesc, setNewDesc] = useState('')
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
+  const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null)
 
   useEffect(() => {
     loadProjects()
@@ -53,6 +55,29 @@ export default function DashboardClient() {
       alert('Kunne ikke oprette projekt. Prøv igen.')
     } finally {
       setCreating(false)
+    }
+  }
+
+  const handleDeleteProject = async (project: Project) => {
+    if (deletingProjectId) return
+    const confirmed = window.confirm(
+      `Er du sikker på, at du vil slette projektet "${project.name}"?\n\nDette kan ikke fortrydes.`
+    )
+    if (!confirmed) return
+
+    try {
+      setDeletingProjectId(project.id)
+      const success = await deleteProject(project.id)
+      if (!success) {
+        alert('Projektet blev ikke fundet.')
+        return
+      }
+      await loadProjects()
+    } catch (error) {
+      console.error('Error deleting project:', error)
+      alert('Kunne ikke slette projektet. Prøv igen.')
+    } finally {
+      setDeletingProjectId(null)
     }
   }
 
@@ -179,7 +204,12 @@ export default function DashboardClient() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {projects.map((p) => (
-                  <ProjectCard key={p.id} project={p} />
+                  <ProjectCard
+                    key={p.id}
+                    project={p}
+                    onDelete={handleDeleteProject}
+                    deleting={deletingProjectId === p.id}
+                  />
                 ))}
               </div>
             )}
