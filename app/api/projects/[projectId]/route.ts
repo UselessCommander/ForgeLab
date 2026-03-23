@@ -49,6 +49,9 @@ export async function GET(
       (tools || []).map((t) => [t.tool_slug, t.framework_phase || null])
     )
 
+    const rawLayout = (project as { dd_canvas_layout?: Record<string, { x: number; y: number }> })
+      .dd_canvas_layout
+
     return NextResponse.json({
       id: project.id,
       name: project.name,
@@ -56,6 +59,7 @@ export async function GET(
       toolIds: (tools || []).map((t) => t.tool_slug),
       framework: normalizeFramework(project.framework),
       toolPhases,
+      ddCanvasLayout: rawLayout && typeof rawLayout === 'object' ? rawLayout : {},
       role: role || 'viewer',
       updatedAt: project.updated_at,
       createdAt: project.created_at,
@@ -79,12 +83,13 @@ export async function PUT(
 
     const { projectId } = await params
     const body = await request.json()
-    const { name, description, toolIds, framework, toolPhases } = body as {
+    const { name, description, toolIds, framework, toolPhases, ddCanvasLayout } = body as {
       name?: string
       description?: string
       toolIds?: string[]
       framework?: string
       toolPhases?: Record<string, FrameworkPhase>
+      ddCanvasLayout?: Record<string, { x: number; y: number }>
     }
 
     const canEdit = await canEditProject(projectId, userId)
@@ -93,10 +98,27 @@ export async function PUT(
     }
 
     // Update project basic info
-    const updates: any = {}
+    const updates: Record<string, unknown> = {}
     if (name !== undefined) updates.name = name.trim()
     if (description !== undefined) updates.description = description.trim() || ''
     if (framework !== undefined) updates.framework = normalizeFramework(framework)
+    if (ddCanvasLayout !== undefined && typeof ddCanvasLayout === 'object' && ddCanvasLayout !== null) {
+      const cleaned: Record<string, { x: number; y: number }> = {}
+      for (const [slug, pos] of Object.entries(ddCanvasLayout)) {
+        if (
+          pos &&
+          typeof pos === 'object' &&
+          typeof (pos as { x?: unknown }).x === 'number' &&
+          typeof (pos as { y?: unknown }).y === 'number'
+        ) {
+          cleaned[slug] = {
+            x: Math.min(1, Math.max(0, (pos as { x: number }).x)),
+            y: Math.min(1, Math.max(0, (pos as { y: number }).y)),
+          }
+        }
+      }
+      updates.dd_canvas_layout = cleaned
+    }
 
     if (Object.keys(updates).length > 0) {
       const { error: updateError } = await supabase
@@ -181,6 +203,9 @@ export async function PUT(
       (tools || []).map((t) => [t.tool_slug, t.framework_phase || null])
     )
 
+    const outLayout = (updatedProject as { dd_canvas_layout?: Record<string, { x: number; y: number }> })
+      .dd_canvas_layout
+
     return NextResponse.json({
       id: updatedProject.id,
       name: updatedProject.name,
@@ -188,6 +213,7 @@ export async function PUT(
       toolIds: (tools || []).map((t) => t.tool_slug),
       framework: normalizeFramework(updatedProject.framework),
       toolPhases: updatedToolPhases,
+      ddCanvasLayout: outLayout && typeof outLayout === 'object' ? outLayout : {},
       role: (await getProjectRole(projectId, userId)) || 'viewer',
       updatedAt: updatedProject.updated_at,
       createdAt: updatedProject.created_at,

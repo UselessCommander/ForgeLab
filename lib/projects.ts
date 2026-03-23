@@ -4,6 +4,9 @@
  */
 import type { FrameworkId, FrameworkPhase } from '@/lib/frameworks'
 
+/** Normaliseret placering af ikon på Double Diamond-canvas (0–1 i forhold til viewBox-bredde/højde) */
+export type DdCanvasPosition = { x: number; y: number }
+
 export interface Project {
   id: string
   name: string
@@ -11,6 +14,8 @@ export interface Project {
   toolIds: string[]
   framework?: FrameworkId
   toolPhases?: Record<string, FrameworkPhase>
+  /** Manuelle ikonpositioner (slug → { x, y } i 0–1) */
+  ddCanvasLayout?: Record<string, DdCanvasPosition>
   role?: 'owner' | 'editor' | 'viewer'
   updatedAt: string
   createdAt: string
@@ -90,7 +95,7 @@ export async function getProject(id: string): Promise<Project | null> {
 // PUT /api/projects/[projectId] - Update a project
 export async function updateProject(
   id: string,
-  updates: Partial<Pick<Project, 'name' | 'description' | 'toolIds' | 'framework' | 'toolPhases'>>
+  updates: Partial<Pick<Project, 'name' | 'description' | 'toolIds' | 'framework' | 'toolPhases' | 'ddCanvasLayout'>>
 ): Promise<Project | null> {
   const response = await fetch(`/api/projects/${id}`, {
     method: 'PUT',

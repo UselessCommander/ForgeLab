@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import PageShell from '@/components/PageShell'
 import SiteNav from '@/components/SiteNav'
@@ -185,6 +185,14 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const canEdit = project.role === 'owner' || project.role === 'editor'
   const isOwner = project.role === 'owner'
   const toolPhases = project.toolPhases || {}
+
+  const handleDdCanvasLayoutSave = useCallback(
+    async (layout: NonNullable<Project['ddCanvasLayout']>) => {
+      const updated = await updateProject(projectId, { ddCanvasLayout: layout })
+      if (updated) setProject(updated)
+    },
+    [projectId]
+  )
 
   const handleInvite = async () => {
     if (!isOwner || !inviteUsername.trim()) return
@@ -405,13 +413,16 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           <section className="mb-10">
             <h2 className="text-lg md:text-xl font-semibold text-gray-900 mb-2">Double Diamond</h2>
             <p className="text-sm text-gray-500 mb-4 max-w-3xl">
-              Samme model som på dashboardet: værktøjer i projektet vises som ikoner på den tilhørende fase. Hover
-              (eller tryk længe på mobil) for at se navnet. Fase skifter du under &quot;Værktøjer i projektet&quot;.
+              Samme model som på dashboardet. Med redigeringsadgang kan du trække ikonerne frit på canvas (som i Figma);
+              placeringen gemmes i projektet. Hover for værktøjsnavn. Fase skifter du under &quot;Værktøjer i projektet&quot;.
             </p>
             <ProjectDoubleDiamondBoard
               projectId={projectId}
               tools={projectTools.filter((t): t is { slug: string; tool: NonNullable<typeof t.tool> } => !!t.tool)}
               toolPhases={toolPhases}
+              savedLayout={project.ddCanvasLayout}
+              canEdit={canEdit}
+              onLayoutSave={handleDdCanvasLayoutSave}
             />
             {toolCount === 0 && (
               <p className="mt-3 text-center text-sm text-gray-500">
