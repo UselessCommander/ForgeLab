@@ -40,7 +40,7 @@ export function renderForgeLabEmail(params: BaseEmailParams): string {
         <td align="center">
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#ffffff;border:1px solid #d1d5db;border-radius:0;overflow:hidden;box-shadow:none;">
             <tr>
-              <td style="padding:22px 24px 18px;background:#ea8737;">
+              <td style="padding:22px 24px 18px;background:linear-gradient(135deg,#f29b45 0%,#ea8737 62%,#e9792b 100%);">
                 <div style="font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#fff7ed;font-weight:800;">
                   ${escapeHtml(accentLabel)}
                 </div>
@@ -90,7 +90,7 @@ export function renderResetPasswordEmail(params: { resetUrl: string; ttlMinutes:
     contentHtml: `
       <table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 0 18px;">
         <tr>
-          <td style="background:#0f172a;border-radius:16px;">
+          <td style="background:linear-gradient(180deg,#111827 0%,#0f172a 100%);border-radius:16px;box-shadow:0 6px 14px rgba(15,23,42,0.16);">
             <a href="${safeUrl}" style="display:inline-block;padding:12px 20px;color:#ffffff;text-decoration:none;font-size:14px;font-weight:800;letter-spacing:0.01em;">
               Nulstil kodeord
             </a>
@@ -103,7 +103,7 @@ export function renderResetPasswordEmail(params: { resetUrl: string; ttlMinutes:
       <p style="margin:0 0 16px;font-size:12px;line-height:1.6;color:#374151;word-break:break-all;">
         ${safeUrl}
       </p>
-      <div style="border-left:4px solid #f59e0b;background:linear-gradient(90deg,#fff7ed 0%,#fffbeb 100%);padding:10px 12px;border-radius:0 8px 8px 0;">
+      <div style="border-left:4px solid #f59e0b;background:linear-gradient(90deg,#fff8ea 0%,#fffbeb 100%);padding:10px 12px;border-radius:0 8px 8px 0;">
         <p style="margin:0;font-size:13px;line-height:1.6;color:#92400e;font-weight:600;">
           Linket udlober om ${params.ttlMinutes} minutter.
         </p>
