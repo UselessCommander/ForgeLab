@@ -169,6 +169,14 @@ function LoginFormInner({
               Husk mig i et år
             </label>
           </div>
+          <div className="text-right -mt-1">
+            <Link
+              href="/forgot/password"
+              className="text-sm text-amber-700 hover:text-amber-800 hover:underline underline-offset-2"
+            >
+              Glemt kodeord?
+            </Link>
+          </div>
           {success && (
             <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
               <p className="text-emerald-700 text-sm">{success}</p>
