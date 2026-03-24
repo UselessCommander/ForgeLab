@@ -1,14 +1,14 @@
-﻿import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createUser } from '@/lib/users'
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { username, password } = body
+    const { username, password, email } = body
 
-    if (!username || !password) {
+    if (!username || !password || !email) {
       return NextResponse.json(
-        { error: 'Brugernavn og password er pÃ¥krÃ¦vet' },
+        { error: 'Brugernavn, email og password er påkrævet' },
         { status: 400 }
       )
     }
@@ -27,7 +27,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const user = await createUser(username, password)
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      return NextResponse.json(
+        { error: 'Indtast en gyldig email adresse' },
+        { status: 400 }
+      )
+    }
+
+    const user = await createUser(username, password, email)
 
     if (!user) {
       return NextResponse.json(

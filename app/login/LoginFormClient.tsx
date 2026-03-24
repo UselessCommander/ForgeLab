@@ -100,6 +100,12 @@ function LoginFormInner() {
 
       <div className="mt-6 text-center space-y-2 auth-form-stagger">
         <Link
+          href="/forgot"
+          className="block text-gray-600 hover:text-amber-600 transition-colors text-sm font-medium hover:underline underline-offset-2"
+        >
+          Glemt brugernavn eller kodeord?
+        </Link>
+        <Link
           href="/register"
           className="block text-gray-600 hover:text-amber-600 transition-colors text-sm font-medium hover:underline underline-offset-2"
         >

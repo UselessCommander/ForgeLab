@@ -5,6 +5,7 @@ import { generateId } from './data';
 export interface User {
     id: string;
     username: string;
+    email?: string | null;
     password: string; // Hashed password
     createdAt: string;
 }
@@ -18,7 +19,7 @@ export function isPasswordHashed(password: string): boolean {
     return password.startsWith('$2') && password.length === 60;
 }
 
-export async function createUser(username: string, password: string): Promise<User | null> {
+export async function createUser(username: string, password: string, email?: string): Promise<User | null> {
     try {
         // Trim whitespace fra brugernavnet
         const trimmedUsername = username.trim();
@@ -66,6 +67,8 @@ export async function createUser(username: string, password: string): Promise<Us
 
         console.log(`✅ Brugernavn "${trimmedUsername}" er ledigt, opretter bruger...`);
 
+        const normalizedEmail = email?.trim().toLowerCase();
+
         // Hash password
         const passwordHash = await hashPassword(password);
         const userId = generateId();
@@ -76,6 +79,7 @@ export async function createUser(username: string, password: string): Promise<Us
             .insert({
                 id: userId,
                 username: trimmedUsername,
+                email: normalizedEmail || null,
                 password_hash: passwordHash,
                 created_at: new Date().toISOString()
             })
@@ -90,6 +94,7 @@ export async function createUser(username: string, password: string): Promise<Us
         return {
             id: data.id,
             username: data.username,
+            email: data.email,
             password: data.password_hash,
             createdAt: data.created_at
         };
@@ -121,6 +126,7 @@ export async function getUserByUsername(username: string): Promise<User | null> 
         return {
             id: userData.id,
             username: userData.username,
+            email: userData.email,
             password: userData.password_hash,
             createdAt: userData.created_at
         };
@@ -152,6 +158,7 @@ export async function getUserById(id: string): Promise<User | null> {
         return {
             id: userData.id,
             username: userData.username,
+            email: userData.email,
             password: userData.password_hash,
             createdAt: userData.created_at
         };
@@ -191,4 +198,56 @@ export async function verifyPassword(user: User, password: string): Promise<bool
     }
     
     return false;
+}
+
+export async function getUserByEmail(email: string): Promise<User | null> {
+    try {
+        const normalizedEmail = email.trim().toLowerCase();
+        const { data, error } = await supabase
+            .from('users')
+            .select('*')
+            .eq('email', normalizedEmail)
+            .limit(1);
+
+        if (error) {
+            console.error('❌ Fejl ved hentning af bruger via email:', error);
+            return null;
+        }
+
+        if (!data || data.length === 0) {
+            return null;
+        }
+
+        const userData = data[0];
+        return {
+            id: userData.id,
+            username: userData.username,
+            email: userData.email,
+            password: userData.password_hash,
+            createdAt: userData.created_at
+        };
+    } catch (error) {
+        console.error('❌ Fejl ved hentning af bruger via email:', error);
+        return null;
+    }
+}
+
+export async function updateUserPassword(userId: string, newPassword: string): Promise<boolean> {
+    try {
+        const hashedPassword = await hashPassword(newPassword);
+        const { error } = await supabase
+            .from('users')
+            .update({ password_hash: hashedPassword })
+            .eq('id', userId);
+
+        if (error) {
+            console.error('❌ Fejl ved opdatering af password:', error);
+            return false;
+        }
+
+        return true;
+    } catch (error) {
+        console.error('❌ Fejl ved opdatering af password:', error);
+        return false;
+    }
 }
