@@ -38,9 +38,11 @@ export function renderForgeLabEmail(params: BaseEmailParams): string {
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f3f4f6;padding:24px 12px;">
       <tr>
         <td align="center">
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#ffffff;border:1px solid #d1d5db;border-radius:0;overflow:hidden;box-shadow:none;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#ffffff;border:1px solid #d1d5db;border-radius:14px;overflow:hidden;box-shadow:0 10px 28px rgba(15,23,42,0.08);">
             <tr>
-              <td style="padding:22px 24px 18px;background:linear-gradient(135deg,#f29b45 0%,#ea8737 62%,#e9792b 100%);">
+              <td style="padding:22px 24px 18px;background:
+                radial-gradient(circle at 18% 8%,rgba(255,255,255,0.22) 0%,rgba(255,255,255,0) 42%),
+                linear-gradient(135deg,#f7b15f 0%,#ef9444 55%,#e67f34 100%);">
                 <div style="font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#fff7ed;font-weight:800;">
                   ${escapeHtml(accentLabel)}
                 </div>
@@ -90,7 +92,7 @@ export function renderResetPasswordEmail(params: { resetUrl: string; ttlMinutes:
     contentHtml: `
       <table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 0 18px;">
         <tr>
-          <td style="background:linear-gradient(180deg,#111827 0%,#0f172a 100%);border-radius:16px;box-shadow:0 6px 14px rgba(15,23,42,0.16);">
+          <td style="background:linear-gradient(180deg,#1f2937 0%,#0f172a 100%);border-radius:14px;box-shadow:0 7px 16px rgba(15,23,42,0.18);">
             <a href="${safeUrl}" style="display:inline-block;padding:12px 20px;color:#ffffff;text-decoration:none;font-size:14px;font-weight:800;letter-spacing:0.01em;">
               Nulstil kodeord
             </a>
