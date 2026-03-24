@@ -35,27 +35,27 @@ export function renderForgeLabEmail(params: BaseEmailParams): string {
     <div style="display:none;max-height:0;overflow:hidden;opacity:0;">
       ${escapeHtml(preheader)}
     </div>
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f3f4f6;padding:24px 12px;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:radial-gradient(circle at 12% 0%,#fff7ed 0%,#f3f4f6 42%,#f3f4f6 100%);padding:26px 12px;">
       <tr>
         <td align="center">
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#ffffff;border:1px solid #d1d5db;overflow:hidden;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#ffffff;border:1px solid #d1d5db;border-radius:16px;overflow:hidden;box-shadow:0 16px 42px rgba(15,23,42,0.08);">
             <tr>
-              <td style="padding:18px 24px 0;">
-                <div style="font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#6b7280;font-weight:700;">
+              <td style="padding:22px 24px 0;background:linear-gradient(180deg,#fffaf3 0%,#ffffff 72%);">
+                <div style="display:inline-block;padding:5px 9px;background:#fff3e0;border:1px solid #fed7aa;border-radius:999px;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#9a3412;font-weight:800;">
                   ${escapeHtml(accentLabel)}
                 </div>
-                <div style="margin-top:6px;font-size:34px;line-height:1.05;font-weight:800;color:#111827;">
+                <div style="margin-top:10px;font-size:36px;line-height:1.02;font-weight:900;color:#111827;letter-spacing:-0.02em;">
                   ForgeLab
                 </div>
-                <div style="height:4px;background:#f59e0b;margin-top:14px;"></div>
+                <div style="height:5px;background:linear-gradient(90deg,#f59e0b 0%,#f97316 100%);margin-top:14px;border-radius:999px;"></div>
               </td>
             </tr>
             <tr>
-              <td style="padding:24px 24px 10px;">
-                <h1 style="margin:0 0 8px;font-size:34px;line-height:1.08;color:#111827;font-weight:800;letter-spacing:-0.02em;">
+              <td style="padding:24px 24px 12px;">
+                <h1 style="margin:0 0 10px;font-size:36px;line-height:1.04;color:#111827;font-weight:900;letter-spacing:-0.03em;">
                   ${escapeHtml(params.title)}
                 </h1>
-                <p style="margin:0 0 18px;font-size:16px;line-height:1.55;color:#4b5563;">
+                <p style="margin:0 0 20px;font-size:16px;line-height:1.55;color:#4b5563;">
                   ${escapeHtml(params.intro)}
                 </p>
                 ${params.contentHtml}
@@ -65,7 +65,7 @@ export function renderForgeLabEmail(params: BaseEmailParams): string {
               </td>
             </tr>
             <tr>
-              <td style="padding:20px 24px 24px;">
+              <td style="padding:20px 24px 24px;background:#fcfcfd;">
                 <div style="height:1px;background:#d1d5db;margin-bottom:12px;"></div>
                 <p style="margin:0;font-size:12px;line-height:1.6;color:#9ca3af;">
                   Sendt af ForgeLab · www.forgelab.dk
@@ -91,8 +91,8 @@ export function renderResetPasswordEmail(params: { resetUrl: string; ttlMinutes:
     contentHtml: `
       <table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 0 18px;">
         <tr>
-          <td style="background:#111827;">
-            <a href="${safeUrl}" style="display:inline-block;padding:12px 18px;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;letter-spacing:0.01em;">
+          <td style="background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);border:1px solid #1f2937;border-radius:10px;box-shadow:0 8px 18px rgba(15,23,42,0.22);">
+            <a href="${safeUrl}" style="display:inline-block;padding:12px 20px;color:#ffffff;text-decoration:none;font-size:14px;font-weight:800;letter-spacing:0.01em;">
               Nulstil kodeord
             </a>
           </td>
@@ -104,7 +104,7 @@ export function renderResetPasswordEmail(params: { resetUrl: string; ttlMinutes:
       <p style="margin:0 0 16px;font-size:12px;line-height:1.6;color:#374151;word-break:break-all;">
         ${safeUrl}
       </p>
-      <div style="border-left:4px solid #f59e0b;background:#fffbeb;padding:10px 12px;">
+      <div style="border-left:4px solid #f59e0b;background:linear-gradient(90deg,#fff7ed 0%,#fffbeb 100%);padding:10px 12px;border-radius:0 8px 8px 0;">
         <p style="margin:0;font-size:13px;line-height:1.6;color:#92400e;font-weight:600;">
           Linket udlober om ${params.ttlMinutes} minutter.
         </p>
