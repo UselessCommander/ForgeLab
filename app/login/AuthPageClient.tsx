@@ -205,6 +205,7 @@ function RegisterFormInner({
   onSwitchToLogin: () => void
   isVisible: boolean
 }) {
+  const [email, setEmail] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -235,7 +236,7 @@ function RegisterFormInner({
       const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ email, username, password }),
       })
       if (response.ok) {
         router.push('/login?registered=true')
@@ -275,6 +276,17 @@ function RegisterFormInner({
           </button>
         </p>
         <form onSubmit={handleRegister} className="space-y-5">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="w-full px-4 py-3 bg-white/80 border-2 border-gray-200 text-gray-900 placeholder-gray-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition-all hover:border-amber-200"
+              placeholder="Indtast email"
+            />
+          </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Brugernavn</label>
             <input
