@@ -1,6 +1,7 @@
 import { randomBytes, createHash } from 'crypto'
 import { supabase } from './supabase'
 import { sendEmail } from './email'
+import { renderResetPasswordEmail, renderUsernameRecoveryEmail } from './email-templates'
 
 const TOKEN_TTL_MINUTES = 30
 
@@ -16,12 +17,7 @@ export async function sendForgotUsernameEmail(email: string, username: string) {
   await sendEmail({
     to: email,
     subject: 'Dit brugernavn til ForgeLab',
-    html: `
-      <p>Hej,</p>
-      <p>Du har bedt om hjælp til at finde dit brugernavn.</p>
-      <p>Dit brugernavn er: <strong>${username}</strong></p>
-      <p>Hvis du ikke har bedt om denne mail, kan du ignorere den.</p>
-    `,
+    html: renderUsernameRecoveryEmail({ username }),
   })
 }
 
@@ -51,13 +47,7 @@ export async function sendResetPasswordEmail(email: string, token: string) {
   await sendEmail({
     to: email,
     subject: 'Nulstil dit kodeord til ForgeLab',
-    html: `
-      <p>Hej,</p>
-      <p>Vi har modtaget en anmodning om at nulstille dit kodeord.</p>
-      <p><a href="${resetUrl}">Klik her for at nulstille dit kodeord</a></p>
-      <p>Linket udløber om ${TOKEN_TTL_MINUTES} minutter.</p>
-      <p>Hvis du ikke har bedt om nulstilling, kan du ignorere denne mail.</p>
-    `,
+    html: renderResetPasswordEmail({ resetUrl, ttlMinutes: TOKEN_TTL_MINUTES }),
   })
 }
 
