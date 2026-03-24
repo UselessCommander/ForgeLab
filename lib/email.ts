@@ -1,7 +1,7 @@
 import { Resend } from 'resend'
 
 const resendApiKey = process.env.RESEND_API_KEY
-const defaultFrom = process.env.EMAIL_FROM || 'ForgeLab <onboarding@resend.dev>'
+const defaultFrom = process.env.EMAIL_FROM || 'ForgeLab <no-reply@forgelab.dk>'
 
 let resendClient: Resend | null = null
 
