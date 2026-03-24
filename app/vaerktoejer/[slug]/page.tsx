@@ -6,6 +6,7 @@ import SiteNav from '@/components/SiteNav'
 import { getVaerktoejBySlug, getAllSlugs } from '@/lib/vaerktoejer-data'
 import { getToolIcon } from '@/lib/vaerktoejer-icons'
 import { ToolIllustration } from '../components/ToolIllustration'
+import { getCurrentUserId } from '@/lib/auth'
 
 interface PageProps {
   params: Promise<{ slug: string }>
@@ -29,6 +30,8 @@ export default async function VaerktoejSlugPage({ params }: PageProps) {
   const { slug } = await params
   const v = getVaerktoejBySlug(slug)
   if (!v) notFound()
+  const userId = await getCurrentUserId()
+  const isLoggedIn = !!userId
   const { Icon, bg, text } = getToolIcon(slug)
 
   return (
@@ -40,11 +43,11 @@ export default async function VaerktoejSlugPage({ params }: PageProps) {
               Værktøjer
             </Link>
             <Link
-              href="/login"
+              href={isLoggedIn ? `/tools/${slug}` : '/login'}
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-900 text-white rounded-xl font-medium hover:bg-gray-800 transition-all duration-200 shadow-sm hover:shadow-md"
             >
-              <LogIn className="w-4 h-4" />
-              Log ind
+              {!isLoggedIn && <LogIn className="w-4 h-4" />}
+              {isLoggedIn ? 'Åbn værktøj' : 'Log ind'}
             </Link>
           </div>
         }
@@ -91,14 +94,16 @@ export default async function VaerktoejSlugPage({ params }: PageProps) {
                 </div>
               </div>
               <p className="text-gray-700">
-                Brug {v.title} fra dit dashboard efter login.
+                {isLoggedIn
+                  ? `Du er logget ind - du kan åbne ${v.title} direkte herfra.`
+                  : `Brug ${v.title} fra dit dashboard efter login.`}
               </p>
             </div>
             <Link
-              href="/login"
+              href={isLoggedIn ? `/tools/${slug}` : '/login'}
               className="inline-flex items-center gap-2 px-6 py-3 bg-amber-500 text-white rounded-xl font-semibold hover:bg-amber-600 transition-all duration-200 shadow-lg shadow-amber-500/25 shrink-0"
             >
-              Log ind
+              {isLoggedIn ? 'Åbn værktøj' : 'Log ind'}
               <ArrowRight className="w-4 h-4" />
             </Link>
           </div>

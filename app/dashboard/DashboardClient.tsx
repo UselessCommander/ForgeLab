@@ -390,7 +390,7 @@ export default function DashboardClient() {
                   return (
                     <Link
                       key={tool.slug}
-                      href={`/vaerktoejer/${tool.slug}`}
+                      href={`/tools/${tool.slug}`}
                       className="flex items-center gap-3 p-3 border border-neutral-300 bg-white hover:bg-neutral-50 transition-colors"
                     >
                       <div className={`w-9 h-9 border border-neutral-300 flex items-center justify-center ${bg} ${text}`}>
@@ -413,7 +413,7 @@ export default function DashboardClient() {
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
               {standaloneTools.map((tool) => (
-                <AvailableToolCard key={tool.slug} tool={tool} />
+                <AvailableToolCard key={tool.slug} tool={tool} href={`/tools/${tool.slug}`} />
               ))}
             </div>
           </div>

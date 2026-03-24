@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { Plus } from 'lucide-react'
 import { getToolIcon } from '@/lib/vaerktoejer-icons'
 import type { Vaerktoej } from '@/lib/vaerktoejer-data'
@@ -8,17 +9,18 @@ interface AvailableToolCardProps {
   tool: Vaerktoej
   onAddToProject?: (toolId: string) => void
   showAddButton?: boolean
+  href?: string
 }
 
 export default function AvailableToolCard({
   tool,
   onAddToProject,
   showAddButton = false,
+  href,
 }: AvailableToolCardProps) {
   const { Icon, bg, text } = getToolIcon(tool.slug)
-
-  return (
-    <div className="flex items-center gap-4 p-5 rounded-2xl border border-gray-200/80 bg-white shadow-sm hover:shadow-lg hover:border-amber-200/60 transition-all duration-300">
+  const content = (
+    <>
       <div className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${bg} ${text}`}>
         <Icon className="w-5 h-5" />
       </div>
@@ -26,6 +28,18 @@ export default function AvailableToolCard({
         <h4 className="font-medium text-gray-900 truncate">{tool.title}</h4>
         <p className="text-xs text-gray-500 truncate">{tool.shortDescription}</p>
       </div>
+    </>
+  )
+
+  return (
+    <div className="flex items-center gap-4 p-5 rounded-2xl border border-gray-200/80 bg-white shadow-sm hover:shadow-lg hover:border-amber-200/60 transition-all duration-300">
+      {href ? (
+        <Link href={href} className="flex items-center gap-4 min-w-0 flex-1">
+          {content}
+        </Link>
+      ) : (
+        content
+      )}
       {showAddButton && onAddToProject && (
         <button
           onClick={() => onAddToProject(tool.slug)}

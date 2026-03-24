@@ -4,24 +4,37 @@ import PageShell from '@/components/PageShell'
 import SiteNav from '@/components/SiteNav'
 import { getVaerktoejerGroupedByKategori } from '@/lib/vaerktoejer-data'
 import { getToolIcon } from '@/lib/vaerktoejer-icons'
+import { getCurrentUserId } from '@/lib/auth'
 
 export const metadata = {
   title: 'Flere værktøjer | ForgeLab',
   description: 'Udforsk ForgeLabs værktøjer: SWOT, Business Model Canvas, Gantt, Kompasrose, TOWS, Porters Five Forces og mere. Alt i ét dashboard.',
 }
 
-export default function VaerktoejerPage() {
+export default async function VaerktoejerPage() {
+  const userId = await getCurrentUserId()
+  const isLoggedIn = !!userId
+
   return (
     <PageShell>
       <SiteNav
         rightSlot={
-          <Link
-            href="/login"
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-900 text-white rounded-xl font-medium hover:bg-gray-800 transition-all duration-200 shadow-sm hover:shadow-md"
-          >
-            <LogIn className="w-4 h-4" />
-            Log ind
-          </Link>
+          isLoggedIn ? (
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-900 text-white rounded-xl font-medium hover:bg-gray-800 transition-all duration-200 shadow-sm hover:shadow-md"
+            >
+              Dashboard
+            </Link>
+          ) : (
+            <Link
+              href="/login"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-900 text-white rounded-xl font-medium hover:bg-gray-800 transition-all duration-200 shadow-sm hover:shadow-md"
+            >
+              <LogIn className="w-4 h-4" />
+              Log ind
+            </Link>
+          )
         }
       />
       <main className="layout-page py-16">
@@ -47,7 +60,7 @@ export default function VaerktoejerPage() {
                   return (
                     <Link
                       key={v.slug}
-                      href={`/vaerktoejer/${v.slug}`}
+                      href={isLoggedIn ? `/tools/${v.slug}` : `/vaerktoejer/${v.slug}`}
                       className="group bg-white rounded-2xl p-6 border border-gray-200/80 shadow-sm hover:shadow-lg hover:border-amber-200/60 transition-all duration-300 block text-left"
                     >
                       <div className={`inline-flex items-center justify-center w-12 h-12 rounded-xl ${bg} ${text} mb-4 group-hover:scale-105 transition-transform`}>
@@ -60,7 +73,7 @@ export default function VaerktoejerPage() {
                         {v.shortDescription}
                       </p>
                       <span className="inline-flex items-center gap-2 text-amber-600 font-medium text-sm">
-                        Læs mere
+                        {isLoggedIn ? 'Åbn værktøj' : 'Læs mere'}
                         <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                       </span>
                     </Link>
@@ -71,7 +84,8 @@ export default function VaerktoejerPage() {
           ))}
         </div>
 
-        <div className="mt-12 p-8 bg-white border border-gray-200/80 rounded-2xl shadow-sm text-center">
+        {!isLoggedIn && (
+          <div className="mt-12 p-8 bg-white border border-gray-200/80 rounded-2xl shadow-sm text-center">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-amber-50 text-amber-600 mb-4">
             <LayoutGrid className="w-6 h-6" />
           </div>
@@ -85,7 +99,8 @@ export default function VaerktoejerPage() {
             Log ind for at bruge værktøjerne
             <ArrowRight className="w-4 h-4" />
           </Link>
-        </div>
+          </div>
+        )}
 
         <div className="mt-10 text-center">
           <Link href="/" className="text-gray-500 hover:text-gray-900 font-medium inline-flex items-center gap-2 transition-colors">
