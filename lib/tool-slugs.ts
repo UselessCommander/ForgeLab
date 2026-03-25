@@ -5,6 +5,7 @@ export const TOOL_SLUGS = [
   'swot-generator',
   'business-model-canvas',
   'gantt-chart',
+  'kanban',
   'gallup-kompasrose',
   'tows-matrix',
   'porters-five-forces',
@@ -23,6 +24,7 @@ export const TOOL_SLUGS = [
   'brainstorming',
   'pestel',
   'persona-canvas',
+  'pirate-funnel',
 ] as const
 
 export type ToolSlug = (typeof TOOL_SLUGS)[number]

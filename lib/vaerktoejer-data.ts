@@ -89,6 +89,19 @@ Hvornår giver Gantt mening? Brug ForgeLabs Gantt Chart når du skal planlægge 
     `.trim(),
   },
   {
+    slug: 'kanban',
+    title: 'Kanban Board',
+    shortDescription: 'Planlæg og flyt opgaver mellem To do, I gang og Færdig i et simpelt Kanban-board.',
+    categories: ['projekt-planlaegning', 'innovation-design'],
+    longSeoContent: `
+Kanban Board i ForgeLab gør det nemt at visualisere opgaver som kort i kolonner. Du kan hurtigt oprette opgaver, tilføje beskrivelser og flytte kort mellem To do, I gang og Færdig. Det giver overblik over flow, flaskehalse og fremdrift i teamets arbejde.
+
+Hvad er Kanban? Kanban er en visuel metode til at styre arbejde i små trin. Opgaver repræsenteres som kort, og hver kolonne viser en status. Metoden bruges bredt i både produktteams, marketing, drift og projektarbejde.
+
+Hvornår bruger man et Kanban-board? Brug værktøjet når I vil prioritere opgaver, holde styr på hvad der er i gang, og afslutte ting løbende i stedet for alt på én gang. I ForgeLab kan boardet bruges standalone eller som del af et projektforløb i Double Diamond.
+    `.trim(),
+  },
+  {
     slug: 'gallup-kompasrose',
     title: 'Gallup Kompasrose',
     shortDescription: 'Visualisér kultur og værdier med Kompasrosen — moderne, traditionelle og fællesskabsorienterede dimensioner.',
@@ -330,6 +343,21 @@ Persona Canvas hjælper med at konkretisere målgruppen i én samlet profil. I s
 Hvad er en persona? En persona er en fiktiv, men datainformeret repræsentation af en brugergruppe. Den bruges til at holde fokus på rigtige behov i beslutninger om produkt, service og kommunikation.
 
 Hvornår bruger man Persona Canvas? Brug værktøjet tidligt i research- og designarbejde, og opdatér det løbende når I får ny indsigt. I ForgeLab kan Persona Canvas gemmes i projektet sammen med fx Empathy Map, Brugerrejse og øvrige værktøjer.
+    `.trim(),
+  },
+  {
+    slug: 'pirate-funnel',
+    title: 'Pirate Funnel (AARRR)',
+    shortDescription:
+      'Kortlæg brugerens rejse med AARRR: Acquisition, Activation, Retention, Revenue og Referral.',
+    categories: ['markedsfoering', 'strategi'],
+    longSeoContent: `
+Pirate Funnel (AARRR) er en vækstmodel, der hjælper teams med at forstå hvor brugere tabes i produktets lifecycle. Modellen gør det nemmere at prioritere forbedringer ved at koble målbare metrics til hvert trin: Acquisition, Activation, Retention, Revenue og Referral.
+
+Hvad er Pirate Funnel (AARRR)? AARRR er forkortelsen for fem trin i brugerrejsen: 
+Acquisition (tiltrækning), Activation (første succes), Retention (fastholdelse), Revenue (indtjening) og Referral (anbefalinger).
+
+Hvornår bruger man Pirate Funnel? Brug værktøjet når I vil forbedre jeres vækst, gøre jeres roadmap metric-styret og formulere konkrete hypoteser til næste eksperiment. I ForgeLab kan I gemme jeres AARRR-arbejde i projekter og bygge videre med næste iteration.
     `.trim(),
   },
 ]

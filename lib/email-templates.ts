@@ -41,8 +41,8 @@ export function renderForgeLabEmail(params: BaseEmailParams): string {
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#ffffff;border:1px solid #d1d5db;border-radius:14px;overflow:hidden;box-shadow:0 10px 28px rgba(15,23,42,0.08);">
             <tr>
               <td style="padding:22px 24px 18px;background:
-                radial-gradient(circle at 18% 8%,rgba(255,255,255,0.22) 0%,rgba(255,255,255,0) 42%),
-                linear-gradient(135deg,#f7b15f 0%,#ef9444 55%,#e67f34 100%);">
+                radial-gradient(circle at 18% 8%,rgba(255,255,255,0.14) 0%,rgba(255,255,255,0) 40%),
+                linear-gradient(135deg,#eea24f 0%,#e88a3c 58%,#de762f 100%);">
                 <div style="font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#fff7ed;font-weight:800;">
                   ${escapeHtml(accentLabel)}
                 </div>

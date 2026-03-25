@@ -48,14 +48,70 @@ export default function ScamperPage() {
     })
   }
 
-  const sections: Array<{ key: keyof ScamperData; label: string; hint: string }> = [
-    { key: 'substitute', label: 'S - Substitute', hint: 'Hvad kan erstattes?' },
-    { key: 'combine', label: 'C - Combine', hint: 'Hvad kan kombineres?' },
-    { key: 'adapt', label: 'A - Adapt', hint: 'Hvad kan tilpasses fra andet?' },
-    { key: 'modify', label: 'M - Modify', hint: 'Hvad kan ændres eller forstørres?' },
-    { key: 'putToAnotherUse', label: 'P - Put to another use', hint: 'Kan det bruges på en ny måde?' },
-    { key: 'eliminate', label: 'E - Eliminate', hint: 'Hvad kan fjernes eller simplificeres?' },
-    { key: 'reverse', label: 'R - Reverse', hint: 'Kan rækkefølge eller logik vendes om?' },
+  const sections: Array<{
+    key: keyof ScamperData
+    letter: string
+    title: string
+    prompt: string
+    color: string
+    light: string
+  }> = [
+    {
+      key: 'substitute',
+      letter: 'S',
+      title: 'Substituér',
+      prompt: 'Hvad kan erstattes i løsning, materiale eller proces?',
+      color: 'bg-[#3b82f6]',
+      light: 'bg-blue-50',
+    },
+    {
+      key: 'combine',
+      letter: 'C',
+      title: 'Kombinér',
+      prompt: 'Hvilke elementer kan samles for at skabe mere værdi?',
+      color: 'bg-[#14b8a6]',
+      light: 'bg-teal-50',
+    },
+    {
+      key: 'adapt',
+      letter: 'A',
+      title: 'Adaptér',
+      prompt: 'Hvad kan tilpasses fra en anden branche eller kontekst?',
+      color: 'bg-[#f59e0b]',
+      light: 'bg-amber-50',
+    },
+    {
+      key: 'modify',
+      letter: 'M',
+      title: 'Modificér',
+      prompt: 'Hvad kan forstørres, reduceres eller ændres?',
+      color: 'bg-[#fb923c]',
+      light: 'bg-orange-50',
+    },
+    {
+      key: 'putToAnotherUse',
+      letter: 'P',
+      title: 'Put til andet brug',
+      prompt: 'Kan det bruges til et nyt segment eller formål?',
+      color: 'bg-[#f97316]',
+      light: 'bg-orange-50',
+    },
+    {
+      key: 'eliminate',
+      letter: 'E',
+      title: 'Eliminér',
+      prompt: 'Hvad kan fjernes for at gøre løsningen enklere?',
+      color: 'bg-[#e11d48]',
+      light: 'bg-rose-50',
+    },
+    {
+      key: 'reverse',
+      letter: 'R',
+      title: 'Reversér',
+      prompt: 'Kan rækkefølge, logik eller roller vendes om?',
+      color: 'bg-[#6366f1]',
+      light: 'bg-indigo-50',
+    },
   ]
 
   return (
@@ -65,42 +121,67 @@ export default function ScamperPage() {
       backHref="/dashboard"
       backLabel="Tilbage til Dashboard"
     >
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="overflow-x-auto pb-2">
+        <div className="grid min-w-[1240px] grid-cols-7 gap-3">
         {sections.map((section) => (
-          <section key={section.key} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-            <h2 className="text-base font-semibold text-gray-900">{section.label}</h2>
-            <p className="text-xs text-gray-500 mt-1 mb-3">{section.hint}</p>
-            <div className="space-y-2">
-              {data[section.key].map((item, index) => (
-                <div key={`${section.key}-${index}`} className="flex gap-2">
-                  <textarea
-                    value={item}
-                    onChange={(e) => updateItem(section.key, index, e.target.value)}
-                    placeholder="Skriv idé..."
-                    rows={2}
-                    className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300"
-                  />
-                  {data[section.key].length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeItem(section.key, index)}
-                      className="px-2 py-1 text-xs rounded-md border border-red-200 text-red-600 hover:bg-red-50"
-                    >
-                      Slet
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={() => addItem(section.key)}
-              className="mt-3 w-full px-3 py-2 rounded-lg border border-dashed border-gray-300 text-sm text-gray-600 hover:bg-gray-50"
+            <section
+              key={section.key}
+              className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm"
             >
-              + Tilføj
-            </button>
+              <div className={`px-3 py-4 text-white ${section.color}`}>
+                <p className="text-5xl font-serif font-bold leading-none">{section.letter}</p>
+                <p className="mt-3 text-lg font-semibold">{section.title}</p>
+              </div>
+              <div className={`px-3 py-4 ${section.light} border-b border-gray-200`}>
+                <p className="min-h-[72px] text-sm leading-relaxed text-gray-700">{section.prompt}</p>
+              </div>
+
+              <div className="p-3">
+                <div className="mb-3 flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Idé-rækker</p>
+                  <button
+                    type="button"
+                    onClick={() => addItem(section.key)}
+                    className="rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                  >
+                    + Række
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+              {data[section.key].map((item, index) => (
+                      <div
+                        key={`${section.key}-${index}`}
+                        className="relative rounded-xl border border-gray-200 bg-gray-50/70 p-3.5"
+                      >
+                        {data[section.key].length > 1 ? (
+                          <button
+                            type="button"
+                            onClick={() => removeItem(section.key, index)}
+                            className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-md text-sm font-semibold text-gray-400 hover:bg-red-50 hover:text-red-600"
+                            aria-label={`Slet idé ${index + 1}`}
+                          >
+                            ×
+                          </button>
+                        ) : null}
+                        <div className="mb-2.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                          Idé {index + 1}
+                        </div>
+                        <div>
+                          <input
+                            value={item}
+                            onChange={(e) => updateItem(section.key, index, e.target.value)}
+                            placeholder="Skriv idé..."
+                            className="w-full rounded-md border border-gray-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300"
+                          />
+                        </div>
+                      </div>
+              ))}
+                </div>
+            </div>
           </section>
         ))}
+        </div>
       </div>
     </ToolLayout>
   )

@@ -10,7 +10,17 @@ function sha256(value: string): string {
 }
 
 function getBaseUrl(): string {
-  return process.env.BASE_URL || 'http://localhost:3000'
+  const fromEnv = process.env.BASE_URL?.trim()
+  if (fromEnv) return fromEnv
+
+  const vercelProduction = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim()
+  if (vercelProduction) {
+    return vercelProduction.startsWith('http')
+      ? vercelProduction
+      : `https://${vercelProduction}`
+  }
+
+  throw new Error('BASE_URL mangler. Sæt BASE_URL i environment variables (fx https://www.forgelab.dk).')
 }
 
 export async function sendForgotUsernameEmail(email: string, username: string) {

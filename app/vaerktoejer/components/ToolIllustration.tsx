@@ -6,6 +6,7 @@ const ILLUSTRATION_COLORS: Record<string, { fill: string; stroke: string; accent
   'swot-generator': { fill: '#d1fae5', stroke: '#059669', accent: '#047857' },
   'business-model-canvas': { fill: '#e0f2fe', stroke: '#0284c7', accent: '#0369a1' },
   'gantt-chart': { fill: '#ede9fe', stroke: '#7c3aed', accent: '#5b21b6' },
+  kanban: { fill: '#fef3c7', stroke: '#d97706', accent: '#b45309' },
   'gallup-kompasrose': { fill: '#ffe4e6', stroke: '#e11d48', accent: '#be123c' },
   'tows-matrix': { fill: '#ffedd5', stroke: '#ea580c', accent: '#c2410c' },
   'porters-five-forces': { fill: '#e0e7ff', stroke: '#4f46e5', accent: '#3730a3' },
@@ -13,6 +14,7 @@ const ILLUSTRATION_COLORS: Record<string, { fill: string; stroke: string; accent
   'empathy-map': { fill: '#fce7f3', stroke: '#db2777', accent: '#be185d' },
   'card-sorting': { fill: '#cffafe', stroke: '#0891b2', accent: '#0e7490' },
   'aaker-identity-model': { fill: '#fef3c7', stroke: '#d97706', accent: '#b45309' },
+  'pirate-funnel': { fill: '#dcfce7', stroke: '#16a34a', accent: '#15803d' },
 }
 
 function getColors(slug: string) {
@@ -120,6 +122,31 @@ export function ToolIllustration({ slug }: { slug: string }) {
         </svg>
       )
 
+    case 'kanban':
+      return (
+        <svg viewBox="0 0 200 120" className="w-full h-auto max-h-[280px]" aria-hidden>
+          <rect width="200" height="120" rx="12" fill={c.fill} stroke={c.stroke} strokeWidth="2" />
+          {[0, 1, 2].map((i) => (
+            <rect
+              key={i}
+              x={12 + i * 62}
+              y="16"
+              width="54"
+              height="88"
+              rx="6"
+              fill="white"
+              stroke={c.stroke}
+              strokeWidth="1.5"
+            />
+          ))}
+          <rect x="18" y="28" width="42" height="10" rx="3" fill={c.accent} opacity="0.9" />
+          <rect x="18" y="44" width="42" height="10" rx="3" fill={c.accent} opacity="0.65" />
+          <rect x="80" y="28" width="42" height="10" rx="3" fill={c.accent} opacity="0.85" />
+          <rect x="80" y="44" width="42" height="10" rx="3" fill={c.accent} opacity="0.55" />
+          <rect x="142" y="28" width="42" height="10" rx="3" fill={c.accent} opacity="0.8" />
+        </svg>
+      )
+
     case 'gallup-kompasrose':
       return (
         <svg viewBox="0 0 160 160" className="w-full h-auto max-h-[280px]" aria-hidden>
@@ -214,6 +241,63 @@ export function ToolIllustration({ slug }: { slug: string }) {
           ))}
           <circle cx="140" cy="56" r="20" fill={c.accent} opacity="0.3" />
           <text x="140" y="61" textAnchor="middle" fill={c.accent} fontSize="12" fontFamily="system-ui">?</text>
+        </svg>
+      )
+
+    case 'pirate-funnel':
+      return (
+        <svg viewBox="0 0 200 140" className="w-full h-auto max-h-[280px]" aria-hidden>
+          <rect width="200" height="140" rx="16" fill={c.fill} stroke={c.stroke} strokeWidth="2" />
+          {/* 5-trins funnel */}
+          <path
+            d="M 30 25 L 170 25 L 145 48 L 55 48 Z"
+            fill="white"
+            stroke={c.accent}
+            strokeWidth="1.5"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M 40 48 L 160 48 L 132 70 L 68 70 Z"
+            fill="white"
+            stroke={c.stroke}
+            strokeWidth="1.5"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M 50 70 L 150 70 L 122 92 L 78 92 Z"
+            fill="white"
+            stroke={c.accent}
+            strokeWidth="1.5"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M 60 92 L 140 92 L 116 114 L 84 114 Z"
+            fill="white"
+            stroke={c.stroke}
+            strokeWidth="1.5"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M 70 114 L 130 114 L 115 128 L 85 128 Z"
+            fill="white"
+            stroke={c.accent}
+            strokeWidth="1.5"
+            strokeLinejoin="round"
+          />
+          {[0, 1, 2, 3, 4].map((i) => (
+            <text
+              key={i}
+              x="100"
+              y={35 + i * 19}
+              textAnchor="middle"
+              fill={i % 2 === 0 ? c.accent : c.stroke}
+              fontSize="9"
+              fontFamily="system-ui"
+              fontWeight="700"
+            >
+              {i === 0 ? 'Acq' : i === 1 ? 'Act' : i === 2 ? 'Ret' : i === 3 ? 'Rev' : 'Ref'}
+            </text>
+          ))}
         </svg>
       )
 

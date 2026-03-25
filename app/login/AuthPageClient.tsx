@@ -19,6 +19,11 @@ function LoginFormInner({
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [loading, setLoading] = useState(false)
+  const [isForgotPassword, setIsForgotPassword] = useState(false)
+  const [forgotEmail, setForgotEmail] = useState('')
+  const [forgotMessage, setForgotMessage] = useState('')
+  const [forgotError, setForgotError] = useState('')
+  const [forgotLoading, setForgotLoading] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -110,6 +115,31 @@ function LoginFormInner({
     }
   }
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setForgotError('')
+    setForgotMessage('')
+    setForgotLoading(true)
+
+    try {
+      const response = await fetch('/api/auth/forgot/password/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail }),
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        setForgotError(data.error || 'Noget gik galt')
+      } else {
+        setForgotMessage(data.message || 'Hvis email findes, har vi sendt et reset-link.')
+      }
+    } catch {
+      setForgotError('Kunne ikke sende anmodning. Prøv igen.')
+    } finally {
+      setForgotLoading(false)
+    }
+  }
+
   return (
     <div
       className={`h-full flex flex-col justify-center px-8 md:px-12 lg:px-20 transition-opacity duration-400 ${
@@ -123,78 +153,133 @@ function LoginFormInner({
           </div>
           <span className="text-xl font-semibold text-gray-900">ForgeLab</span>
         </Link>
-        <h1 className="text-3xl font-bold text-gray-900 mb-1">Log ind</h1>
-        <p className="text-gray-500 mb-6">
-          Har du ikke en konto?{' '}
-          <button
-            type="button"
-            onClick={onSwitchToRegister}
-            className="text-amber-600 hover:text-amber-700 font-medium transition-colors"
-          >
-            Opret bruger
-          </button>
-        </p>
-        <form onSubmit={handleLogin} className="space-y-5">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Brugernavn</label>
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-              className="w-full px-4 py-3 bg-white/80 border-2 border-gray-200 text-gray-900 placeholder-gray-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition-all hover:border-amber-200"
-              placeholder="Indtast brugernavn"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className="w-full px-4 py-3 bg-white/80 border-2 border-gray-200 text-gray-900 placeholder-gray-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition-all hover:border-amber-200"
-              placeholder="Indtast password"
-            />
-          </div>
-          <div className="flex items-center">
-            <input
-              type="checkbox"
-              id="rememberMe"
-              checked={rememberMe}
-              onChange={(e) => setRememberMe(e.target.checked)}
-              className="w-4 h-4 text-amber-600 border-gray-300 rounded focus:ring-amber-500 focus:ring-2"
-            />
-            <label htmlFor="rememberMe" className="ml-2 text-sm text-gray-700 cursor-pointer">
-              Husk mig i et år
-            </label>
-          </div>
-          <div className="text-right -mt-1">
-            <Link
-              href="/forgot/password"
-              className="text-sm text-amber-700 hover:text-amber-800 hover:underline underline-offset-2"
-            >
-              Glemt kodeord?
-            </Link>
-          </div>
-          {success && (
-            <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
-              <p className="text-emerald-700 text-sm">{success}</p>
-            </div>
-          )}
-          {error && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-red-700 text-sm">{error}</p>
-            </div>
-          )}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full px-6 py-4 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-semibold text-lg shadow-lg shadow-amber-500/25 hover:shadow-xl hover:shadow-amber-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? 'Logger ind...' : 'Log ind'}
-          </button>
-        </form>
+        {!isForgotPassword ? (
+          <>
+            <h1 className="text-3xl font-bold text-gray-900 mb-1">Log ind</h1>
+            <p className="text-gray-500 mb-6">
+              Har du ikke en konto?{' '}
+              <button
+                type="button"
+                onClick={onSwitchToRegister}
+                className="text-amber-600 hover:text-amber-700 font-medium transition-colors"
+              >
+                Opret bruger
+              </button>
+            </p>
+            <form onSubmit={handleLogin} className="space-y-5">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Brugernavn</label>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  required
+                  className="w-full px-4 py-3 bg-white/80 border-2 border-gray-200 text-gray-900 placeholder-gray-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition-all hover:border-amber-200"
+                  placeholder="Indtast brugernavn"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="w-full px-4 py-3 bg-white/80 border-2 border-gray-200 text-gray-900 placeholder-gray-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition-all hover:border-amber-200"
+                  placeholder="Indtast password"
+                />
+              </div>
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="rememberMe"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="w-4 h-4 text-amber-600 border-gray-300 rounded focus:ring-amber-500 focus:ring-2"
+                />
+                <label htmlFor="rememberMe" className="ml-2 text-sm text-gray-700 cursor-pointer">
+                  Husk mig i et år
+                </label>
+              </div>
+              <div className="text-right -mt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsForgotPassword(true)
+                    setForgotError('')
+                    setForgotMessage('')
+                    setForgotEmail('')
+                  }}
+                  className="text-sm text-amber-700 hover:text-amber-800 hover:underline underline-offset-2"
+                >
+                  Glemt kodeord?
+                </button>
+              </div>
+              {success && (
+                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
+                  <p className="text-emerald-700 text-sm">{success}</p>
+                </div>
+              )}
+              {error && (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-red-700 text-sm">{error}</p>
+                </div>
+              )}
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full px-6 py-4 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-semibold text-lg shadow-lg shadow-amber-500/25 hover:shadow-xl hover:shadow-amber-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? 'Logger ind...' : 'Log ind'}
+              </button>
+            </form>
+          </>
+        ) : (
+          <>
+            <h1 className="text-3xl font-bold text-gray-900 mb-1">Glemt kodeord</h1>
+            <p className="text-gray-500 mb-6">Indtast din email, så sender vi et reset-link.</p>
+            <form onSubmit={handleForgotPassword} className="space-y-5">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                <input
+                  type="email"
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                  required
+                  className="w-full px-4 py-3 bg-white/80 border-2 border-gray-200 text-gray-900 placeholder-gray-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition-all hover:border-amber-200"
+                  placeholder="din@email.dk"
+                />
+              </div>
+              {forgotMessage && (
+                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
+                  <p className="text-emerald-700 text-sm">{forgotMessage}</p>
+                </div>
+              )}
+              {forgotError && (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-red-700 text-sm">{forgotError}</p>
+                </div>
+              )}
+              <button
+                type="submit"
+                disabled={forgotLoading}
+                className="w-full px-6 py-4 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-semibold text-lg shadow-lg shadow-amber-500/25 hover:shadow-xl hover:shadow-amber-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {forgotLoading ? 'Sender...' : 'Send reset-link'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsForgotPassword(false)
+                  setForgotError('')
+                }}
+                className="text-gray-500 hover:text-amber-700 text-sm font-medium transition-colors"
+              >
+                ← Tilbage
+              </button>
+            </form>
+          </>
+        )}
         <Link
           href="/"
           className="block mt-6 text-gray-500 hover:text-amber-700 text-sm font-medium transition-colors"

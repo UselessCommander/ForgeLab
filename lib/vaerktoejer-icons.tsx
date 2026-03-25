@@ -29,6 +29,7 @@ export const TOOL_ICONS: Record<string, { Icon: LucideIcon; bg: string; text: st
   'swot-generator': { Icon: Grid2X2, bg: 'bg-emerald-50', text: 'text-emerald-600' },
   'business-model-canvas': { Icon: LayoutTemplate, bg: 'bg-sky-50', text: 'text-sky-600' },
   'gantt-chart': { Icon: CalendarRange, bg: 'bg-violet-50', text: 'text-violet-600' },
+  kanban: { Icon: LayoutGrid, bg: 'bg-amber-50', text: 'text-amber-700' },
   'gallup-kompasrose': { Icon: Compass, bg: 'bg-rose-50', text: 'text-rose-600' },
   'tows-matrix': { Icon: Table2, bg: 'bg-orange-50', text: 'text-orange-600' },
   'porters-five-forces': { Icon: Shield, bg: 'bg-indigo-50', text: 'text-indigo-600' },
@@ -47,6 +48,7 @@ export const TOOL_ICONS: Record<string, { Icon: LucideIcon; bg: string; text: st
   brainstorming: { Icon: Lightbulb, bg: 'bg-amber-50', text: 'text-amber-700' },
   pestel: { Icon: Building2, bg: 'bg-blue-50', text: 'text-blue-700' },
   'persona-canvas': { Icon: UserRound, bg: 'bg-pink-50', text: 'text-pink-700' },
+  'pirate-funnel': { Icon: BarChart3, bg: 'bg-emerald-50', text: 'text-emerald-700' },
 }
 
 export function getToolIcon(slug: string) {

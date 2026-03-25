@@ -154,6 +154,8 @@ export default function DashboardClient() {
       'Udforsk en idé i flere retninger ved at forgrene den ud i variationer og perspektiver.',
     'Lightning demos':
       'Gennemgå hurtigt eksisterende løsninger for at hente inspiration og genbruge gode mønstre.',
+    'Pirate Funnel (AARRR)':
+      'AARRR-modellen til at forstå og forbedre vækst: Acquisition, Activation, Retention, Revenue og Referral.',
   }
   const developMethods = [
     'Brainwriting',

@@ -109,10 +109,10 @@ function SmukContent() {
             <div
               className={[
                 'w-20 h-20 md:w-24 md:h-24 rounded-full flex items-center justify-center text-3xl font-bold',
-                i === 0 && 'bg-sky-300 text-white',
-                i === 1 && 'bg-slate-800 text-white',
-                i === 2 && 'bg-sky-500 text-white',
-                i === 3 && 'bg-slate-700 text-white',
+                i === 0 && 'bg-amber-300 text-amber-950',
+                i === 1 && 'bg-amber-700 text-white',
+                i === 2 && 'bg-amber-500 text-white',
+                i === 3 && 'bg-amber-900 text-white',
               ]
                 .filter(Boolean)
                 .join(' ')}
@@ -133,7 +133,7 @@ function SmukContent() {
             key={c.key}
             className={[
               'rounded-full px-4 py-2 text-xs md:text-sm font-medium text-center text-white',
-              idx % 2 === 0 ? 'bg-sky-500' : 'bg-slate-700',
+              idx % 2 === 0 ? 'bg-amber-500' : 'bg-amber-800',
             ]
               .filter(Boolean)
               .join(' ')}
@@ -144,8 +144,8 @@ function SmukContent() {
       </section>
 
       {/* Scoringstabel */}
-      <section className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-        <div className="bg-red-700 text-white text-xs md:text-sm font-semibold px-4 py-3 flex">
+      <section className="bg-white border border-amber-200 rounded-2xl shadow-sm overflow-hidden">
+        <div className="bg-amber-800 text-white text-xs md:text-sm font-semibold px-4 py-3 flex">
           <div className="w-1/3 md:w-1/4">
             Scor fra 1 til 5 baseret på attraktivitet (5 er bedst)
           </div>
@@ -154,7 +154,7 @@ function SmukContent() {
               <input
                 value={segment}
                 onChange={(e) => updateSegmentName(index, e.target.value)}
-                className="w-full rounded-md bg-red-600/60 border border-red-400/60 px-2 py-1 text-xs md:text-sm font-semibold placeholder:text-red-100 focus:outline-none focus:ring-1 focus:ring-yellow-300"
+                className="w-full rounded-md bg-amber-700/60 border border-amber-500/60 px-2 py-1 text-xs md:text-sm font-semibold placeholder:text-amber-100 focus:outline-none focus:ring-1 focus:ring-amber-300"
                 placeholder={`Segment ${index + 1}`}
               />
             </div>
@@ -162,23 +162,23 @@ function SmukContent() {
           <button
             type="button"
             onClick={addSegment}
-            className="ml-2 shrink-0 rounded-md border border-red-400/60 bg-red-600/60 px-2 py-1 text-xs font-semibold hover:bg-red-500/80"
+            className="ml-2 shrink-0 rounded-md border border-amber-500/60 bg-amber-700/60 px-2 py-1 text-xs font-semibold hover:bg-amber-600/80"
           >
             +
           </button>
         </div>
 
-        <div className="divide-y divide-red-100 bg-red-50/60">
+        <div className="divide-y divide-amber-100 bg-amber-50/60">
           {CRITERIA.map((criterion) => (
             <div key={criterion.key} className="flex items-stretch">
-              <div className="w-1/3 md:w-1/4 px-4 py-3 text-xs md:text-sm font-medium text-slate-800 bg-red-50/80">
+              <div className="w-1/3 md:w-1/4 px-4 py-3 text-xs md:text-sm font-medium text-slate-800 bg-amber-50/80">
                 <div>{criterion.label}</div>
                 <div className="text-[10px] md:text-xs text-slate-600 mt-1">{criterion.description}</div>
               </div>
               {data.segments.map((_, index) => (
                 <div
                   key={index}
-                  className="flex-1 px-2 py-3 bg-white/60 flex items-center justify-center border-l border-red-100"
+                  className="flex-1 px-2 py-3 bg-white/60 flex items-center justify-center border-l border-amber-100"
                 >
                   <input
                     type="number"
@@ -193,7 +193,7 @@ function SmukContent() {
                         e.target.value === '' ? 0 : Number(e.target.value),
                       )
                     }
-                    className="w-full max-w-[80px] rounded-md border border-slate-300 bg-white px-2 py-1 text-xs md:text-sm text-slate-800 text-center focus:outline-none focus:ring-2 focus:ring-sky-400"
+                    className="w-full max-w-[80px] rounded-md border border-slate-300 bg-white px-2 py-1 text-xs md:text-sm text-slate-800 text-center focus:outline-none focus:ring-2 focus:ring-amber-400"
                     placeholder="-"
                   />
                 </div>
@@ -202,7 +202,7 @@ function SmukContent() {
           ))}
 
           {/* Total-række */}
-          <div className="flex items-stretch bg-yellow-400/90 text-slate-900 font-semibold">
+          <div className="flex items-stretch bg-amber-300/90 text-slate-900 font-semibold">
             <div className="w-1/3 md:w-1/4 px-4 py-3 text-xs md:text-sm">Total</div>
             {data.segments.map((_, index) => {
               const total = getTotalForSegment(index)
@@ -211,8 +211,8 @@ function SmukContent() {
               return (
                 <div
                   key={index}
-                  className="flex-1 px-2 py-3 flex items-center justify-center border-l border-yellow-500"
-                  style={{ backgroundColor: `hsl(48, 96%, ${shade}%)` }}
+                  className="flex-1 px-2 py-3 flex items-center justify-center border-l border-amber-500"
+                  style={{ backgroundColor: `hsl(37, 96%, ${shade}%)` }}
                 >
                   <span className="text-base md:text-lg font-bold">{total || '-'}</span>
                 </div>

@@ -77,14 +77,14 @@ export default function GanttChart() {
   const displayDays = Math.min(totalDays, 60) // Limit to 60 days for display
 
   return (
-    <div className="min-h-screen px-4 py-8 md:py-12 bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="min-h-screen px-4 py-8 md:py-12 bg-gradient-to-br from-amber-50/50 via-[#fafbfc] to-amber-100/40">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <header className="mb-8">
-          <div className="bg-white rounded-2xl p-6 md:p-10 shadow-sm border border-gray-200">
+          <div className="bg-white rounded-2xl p-6 md:p-10 shadow-sm border border-amber-200/60">
             <Link 
               href="/dashboard" 
-              className="inline-flex items-center gap-2 text-gray-700 font-medium mb-6 hover:text-gray-900 transition-colors"
+              className="inline-flex items-center gap-2 text-gray-700 font-medium mb-6 hover:text-amber-700 transition-colors"
             >
               <span>←</span>
               <span>Tilbage til Dashboard</span>
@@ -102,19 +102,19 @@ export default function GanttChart() {
         </header>
 
         {/* Tasks List */}
-        <div className="bg-white rounded-xl p-6 shadow-lg border-2 border-gray-300 mb-6">
+        <div className="bg-white rounded-xl p-6 shadow-lg border-2 border-amber-200/70 mb-6">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold text-gray-900">Opgaver</h2>
             <button
               onClick={addTask}
-              className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors font-medium"
+              className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors font-semibold shadow-md shadow-amber-500/30"
             >
               + Tilføj Opgave
             </button>
           </div>
           <div className="space-y-3">
             {tasks.map((task) => (
-              <div key={task.id} className="border-2 border-gray-300 rounded-lg p-4">
+              <div key={task.id} className="border-2 border-amber-100 rounded-lg p-4 bg-amber-50/20">
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1">Navn</label>
@@ -123,7 +123,7 @@ export default function GanttChart() {
                       value={task.name}
                       onChange={(e) => updateTask(task.id, 'name', e.target.value)}
                       placeholder="Opgave navn..."
-                      className="w-full px-3 py-2 rounded border border-gray-300 focus:outline-none focus:border-gray-900 text-sm"
+                      className="w-full px-3 py-2 rounded border border-gray-300 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-500 text-sm"
                     />
                   </div>
                   <div>
@@ -132,7 +132,7 @@ export default function GanttChart() {
                       type="date"
                       value={task.startDate}
                       onChange={(e) => updateTask(task.id, 'startDate', e.target.value)}
-                      className="w-full px-3 py-2 rounded border border-gray-300 focus:outline-none focus:border-gray-900 text-sm"
+                      className="w-full px-3 py-2 rounded border border-gray-300 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-500 text-sm"
                     />
                   </div>
                   <div>
@@ -141,7 +141,7 @@ export default function GanttChart() {
                       type="date"
                       value={task.endDate}
                       onChange={(e) => updateTask(task.id, 'endDate', e.target.value)}
-                      className="w-full px-3 py-2 rounded border border-gray-300 focus:outline-none focus:border-gray-900 text-sm"
+                      className="w-full px-3 py-2 rounded border border-gray-300 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-500 text-sm"
                     />
                   </div>
                   <div>
@@ -152,13 +152,13 @@ export default function GanttChart() {
                       max="100"
                       value={task.progress}
                       onChange={(e) => updateTask(task.id, 'progress', parseInt(e.target.value) || 0)}
-                      className="w-full px-3 py-2 rounded border border-gray-300 focus:outline-none focus:border-gray-900 text-sm"
+                      className="w-full px-3 py-2 rounded border border-gray-300 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-500 text-sm"
                     />
                   </div>
                   <div className="flex items-end">
                     <button
                       onClick={() => deleteTask(task.id)}
-                      className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium text-sm"
+                      className="w-full px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors font-medium text-sm"
                     >
                       Slet
                     </button>
@@ -171,12 +171,12 @@ export default function GanttChart() {
 
         {/* Classic Gantt Chart Visualization */}
         {tasks.length > 0 && (
-          <div className="bg-white rounded-xl p-6 shadow-lg border-2 border-gray-300 overflow-x-auto">
+          <div className="bg-white rounded-xl p-6 shadow-lg border-2 border-amber-200/70 overflow-x-auto">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Tidslinje</h2>
             <div className="min-w-[800px]">
               {/* Header Row */}
-              <div className="flex border-b-2 border-gray-400 mb-2">
-                <div className="w-48 flex-shrink-0 font-bold text-gray-900 py-2 px-2 border-r-2 border-gray-400 bg-gray-100">
+              <div className="flex border-b-2 border-amber-300 mb-2">
+                <div className="w-48 flex-shrink-0 font-bold text-gray-900 py-2 px-2 border-r-2 border-amber-300 bg-amber-50">
                   Opgave
                 </div>
                 <div className="flex-1 flex">
@@ -187,7 +187,7 @@ export default function GanttChart() {
                     return (
                       <div
                         key={i}
-                        className={`text-xs text-center py-2 border-r border-gray-300 ${isWeekend ? 'bg-gray-100' : 'bg-white'}`}
+                        className={`text-xs text-center py-2 border-r border-amber-100 ${isWeekend ? 'bg-amber-50/70' : 'bg-white'}`}
                         style={{ minWidth: '20px', flex: '1' }}
                       >
                         {i % 7 === 0 ? date.getDate() : ''}
@@ -206,13 +206,13 @@ export default function GanttChart() {
                   const leftPercent = (daysFromStart / displayDays) * 100
                   
                   return (
-                    <div key={task.id} className="flex items-center h-10 border-b border-gray-200">
-                      <div className="w-48 flex-shrink-0 text-sm text-gray-700 font-medium px-2 border-r-2 border-gray-300 bg-gray-50 truncate">
+                    <div key={task.id} className="flex items-center h-10 border-b border-amber-100">
+                      <div className="w-48 flex-shrink-0 text-sm text-gray-700 font-medium px-2 border-r-2 border-amber-200 bg-amber-50/40 truncate">
                         {task.name || 'Unavngiven opgave'}
                       </div>
-                      <div className="flex-1 relative h-8 bg-gray-100">
+                      <div className="flex-1 relative h-8 bg-amber-50/40">
                         <div
-                          className="absolute h-full bg-blue-500 border border-blue-600 flex items-center justify-center text-white text-xs font-medium"
+                          className="absolute h-full bg-amber-500 border border-amber-600 flex items-center justify-center text-white text-xs font-medium"
                           style={{
                             left: `${leftPercent}%`,
                             width: `${widthPercent}%`,
@@ -221,7 +221,7 @@ export default function GanttChart() {
                         >
                           {task.progress > 0 && (
                             <div
-                              className="absolute left-0 top-0 h-full bg-green-500 border-r border-green-600"
+                              className="absolute left-0 top-0 h-full bg-amber-300 border-r border-amber-500"
                               style={{ width: `${task.progress}%` }}
                             />
                           )}
