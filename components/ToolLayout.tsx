@@ -13,6 +13,8 @@ interface ToolLayoutProps {
   backLabel?: string
 }
 
+import { useToolEmbed } from './ToolEmbedContext'
+
 export default function ToolLayout({
   title,
   description,
@@ -21,15 +23,17 @@ export default function ToolLayout({
   backHref = '/dashboard',
   backLabel = 'Tilbage til Dashboard',
 }: ToolLayoutProps) {
+  const { isEmbed: contextEmbed } = useToolEmbed()
+  
   // Avoid useSearchParams() here to keep static prerender stable
   const isEmbedFromQuery =
     typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('embed') === '1'
-  const isEmbed = embed || isEmbedFromQuery
+  const isEmbed = embed || contextEmbed || isEmbedFromQuery
 
   if (isEmbed) {
     return (
-      <div className="min-h-full px-4 py-6 bg-[#fafbfc]">
-        <div className="max-w-[1600px] mx-auto w-full px-4 sm:px-6">{children}</div>
+      <div className="w-full h-full bg-white flex flex-col flex-1">
+        {children}
       </div>
     )
   }

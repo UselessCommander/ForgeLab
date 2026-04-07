@@ -28,6 +28,7 @@ export default function DashboardClient() {
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null)
+  const [isOffline, setIsOffline] = useState(false)
 
   useEffect(() => {
     loadProjects()
@@ -36,17 +37,53 @@ export default function DashboardClient() {
   const loadProjects = async () => {
     try {
       setLoading(true)
-      const projs = await getProjects()
+      // Fetch directly so we can detect 503/500 DB errors (getProjects swallows them)
+      const res = await fetch('/api/projects', { credentials: 'include' })
+      if (res.status === 401) {
+        // Not logged in — let middleware handle redirect
+        setProjects([])
+        return
+      }
+      if (!res.ok) throw new Error(`API ${res.status}`)
+      const projs: Project[] = await res.json()
       setProjects(projs)
+      setIsOffline(false)
     } catch (error) {
-      console.error('Error loading projects:', error)
+      console.warn('DB unavailable — demo mode aktiv:', error)
+      const saved = localStorage.getItem('forgelab_demo_projects')
+      setProjects(saved ? JSON.parse(saved) : [])
+      setIsOffline(true)
     } finally {
       setLoading(false)
     }
   }
 
+
   const handleCreate = async () => {
     if (!newName.trim() || creating) return
+
+    if (isOffline) {
+      // Demo mode: create project locally
+      const newProject: Project = {
+        id: `demo-${Date.now()}`,
+        name: newName.trim(),
+        description: newDesc.trim(),
+        toolIds: [],
+        framework: 'none',
+        role: 'owner',
+        updatedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+      }
+      const updated = [...projects, newProject]
+      setProjects(updated)
+      localStorage.setItem('forgelab_demo_projects', JSON.stringify(updated))
+      setShowCreateModal(false)
+      setNewName('')
+      setNewDesc('')
+      window.location.href = `/dashboard/projects/${newProject.id}`
+      return
+    }
+
     try {
       setCreating(true)
       const p = await createProject(newName.trim(), newDesc.trim())
@@ -69,6 +106,14 @@ export default function DashboardClient() {
       `Er du sikker på, at du vil slette projektet "${project.name}"?\n\nDette kan ikke fortrydes.`
     )
     if (!confirmed) return
+
+    if (isOffline) {
+      // Demo mode: delete locally
+      const updated = projects.filter(p => p.id !== project.id)
+      setProjects(updated)
+      localStorage.setItem('forgelab_demo_projects', JSON.stringify(updated))
+      return
+    }
 
     try {
       setDeletingProjectId(project.id)
@@ -211,6 +256,19 @@ export default function DashboardClient() {
           </div>
         }
       />
+      {/* Offline banner */}
+      {isOffline && (
+        <div style={{
+          background: 'linear-gradient(90deg, #FEF3C7, #FDE68A)',
+          borderBottom: '1px solid #FCD34D',
+          padding: '7px 16px',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          fontSize: 12, color: '#92400E', fontWeight: 500,
+        }}>
+          <span>⚠️</span>
+          <span>Demo-tilstand aktiv — ingen database. Projekter gemmes kun i denne browser-session.</span>
+        </div>
+      )}
       <div className="layout-page py-10">
         {/* Hero / topsektion */}
         <section className="mb-10">

@@ -6,6 +6,14 @@ import { normalizeFramework } from '@/lib/frameworks'
 // GET /api/projects - Get all projects for current user
 export async function GET(request: NextRequest) {
   try {
+    // Early check: if Supabase env vars are missing, signal DB unavailable
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      return NextResponse.json(
+        { error: 'Database not configured', offline: true },
+        { status: 503 }
+      )
+    }
+
     const userId = await getCurrentUserId()
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

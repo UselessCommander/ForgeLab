@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { getProjectToolData, saveProjectToolData } from './projects'
+import { useToolEmbed } from '@/components/ToolEmbedContext'
 
 /**
  * Hook til at gemme og loade tool data automatisk når værktøjet er i et projekt
@@ -15,12 +16,15 @@ export function useProjectToolData<T>(
   setData: (data: T) => void,
   debounceMs: number = 1000
 ) {
-  // Get projectId from URL search params
+  const { projectId: contextProjectId } = useToolEmbed()
+
+  // Get projectId from URL search params or Context
   const getProjectId = useCallback(() => {
+    if (contextProjectId) return contextProjectId
     if (typeof window === 'undefined') return null
     const params = new URLSearchParams(window.location.search)
     return params.get('projectId')
-  }, [])
+  }, [contextProjectId])
 
   const projectId = getProjectId()
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)

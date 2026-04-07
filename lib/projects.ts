@@ -79,8 +79,8 @@ export async function getProject(id: string): Promise<Project | null> {
     })
 
     if (!response.ok) {
-      if (response.status === 404) {
-        return null
+      if (response.status === 404 || response.status === 503 || response.status >= 500) {
+        return null // If offline or not found, return null and let demo mode handle it
       }
       throw new Error(`Failed to fetch project: ${response.statusText}`)
     }
@@ -107,11 +107,13 @@ export async function updateProject(
   })
 
   if (!response.ok) {
-    if (response.status === 404) {
+    if (response.status === 404 || response.status === 503 || response.status >= 500) {
       return null
     }
     const error = await response.json().catch(() => ({ error: 'Failed to update project' }))
-    throw new Error(error.error || 'Failed to update project')
+    // Console log instead of throwing so it doesn't crash the browser overlay
+    console.error(error.error || 'Failed to update project')
+    return null
   }
 
   return await response.json()
@@ -223,8 +225,10 @@ export async function getProjectToolData(
     })
 
     if (!response.ok) {
-      if (response.status === 404) {
-        return {}
+      if (response.status === 404 || response.status === 503 || response.status >= 500) {
+        // Fallback to local storage for demo mode
+        const saved = localStorage.getItem(`forgelab_demo_tool_${projectId}_${toolSlug}`)
+        return saved ? JSON.parse(saved) : {}
       }
       throw new Error('Failed to fetch tool data')
     }
@@ -232,8 +236,9 @@ export async function getProjectToolData(
     const result = await response.json()
     return result.data || {}
   } catch (error) {
-    console.error('Error fetching tool data:', error)
-    return {}
+    console.error('Error fetching tool data, falling back to local storage:', error)
+    const saved = localStorage.getItem(`forgelab_demo_tool_${projectId}_${toolSlug}`)
+    return saved ? JSON.parse(saved) : {}
   }
 }
 
@@ -243,20 +248,31 @@ export async function saveProjectToolData(
   toolSlug: string,
   data: Record<string, any>
 ): Promise<boolean> {
-  const response = await fetch(`/api/projects/${projectId}/tools/${toolSlug}/data`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    credentials: 'include',
-    body: JSON.stringify({ data }),
-  })
+  try {
+    const response = await fetch(`/api/projects/${projectId}/tools/${toolSlug}/data`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({ data }),
+    })
 
-  if (!response.ok) {
-    throw new Error('Failed to save tool data')
+    if (!response.ok) {
+      if (response.status === 404 || response.status === 503 || response.status >= 500) {
+        // Fallback to local storage for demo mode
+        localStorage.setItem(`forgelab_demo_tool_${projectId}_${toolSlug}`, JSON.stringify(data))
+        return true
+      }
+      throw new Error('Failed to save tool data')
+    }
+
+    return true
+  } catch (error) {
+    console.error('Error saving tool data, falling back to local storage:', error)
+    localStorage.setItem(`forgelab_demo_tool_${projectId}_${toolSlug}`, JSON.stringify(data))
+    return true
   }
-
-  return true
 }
 
 // GET /api/projects/[projectId]/members - Get project members
