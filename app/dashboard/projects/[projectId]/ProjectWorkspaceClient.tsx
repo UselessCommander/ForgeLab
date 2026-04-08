@@ -79,7 +79,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const [modifying, setModifying] = useState(false)
   const [isOffline, setIsOffline] = useState(false)
   const [members, setMembers] = useState<ProjectMember[]>([])
-  const [inviteUsername, setInviteUsername] = useState('')
+  const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState<'editor' | 'viewer'>('editor')
 
   // ── Canvas state ──────────────────────────────────────────────────
@@ -375,11 +375,11 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   }
 
   const handleInvite = async () => {
-    if (!isOwner || !inviteUsername.trim()) return
+    if (!isOwner || !inviteEmail.trim()) return
     try {
       setModifying(true)
-      await inviteProjectMember(projectId, inviteUsername.trim(), inviteRole)
-      setInviteUsername('')
+      await inviteProjectMember(projectId, inviteEmail.trim(), inviteRole)
+      setInviteEmail('')
       setInviteRole('editor')
       setMembers((await getProjectMembers(projectId)) || [])
     } catch (err: any) {
@@ -893,9 +893,9 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                 {isOwner ? (
                   <Section label="Invitér et nyt medlem">
                     <input
-                      value={inviteUsername}
-                      onChange={e => setInviteUsername(e.target.value)}
-                      placeholder="Brugernavn"
+                      value={inviteEmail}
+                      onChange={e => setInviteEmail(e.target.value)}
+                      placeholder="Email (fx navn@firma.dk)"
                       style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 10, border: '1.5px solid #E5E7EB', fontSize: 13, marginBottom: 8, outline: 'none' }}
                       onFocus={e => (e.currentTarget.style.borderColor = '#F59E0B')}
                       onBlur={e => (e.currentTarget.style.borderColor = '#E5E7EB')}
@@ -911,12 +911,12 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                       </select>
                       <button
                         onClick={handleInvite}
-                        disabled={modifying || !inviteUsername.trim()}
+                        disabled={modifying || !inviteEmail.trim()}
                         style={{
                           padding: '0 16px', borderRadius: 10, border: 'none',
                           background: '#111827', color: 'white',
                           fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                          opacity: inviteUsername.trim() ? 1 : 0.4,
+                          opacity: inviteEmail.trim() ? 1 : 0.4,
                         }}
                       >Invitér</button>
                     </div>
@@ -934,8 +934,12 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                         {(m.username || m.user_id).charAt(0).toUpperCase()}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.username || m.user_id}</p>
-                        <p style={{ margin: 0, fontSize: 11, color: '#9CA3AF' }}>{m.role}</p>
+                        <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {m.email || m.username || m.user_id}
+                        </p>
+                        <p style={{ margin: 0, fontSize: 11, color: '#9CA3AF' }}>
+                          {m.role}{m.username ? ` · ${m.username}` : ''}
+                        </p>
                       </div>
                       {isOwner && m.role !== 'owner' && (
                         <button onClick={() => handleRemoveMember(m.user_id)} style={{ border: 'none', background: 'none', color: '#EF4444', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Fjern</button>

@@ -30,13 +30,14 @@ export async function GET(
     }
 
     const memberUserIds = (members || []).map((m) => m.user_id)
-    const { data: users } = await supabase.from('users').select('id, username').in('id', memberUserIds)
-    const usernameById = new Map((users || []).map((u) => [u.id, u.username]))
+    const { data: users } = await supabase.from('users').select('id, username, email').in('id', memberUserIds)
+    const userById = new Map((users || []).map((u) => [u.id, u]))
 
     return NextResponse.json(
       (members || []).map((m) => ({
         ...m,
-        username: usernameById.get(m.user_id) || m.user_id,
+        username: userById.get(m.user_id)?.username || m.user_id,
+        email: userById.get(m.user_id)?.email || null,
       }))
     )
   } catch (error) {
@@ -46,7 +47,7 @@ export async function GET(
 }
 
 // POST /api/projects/[projectId]/members
-// Body: { username: string, role?: 'editor' | 'viewer' }
+// Body: { email: string, role?: 'editor' | 'viewer' }
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ projectId: string }> }
@@ -60,17 +61,22 @@ export async function POST(
     if (!owner) return NextResponse.json({ error: 'Only owner can invite members' }, { status: 403 })
 
     const body = await request.json()
-    const username = String(body?.username || '').trim()
+    const email = String(body?.email || '').trim().toLowerCase()
     const role: Role = body?.role === 'viewer' ? 'viewer' : body?.role === 'editor' ? 'editor' : 'editor'
 
-    if (!username) {
-      return NextResponse.json({ error: 'username is required' }, { status: 400 })
+    if (!email) {
+      return NextResponse.json({ error: 'email is required' }, { status: 400 })
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      return NextResponse.json({ error: 'Invalid email format' }, { status: 400 })
     }
 
     const { data: userRows, error: userError } = await supabase
       .from('users')
-      .select('id, username')
-      .ilike('username', username)
+      .select('id, username, email')
+      .eq('email', email)
       .limit(1)
 
     if (userError) {
@@ -103,6 +109,7 @@ export async function POST(
       success: true,
       userId: invitedUser.id,
       username: invitedUser.username,
+      email: invitedUser.email,
       role,
     })
   } catch (error) {

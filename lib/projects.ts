@@ -24,6 +24,7 @@ export interface Project {
 export interface ProjectMember {
   user_id: string
   username?: string
+  email?: string | null
   role: 'owner' | 'editor' | 'viewer'
   created_at: string
 }
@@ -292,7 +293,7 @@ export async function getProjectMembers(projectId: string): Promise<ProjectMembe
 // POST /api/projects/[projectId]/members - Invite member by username
 export async function inviteProjectMember(
   projectId: string,
-  username: string,
+  email: string,
   role: 'editor' | 'viewer' = 'editor'
 ): Promise<boolean> {
   const response = await fetch(`/api/projects/${projectId}/members`, {
@@ -301,7 +302,7 @@ export async function inviteProjectMember(
       'Content-Type': 'application/json',
     },
     credentials: 'include',
-    body: JSON.stringify({ username, role }),
+    body: JSON.stringify({ email, role }),
   })
 
   if (!response.ok) {

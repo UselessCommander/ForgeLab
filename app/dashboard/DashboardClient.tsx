@@ -140,6 +140,8 @@ export default function DashboardClient() {
   })()
 
   const projectCount = projects.length
+  const ownedProjects = projects.filter(p => (p.role || 'viewer') === 'owner')
+  const sharedProjects = projects.filter(p => (p.role || 'viewer') !== 'owner')
   const latestProject =
     projectCount > 0
       ? [...projects].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0]
@@ -364,15 +366,51 @@ export default function DashboardClient() {
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-                {projects.map((p) => (
-                  <ProjectCard
-                    key={p.id}
-                    project={p}
-                    onDelete={handleDeleteProject}
-                    deleting={deletingProjectId === p.id}
-                  />
-                ))}
+              <div className="space-y-8">
+                <div>
+                  <div className="mb-3 flex items-center justify-between">
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Mine projekter</h3>
+                    <span className="text-xs text-gray-400">{ownedProjects.length}</span>
+                  </div>
+                  {ownedProjects.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-gray-200 bg-white p-5 text-sm text-gray-500">
+                      Du ejer ingen projekter endnu.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                      {ownedProjects.map((p) => (
+                        <ProjectCard
+                          key={p.id}
+                          project={p}
+                          onDelete={handleDeleteProject}
+                          deleting={deletingProjectId === p.id}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <div className="mb-3 flex items-center justify-between">
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Delt med mig</h3>
+                    <span className="text-xs text-gray-400">{sharedProjects.length}</span>
+                  </div>
+                  {sharedProjects.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-gray-200 bg-white p-5 text-sm text-gray-500">
+                      Ingen delte projekter endnu.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                      {sharedProjects.map((p) => (
+                        <ProjectCard
+                          key={p.id}
+                          project={p}
+                          deleting={false}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
