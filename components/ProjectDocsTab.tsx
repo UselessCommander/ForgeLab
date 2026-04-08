@@ -45,11 +45,13 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
   const lastRenderedPageIdRef = useRef<string>('')
   const selectionRangeRef = useRef<Range | null>(null)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const reconcileTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const isUnmountedRef = useRef(false)
   const yDocRef = useRef<Y.Doc | null>(null)
   const channelRef = useRef<any>(null)
   const applyingRemoteRef = useRef(false)
   const lastYUpdateOriginRef = useRef<any>(null)
+  const isSyncingFromServerRef = useRef(false)
   const clientPresenceIdRef = useRef(`docs-${Math.random().toString(36).slice(2, 8)}`)
 
   const normalizeDoc = (input: any): ProjectDocData => {
@@ -186,6 +188,43 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
     }, 900)
   }
 
+  const applyServerDocToY = (serverDoc: ProjectDocData) => {
+    const collections = getYCollections()
+    if (!collections) return
+    const { yDoc, root, pages, pageOrder } = collections
+
+    yDoc.transact(() => {
+      const incomingIds = serverDoc.pages.map(p => p.id)
+      const existingIds = Array.from(pages.keys())
+
+      // Remove pages that no longer exist remotely.
+      for (const existingId of existingIds) {
+        if (!incomingIds.includes(existingId)) pages.delete(existingId)
+      }
+
+      // Upsert pages from server.
+      for (const page of serverDoc.pages) {
+        let pageMap = pages.get(page.id)
+        if (!pageMap) {
+          pageMap = new Y.Map<any>()
+          pageMap.set('title', new Y.Text())
+          pageMap.set('html', new Y.Text())
+          pages.set(page.id, pageMap)
+        }
+        const titleText = pageMap.get('title') as Y.Text
+        const htmlText = pageMap.get('html') as Y.Text
+        applyTextDiff(titleText, page.title || 'Untitled')
+        applyTextDiff(htmlText, page.html || '<p></p>')
+      }
+
+      // Replace page order to match server.
+      pageOrder.delete(0, pageOrder.length)
+      pageOrder.insert(0, incomingIds)
+      root.set('activePageId', serverDoc.activePageId)
+      root.set('updatedAt', serverDoc.updatedAt)
+    }, REMOTE_ORIGIN)
+  }
+
   useEffect(() => {
     let cancelled = false
     const boot = async () => {
@@ -267,6 +306,26 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
         })
 
       channelRef.current = channel
+
+      // Reconcile with persisted state periodically as a safety net.
+      // This catches rare missed realtime events without requiring refresh.
+      reconcileTimerRef.current = setInterval(async () => {
+        if (isUnmountedRef.current || isSyncingFromServerRef.current) return
+        try {
+          isSyncingFromServerRef.current = true
+          const serverData = await getProjectToolData(projectId, DOC_TOOL_SLUG)
+          const normalized = normalizeDoc(serverData)
+          const localDoc = readDocFromY()
+          if (normalized.updatedAt > localDoc.updatedAt) {
+            applyServerDocToY(normalized)
+            if (!isUnmountedRef.current) setSyncInfo('Synkroniseret')
+          }
+        } catch {
+          // Silent: realtime channel remains primary
+        } finally {
+          isSyncingFromServerRef.current = false
+        }
+      }, 1500)
     }
 
     boot()
@@ -274,6 +333,10 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
     return () => {
       cancelled = true
       isUnmountedRef.current = true
+      if (reconcileTimerRef.current) {
+        clearInterval(reconcileTimerRef.current)
+        reconcileTimerRef.current = null
+      }
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current)
