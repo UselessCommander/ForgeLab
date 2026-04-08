@@ -30,7 +30,13 @@ export default function AiChatCompanion({
     google: ['gemini-2.5-flash', 'gemini-2.0-flash'],
     openai: ['gpt-4o-mini', 'gpt-4o'],
     anthropic: ['claude-3-5-sonnet-latest', 'claude-3-5-haiku-latest'],
-    openrouter: ['google/gemma-4-26b-a4b-it:free', 'openai/gpt-4o-mini'],
+    openrouter: [
+      'google/gemma-4-26b-a4b-it:free',
+      'google/gemma-4-31b-it:free',
+      'openai/gpt-oss-120b:free',
+      'nvidia/nemotron-3-super-120b-a12b:free',
+      'openai/gpt-4o-mini',
+    ],
     mistral: ['mistral-small-latest', 'mistral-medium-latest'],
   }
 

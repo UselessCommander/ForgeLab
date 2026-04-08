@@ -13,7 +13,9 @@ type ProjectDocsTabProps = {
 type ProjectDocPage = {
   id: string
   title: string
+  header: string
   html: string
+  footer: string
 }
 
 type ProjectDocData = {
@@ -33,7 +35,13 @@ type CursorPresence = {
 
 const DOC_TOOL_SLUG = 'project-docs'
 const createId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-const createPage = (title = 'Fane 1'): ProjectDocPage => ({ id: createId(), title, html: '<p></p>' })
+const createPage = (title = 'Fane 1'): ProjectDocPage => ({
+  id: createId(),
+  title,
+  header: '',
+  html: '<p></p>',
+  footer: '',
+})
 const LOCAL_ORIGIN = 'local'
 const REMOTE_ORIGIN = 'remote'
 const DEFAULT_DOC: ProjectDocData = {
@@ -51,11 +59,32 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
   const [syncInfo, setSyncInfo] = useState<string>('Forbinder…')
   const [fontName, setFontName] = useState('Georgia')
   const [fontSize, setFontSize] = useState('4')
+  const [showViewMenu, setShowViewMenu] = useState(false)
+  const [showInsertMenu, setShowInsertMenu] = useState(false)
+  const [showSideElementsSubmenu, setShowSideElementsSubmenu] = useState(false)
+  const [showFormatMenu, setShowFormatMenu] = useState(false)
+  const [showToolsMenu, setShowToolsMenu] = useState(false)
+  const [mode, setMode] = useState<'editing' | 'viewing'>('editing')
+  const [showCommentsPanel, setShowCommentsPanel] = useState(false)
+  const [hideSidebar, setHideSidebar] = useState(false)
+  const [showPrintLayout, setShowPrintLayout] = useState(true)
+  const [showPageNumbers, setShowPageNumbers] = useState(false)
+  const [pageOrientation, setPageOrientation] = useState<'portrait' | 'landscape'>('portrait')
+  const [watermarkText, setWatermarkText] = useState('')
+  const [showRuler, setShowRuler] = useState(true)
+  const [showEquationToolbar, setShowEquationToolbar] = useState(false)
+  const [showInvisibleChars, setShowInvisibleChars] = useState(false)
+  const [showLineNumbers, setShowLineNumbers] = useState(false)
+  const [lineSpacing, setLineSpacing] = useState(1.7)
   const editorRef = useRef<HTMLDivElement>(null)
+  const docsShellRef = useRef<HTMLDivElement>(null)
+  const headerInputRef = useRef<HTMLInputElement>(null)
+  const footerInputRef = useRef<HTMLInputElement>(null)
   const lastRenderedPageIdRef = useRef<string>('')
   const selectionRangeRef = useRef<Range | null>(null)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const reconcileTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const presenceRefreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const isUnmountedRef = useRef(false)
   const yDocRef = useRef<Y.Doc | null>(null)
   const channelRef = useRef<any>(null)
@@ -74,7 +103,9 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
           .map((page: any) => ({
             id: typeof page?.id === 'string' ? page.id : createId(),
             title: typeof page?.title === 'string' && page.title.trim() ? page.title : 'Untitled',
+            header: typeof page?.header === 'string' ? page.header : '',
             html: typeof page?.html === 'string' ? page.html : '<p></p>',
+            footer: typeof page?.footer === 'string' ? page.footer : '',
           }))
           .filter((page: ProjectDocPage) => page.id && page.title)
       : []
@@ -227,6 +258,33 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
     setRemoteCursors(next)
   }
 
+  const calculateOnlineCount = (presenceState?: Record<string, any[]>) => {
+    const state = presenceState || (channelRef.current?.presenceState?.() as Record<string, any[]>) || {}
+    const now = Date.now()
+    const ACTIVE_TTL_MS = 30000
+    const uniqueUsers = new Set<string>()
+
+    for (const entries of Object.values(state)) {
+      if (!Array.isArray(entries)) continue
+      for (const entry of entries) {
+        if (!entry) continue
+        const userId = typeof entry.userId === 'string' ? entry.userId : undefined
+        const at = typeof entry.at === 'number' ? entry.at : 0
+        if (!userId) continue
+        if (at > 0 && now - at > ACTIVE_TTL_MS) continue
+        uniqueUsers.add(userId)
+      }
+    }
+
+    return Math.max(1, uniqueUsers.size)
+  }
+
+  const refreshPresenceUi = (presenceState?: Record<string, any[]>) => {
+    if (isUnmountedRef.current) return
+    setOnlineCount(calculateOnlineCount(presenceState))
+    updateRenderedRemoteCursors(presenceState)
+  }
+
   const getYCollections = () => {
     const yDoc = yDocRef.current
     if (!yDoc) return null
@@ -248,11 +306,15 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
     const normalizedPages: ProjectDocPage[] = allIds.map(id => {
       const pageMap = pages.get(id)
       const titleText = pageMap?.get('title') as Y.Text | undefined
+      const headerText = pageMap?.get('header') as Y.Text | undefined
       const htmlText = pageMap?.get('html') as Y.Text | undefined
+      const footerText = pageMap?.get('footer') as Y.Text | undefined
       return {
         id,
         title: titleText?.toString()?.trim() || 'Untitled',
+        header: headerText?.toString() || '',
         html: htmlText?.toString() || '<p></p>',
+        footer: footerText?.toString() || '',
       }
     })
 
@@ -283,10 +345,16 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
         const pageMap = new Y.Map<any>()
         const title = new Y.Text()
         title.insert(0, page.title || 'Untitled')
+        const header = new Y.Text()
+        header.insert(0, page.header || '')
         const html = new Y.Text()
         html.insert(0, page.html || '<p></p>')
+        const footer = new Y.Text()
+        footer.insert(0, page.footer || '')
         pageMap.set('title', title)
+        pageMap.set('header', header)
         pageMap.set('html', html)
+        pageMap.set('footer', footer)
         pages.set(page.id, pageMap)
       }
       pageOrder.insert(0, initialDoc.pages.map(page => page.id))
@@ -335,13 +403,19 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
         if (!pageMap) {
           pageMap = new Y.Map<any>()
           pageMap.set('title', new Y.Text())
+          pageMap.set('header', new Y.Text())
           pageMap.set('html', new Y.Text())
+          pageMap.set('footer', new Y.Text())
           pages.set(page.id, pageMap)
         }
         const titleText = pageMap.get('title') as Y.Text
+        const headerText = pageMap.get('header') as Y.Text
         const htmlText = pageMap.get('html') as Y.Text
+        const footerText = pageMap.get('footer') as Y.Text
         applyTextDiff(titleText, page.title || 'Untitled')
+        applyTextDiff(headerText, page.header || '')
         applyTextDiff(htmlText, page.html || '<p></p>')
+        applyTextDiff(footerText, page.footer || '')
       }
 
       // Replace page order to match server.
@@ -418,12 +492,16 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
           }
         })
         .on('presence', { event: 'sync' }, () => {
-          const state = channel.presenceState()
-          const count = Object.keys(state).length || 1
-          if (!isUnmountedRef.current) {
-            setOnlineCount(count)
-            updateRenderedRemoteCursors(state as Record<string, any[]>)
-          }
+          const state = channel.presenceState() as Record<string, any[]>
+          refreshPresenceUi(state)
+        })
+        .on('presence', { event: 'join' }, () => {
+          const state = channel.presenceState() as Record<string, any[]>
+          refreshPresenceUi(state)
+        })
+        .on('presence', { event: 'leave' }, () => {
+          const state = channel.presenceState() as Record<string, any[]>
+          refreshPresenceUi(state)
         })
         .subscribe(async (status: string) => {
           if (status === 'SUBSCRIBED') {
@@ -436,6 +514,7 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
               at: Date.now(),
             })
             if (!isUnmountedRef.current) setSyncInfo('Realtime aktiv')
+            refreshPresenceUi(channel.presenceState() as Record<string, any[]>)
           }
         })
 
@@ -477,6 +556,12 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
 
       dbChannelRef.current = dbChannel
 
+      // Keep presence UI aligned across clients even through reconnect jitter.
+      presenceRefreshTimerRef.current = setInterval(() => {
+        const state = channelRef.current?.presenceState?.() as Record<string, any[]> | undefined
+        refreshPresenceUi(state)
+      }, 1200)
+
       // Reconcile with persisted state periodically as a safety net.
       // This catches rare missed realtime events without requiring refresh.
       reconcileTimerRef.current = setInterval(async () => {
@@ -512,6 +597,10 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
       if (reconcileTimerRef.current) {
         clearInterval(reconcileTimerRef.current)
         reconcileTimerRef.current = null
+      }
+      if (presenceRefreshTimerRef.current) {
+        clearInterval(presenceRefreshTimerRef.current)
+        presenceRefreshTimerRef.current = null
       }
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
       if (presenceThrottleTimerRef.current) clearTimeout(presenceThrottleTimerRef.current)
@@ -585,6 +674,42 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
     }, LOCAL_ORIGIN)
   }
 
+  const handleHeaderChange = (headerValue: string) => {
+    if (!canEdit) return
+    lastLocalEditAtRef.current = Date.now()
+    const collections = getYCollections()
+    if (!collections) return
+    const { yDoc, root, pages } = collections
+    const activePageId = root.get('activePageId')
+    if (typeof activePageId !== 'string') return
+    const pageMap = pages.get(activePageId)
+    const headerText = pageMap?.get('header') as Y.Text | undefined
+    if (!headerText) return
+
+    yDoc.transact(() => {
+      applyTextDiff(headerText, headerValue)
+      root.set('updatedAt', Date.now())
+    }, LOCAL_ORIGIN)
+  }
+
+  const handleFooterChange = (footerValue: string) => {
+    if (!canEdit) return
+    lastLocalEditAtRef.current = Date.now()
+    const collections = getYCollections()
+    if (!collections) return
+    const { yDoc, root, pages } = collections
+    const activePageId = root.get('activePageId')
+    if (typeof activePageId !== 'string') return
+    const pageMap = pages.get(activePageId)
+    const footerText = pageMap?.get('footer') as Y.Text | undefined
+    if (!footerText) return
+
+    yDoc.transact(() => {
+      applyTextDiff(footerText, footerValue)
+      root.set('updatedAt', Date.now())
+    }, LOCAL_ORIGIN)
+  }
+
   const setActivePage = (pageId: string) => {
     lastLocalEditAtRef.current = Date.now()
     const collections = getYCollections()
@@ -644,7 +769,7 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
   }
 
   const exec = (command: string, value?: string) => {
-    if (!canEdit) return
+    if (!canEdit || mode === 'viewing') return
     const selection = window.getSelection()
     if (selectionRangeRef.current && selection) {
       selection.removeAllRanges()
@@ -657,6 +782,45 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
     }
     const html = editorRef.current?.innerHTML || '<p></p>'
     handleContentChange(html)
+  }
+
+  const insertHtml = (html: string) => {
+    if (!canEdit || mode === 'viewing') return
+    editorRef.current?.focus()
+    document.execCommand('insertHTML', false, html)
+    const currentHtml = editorRef.current?.innerHTML || '<p></p>'
+    handleContentChange(currentHtml)
+    rememberSelection()
+  }
+
+  const insertElement = (type: string, innerHtml: string) => {
+    insertHtml(
+      `<div data-insert-type="${type}" style="position:relative;border:1px dashed #D1D5DB;border-radius:8px;padding:8px 10px;margin:10px 0;background:#fff;">${innerHtml}</div><p></p>`
+    )
+  }
+
+  const removeSelectedInsertElement = () => {
+    if (!canEdit || mode === 'viewing') return
+    const editor = editorRef.current
+    const selection = window.getSelection()
+    if (!editor || !selection || selection.rangeCount === 0) return
+    const anchorNode = selection.anchorNode
+    const anchorEl =
+      anchorNode instanceof Element
+        ? anchorNode
+        : anchorNode?.parentElement || null
+    if (!anchorEl) return
+
+    const removable = anchorEl.closest('[data-insert-type], [data-docs-toc="true"]') as HTMLElement | null
+    if (!removable || !editor.contains(removable)) return
+    removable.remove()
+    const currentHtml = editor.innerHTML || '<p></p>'
+    handleContentChange(currentHtml)
+    rememberSelection()
+  }
+
+  const insertColumns = () => {
+    insertHtml('<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;"><div><p>Kolonne 1</p></div><div><p>Kolonne 2</p></div></div><p></p>')
   }
 
   const rememberSelection = () => {
@@ -677,6 +841,8 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
     if (!win) return
 
     const safeTitle = (activePage?.title || 'project-doc').replace(/[^\w\s-]/g, '').trim() || 'project-doc'
+    const safeHeader = activePage?.header || ''
+    const safeFooter = activePage?.footer || ''
     win.document.write(`
       <!doctype html>
       <html>
@@ -686,6 +852,10 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
           <style>
             @page { size: A4; margin: 16mm; }
             body { font-family: Georgia, Cambria, "Times New Roman", Times, serif; color: #111827; }
+            .doc-shell { min-height: calc(297mm - 32mm); display: flex; flex-direction: column; }
+            .doc-header { border-bottom: 1px solid #E5E7EB; min-height: 1.27cm; margin-bottom: 8mm; font-size: 12px; color: #4B5563; display:flex; align-items:flex-end; padding-bottom: 2mm; }
+            .doc-content { flex: 1; }
+            .doc-footer { border-top: 1px solid #E5E7EB; min-height: 1.27cm; margin-top: 8mm; font-size: 12px; color: #6B7280; text-align: right; display:flex; align-items:flex-start; justify-content:flex-end; padding-top: 2mm; }
             h1, h2, h3 { margin: 0 0 12px; }
             p { line-height: 1.7; margin: 0 0 10px; }
             ul, ol { margin: 0 0 12px 22px; }
@@ -695,14 +865,84 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
           </style>
         </head>
         <body>
-          <h1>${activePage?.title || 'Untitled document'}</h1>
-          ${htmlContent}
+          <div class="doc-shell">
+            <div class="doc-header">${safeHeader || '&nbsp;'}</div>
+            <div class="doc-content">
+              <h1>${activePage?.title || 'Untitled document'}</h1>
+              ${htmlContent}
+            </div>
+            <div class="doc-footer">${safeFooter || '&nbsp;'}</div>
+          </div>
         </body>
       </html>
     `)
     win.document.close()
     win.focus()
     setTimeout(() => win.print(), 150)
+  }
+
+  const toggleFullscreen = async () => {
+    try {
+      if (!document.fullscreenElement) {
+        await docsShellRef.current?.requestFullscreen()
+      } else {
+        await document.exitFullscreen()
+      }
+    } catch {
+      // Ignore unsupported fullscreen API errors
+    }
+  }
+
+  const getWordCount = () => {
+    const text = (editorRef.current?.innerText || '').trim()
+    if (!text) return 0
+    return text.split(/\s+/).length
+  }
+
+  const runTranslateDocument = () => {
+    const text = editorRef.current?.innerText?.trim() || ''
+    if (!text) return
+    const to = window.prompt('Oversæt dokument til (fx en, de, fr)', 'en')
+    if (!to) return
+    insertHtml(`<p><em>Oversættelse (${to}) placeholder:</em></p><p>${text.slice(0, 1200)}</p><p></p>`)
+  }
+
+  const insertTableOfContents = () => {
+    const editor = editorRef.current
+    if (!editor) return
+    const headings = Array.from(editor.querySelectorAll('h1, h2, h3')) as HTMLElement[]
+    if (headings.length === 0) {
+      insertElement('toc', '<div data-docs-toc="true"><strong>Indholdsfortegnelse</strong><p><em>Ingen overskrifter endnu (brug H1/H2/H3).</em></p></div>')
+      return
+    }
+    const slugify = (text: string) =>
+      text
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9æøå\s-]/gi, '')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+
+    const items = headings
+      .map((h, index) => {
+        const text = (h.innerText || h.textContent || '').trim() || `Afsnit ${index + 1}`
+        const id = h.id || `toc-${slugify(text) || index + 1}-${index + 1}`
+        h.id = id
+        const level = Number(h.tagName.replace('H', '')) || 1
+        const indent = Math.max(0, level - 1) * 14
+        return `<li style="margin:4px 0 4px ${indent}px;"><a href="#${id}" style="color:#1D4ED8;text-decoration:none;">${text}</a></li>`
+      })
+      .join('')
+
+    insertElement('toc', `<div data-docs-toc="true" style="padding:10px 12px;border:1px solid #E5E7EB;border-radius:8px;background:#F9FAFB;"><strong>Indholdsfortegnelse</strong><ul style="margin:8px 0 0 0;padding:0;list-style:none;">${items}</ul></div>`)
+  }
+
+  const insertFootnote = () => {
+    const note = window.prompt('Fodnote tekst')
+    if (!note) return
+    const marker = `<sup style="font-size:10px;color:#6B7280;">[${Date.now().toString().slice(-3)}]</sup>`
+    const footnote = `<p style="font-size:12px;color:#6B7280;margin-top:6px;"><em>Fodnote:</em> ${note}</p>`
+    insertElement('footnote', `${marker}${footnote}`)
   }
 
   const saveStatus = useMemo(() => {
@@ -761,10 +1001,12 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
     fontSize: 12,
     fontWeight: 600,
     cursor: 'pointer',
+    textAlign: 'left',
   }
 
   return (
     <div
+      ref={docsShellRef}
       style={{
         position: 'fixed',
         top: 56,
@@ -798,7 +1040,327 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
             background: '#FFFFFF',
           }}
         >
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>Projekt Docs</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>Projekt Docs</div>
+            <div style={{ position: 'relative' }}>
+              <button
+                type="button"
+                onClick={() => setShowInsertMenu(v => !v)}
+                style={{
+                  border: '1px solid #D1D5DB',
+                  background: '#fff',
+                  color: '#374151',
+                  borderRadius: 8,
+                  padding: '5px 10px',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Indsæt ▾
+              </button>
+              {showInsertMenu && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 6px)',
+                    left: 0,
+                    zIndex: 60,
+                    width: 280,
+                    background: '#fff',
+                    border: '1px solid #E5E7EB',
+                    borderRadius: 12,
+                    boxShadow: '0 18px 32px rgba(0,0,0,0.12)',
+                    padding: 10,
+                    display: 'grid',
+                    gap: 6,
+                  }}
+                >
+                  <button type="button" onClick={() => insertElement('image', '<img src=\"https://placehold.co/900x380?text=Billede\" alt=\"Billede\" style=\"max-width:100%;height:auto;border:1px solid #e5e7eb;border-radius:8px;\" />')} style={toolbarButtonStyle}>Billede</button>
+                  <button type="button" onClick={() => insertElement('table', '<table style=\"width:100%;border-collapse:collapse;\"><tr><th style=\"border:1px solid #d1d5db;padding:6px;\">Kolonne 1</th><th style=\"border:1px solid #d1d5db;padding:6px;\">Kolonne 2</th></tr><tr><td style=\"border:1px solid #d1d5db;padding:6px;\">Data</td><td style=\"border:1px solid #d1d5db;padding:6px;\">Data</td></tr></table>')} style={toolbarButtonStyle}>Tabel</button>
+                  <button type="button" onClick={() => insertElement('blocks', '<div style=\"display:flex;gap:8px;flex-wrap:wrap;\"><span style=\"padding:4px 8px;border-radius:999px;background:#E0F2FE;border:1px solid #7DD3FC;\">Byggeklods</span><span style=\"padding:4px 8px;border-radius:999px;background:#F3E8FF;border:1px solid #D8B4FE;\">Byggeklods</span></div>')} style={toolbarButtonStyle}>Byggeklodser</button>
+                  <button type="button" onClick={() => insertElement('smartchip', '<span style=\"display:inline-flex;align-items:center;gap:6px;padding:3px 8px;border-radius:999px;background:#FEF3C7;border:1px solid #FCD34D;font-size:12px;\">Smartchip</span>')} style={toolbarButtonStyle}>Smartchips</button>
+                  <button type="button" onClick={() => insertElement('audio-button', '<button style=\"padding:6px 10px;border-radius:8px;border:1px solid #d1d5db;background:#fff;\">🔊 Afspil lyd</button>')} style={toolbarButtonStyle}>Knapper til lyd</button>
+                  <button type="button" onClick={() => insertElement('signature', '<div style=\"padding:8px 12px;border:1px dashed #9CA3AF;border-radius:8px;display:inline-block;\">✍️ Elektronisk underskrift</div>')} style={toolbarButtonStyle}>Elektronisk underskrift</button>
+                  <button type="button" onClick={() => { const url = window.prompt('Indsæt link (https://...)'); if (url) exec('createLink', url) }} style={toolbarButtonStyle}>Link</button>
+                  <button type="button" onClick={() => insertElement('diagram', '<svg width=\"520\" height=\"180\" viewBox=\"0 0 520 180\"><rect x=\"20\" y=\"20\" width=\"140\" height=\"48\" rx=\"8\" fill=\"#DBEAFE\" stroke=\"#60A5FA\"/><rect x=\"200\" y=\"20\" width=\"140\" height=\"48\" rx=\"8\" fill=\"#DCFCE7\" stroke=\"#4ADE80\"/><rect x=\"380\" y=\"20\" width=\"120\" height=\"48\" rx=\"8\" fill=\"#FEF3C7\" stroke=\"#F59E0B\"/><line x1=\"160\" y1=\"44\" x2=\"200\" y2=\"44\" stroke=\"#6B7280\" stroke-width=\"2\"/><line x1=\"340\" y1=\"44\" x2=\"380\" y2=\"44\" stroke=\"#6B7280\" stroke-width=\"2\"/></svg>')} style={toolbarButtonStyle}>Tegning / Diagram</button>
+                  <button type="button" onClick={() => insertElement('symbols', '<div style=\"font-size:24px;letter-spacing:6px;\">◆ ● ▲ ■ ✦ ✓ ✗</div>')} style={toolbarButtonStyle}>Symboler</button>
+                  <button type="button" onClick={() => addPage()} style={toolbarButtonStyle}>Fane</button>
+                  <button type="button" onClick={() => insertElement('horizontal-rule', '<hr style=\"border:none;border-top:1px solid #D1D5DB;margin:8px 0;\" />')} style={toolbarButtonStyle}>Vandret streg</button>
+                  <button type="button" onClick={() => insertElement('page-break', '<div style=\"height:1px;border-top:2px dashed #9CA3AF;margin:10px 0;\"></div><div style=\"font-size:11px;color:#6B7280;text-transform:uppercase;letter-spacing:.06em;\">Side-/kolonneskift</div>')} style={toolbarButtonStyle}>Side-/kolonneskift</button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const name = window.prompt('Bogmærke-navn')
+                      if (name) insertElement('bookmark', `<a id=\"bookmark-${name.replaceAll(' ', '-')}\" style=\"display:inline-block;padding:2px 6px;border:1px solid #E5E7EB;border-radius:6px;background:#F9FAFB;font-size:11px;\">🔖 ${name}</a>`)
+                    }}
+                    style={toolbarButtonStyle}
+                  >
+                    Bogmærke
+                  </button>
+                  <div
+                    style={{ position: 'relative' }}
+                    onMouseEnter={() => setShowSideElementsSubmenu(true)}
+                    onMouseLeave={() => setShowSideElementsSubmenu(false)}
+                  >
+                    <button type="button" style={{ ...toolbarButtonStyle, width: '100%', textAlign: 'left' }}>
+                      Sideelementer ▸
+                    </button>
+                    {showSideElementsSubmenu && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 'calc(100% + 8px)',
+                          zIndex: 70,
+                          width: 280,
+                          background: '#fff',
+                          border: '1px solid #E5E7EB',
+                          borderRadius: 12,
+                          boxShadow: '0 18px 32px rgba(0,0,0,0.12)',
+                          padding: 8,
+                          display: 'grid',
+                          gap: 6,
+                        }}
+                      >
+                        <button type="button" onClick={insertTableOfContents} style={toolbarButtonStyle}>Indholdsfortegnelse</button>
+                        <button type="button" onClick={() => headerInputRef.current?.focus()} style={toolbarButtonStyle}>Sidehoved</button>
+                        <button type="button" onClick={() => footerInputRef.current?.focus()} style={toolbarButtonStyle}>Sidefod</button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const value = window.prompt('Vandmærke tekst', watermarkText || 'Udkast')
+                            if (value !== null) setWatermarkText(value.trim())
+                          }}
+                          style={toolbarButtonStyle}
+                        >
+                          Vandmærke
+                        </button>
+                        <button type="button" onClick={() => setShowPageNumbers(v => !v)} style={toolbarButtonStyle}>
+                          Sidetal: {showPageNumbers ? 'Til' : 'Fra'}
+                        </button>
+                        <button type="button" onClick={insertFootnote} style={toolbarButtonStyle}>Fodnote</button>
+                      </div>
+                    )}
+                  </div>
+                  <button type="button" onClick={removeSelectedInsertElement} style={toolbarButtonStyle}>
+                    Slet indsat element
+                  </button>
+                  <button type="button" onClick={() => setShowCommentsPanel(v => !v)} style={toolbarButtonStyle}>Kommenter</button>
+                </div>
+              )}
+            </div>
+            <div style={{ position: 'relative' }}>
+              <button
+                type="button"
+                onClick={() => setShowViewMenu(v => !v)}
+                style={{
+                  border: '1px solid #D1D5DB',
+                  background: '#fff',
+                  color: '#374151',
+                  borderRadius: 8,
+                  padding: '5px 10px',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Visning ▾
+              </button>
+              {showViewMenu && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 6px)',
+                    left: 0,
+                    zIndex: 60,
+                    width: 330,
+                    background: '#fff',
+                    border: '1px solid #E5E7EB',
+                    borderRadius: 12,
+                    boxShadow: '0 18px 32px rgba(0,0,0,0.12)',
+                    padding: 10,
+                    display: 'grid',
+                    gap: 6,
+                  }}
+                >
+                  <button type="button" onClick={() => setMode(m => (m === 'editing' ? 'viewing' : 'editing'))} style={toolbarButtonStyle}>
+                    Tilstand: {mode === 'editing' ? 'Redigering' : 'Visning'}
+                  </button>
+                  <button type="button" onClick={() => setShowCommentsPanel(v => !v)} style={toolbarButtonStyle}>
+                    Kommentarer: {showCommentsPanel ? 'Vises' : 'Skjult'}
+                  </button>
+                  <button type="button" onClick={() => setHideSidebar(v => !v)} style={toolbarButtonStyle}>
+                    Skjul sidebjælken: {hideSidebar ? 'Ja' : 'Nej'}
+                  </button>
+                  <button type="button" onClick={() => setShowPrintLayout(v => !v)} style={toolbarButtonStyle}>
+                    Vis udskriftslayout: {showPrintLayout ? 'Ja' : 'Nej'}
+                  </button>
+                  <button type="button" onClick={() => setShowRuler(v => !v)} style={toolbarButtonStyle}>
+                    Vis lineal: {showRuler ? 'Ja' : 'Nej'}
+                  </button>
+                  <button type="button" onClick={() => setShowEquationToolbar(v => !v)} style={toolbarButtonStyle}>
+                    Vis ligningsværktøjslinje: {showEquationToolbar ? 'Ja' : 'Nej'}
+                  </button>
+                  <button type="button" onClick={() => setShowInvisibleChars(v => !v)} style={toolbarButtonStyle}>
+                    Vis usynlige tegn: {showInvisibleChars ? 'Ja' : 'Nej'}
+                  </button>
+                  <button type="button" onClick={toggleFullscreen} style={toolbarButtonStyle}>
+                    Fuld skærm
+                  </button>
+                </div>
+              )}
+            </div>
+            <div style={{ position: 'relative' }}>
+              <button
+                type="button"
+                onClick={() => setShowFormatMenu(v => !v)}
+                style={{
+                  border: '1px solid #D1D5DB',
+                  background: '#fff',
+                  color: '#374151',
+                  borderRadius: 8,
+                  padding: '5px 10px',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Formatér ▾
+              </button>
+              {showFormatMenu && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 6px)',
+                    left: 0,
+                    zIndex: 60,
+                    width: 360,
+                    background: '#fff',
+                    border: '1px solid #E5E7EB',
+                    borderRadius: 12,
+                    boxShadow: '0 18px 32px rgba(0,0,0,0.12)',
+                    padding: 10,
+                    display: 'grid',
+                    gap: 6,
+                  }}
+                >
+                  <button type="button" onClick={() => exec('bold')} style={toolbarButtonStyle}>Tekst</button>
+                  <button type="button" onClick={() => exec('formatBlock', '<H2>')} style={toolbarButtonStyle}>Afsnitsstile</button>
+                  <button type="button" onClick={() => exec('justifyLeft')} style={toolbarButtonStyle}>Juster og indryk</button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const value = window.prompt('Linjeafstand (fx 1.2, 1.5, 1.7, 2.0)', String(lineSpacing))
+                      const parsed = Number(value)
+                      if (Number.isFinite(parsed) && parsed > 0.8 && parsed < 4) setLineSpacing(parsed)
+                    }}
+                    style={toolbarButtonStyle}
+                  >
+                    Linje- og afsnitsafstand
+                  </button>
+                  <button type="button" onClick={insertColumns} style={toolbarButtonStyle}>Kolonner</button>
+                  <button type="button" onClick={() => exec('insertUnorderedList')} style={toolbarButtonStyle}>Punkttegn og nummerering</button>
+                  <button type="button" onClick={() => headerInputRef.current?.focus()} style={toolbarButtonStyle}>Sidehoveder og sidefødder</button>
+                  <button type="button" onClick={() => setShowPageNumbers(v => !v)} style={toolbarButtonStyle}>
+                    Sidetal: {showPageNumbers ? 'Til' : 'Fra'}
+                  </button>
+                  <button type="button" onClick={() => setPageOrientation(v => (v === 'portrait' ? 'landscape' : 'portrait'))} style={toolbarButtonStyle}>
+                    Sideretning: {pageOrientation === 'portrait' ? 'Portræt' : 'Landskab'}
+                  </button>
+                  <button type="button" onClick={() => setShowPrintLayout(v => !v)} style={toolbarButtonStyle}>
+                    Skift til formatet Uden sideinddeling: {showPrintLayout ? 'Nej' : 'Ja'}
+                  </button>
+                  <button type="button" onClick={() => insertHtml('<table style="width:100%;border-collapse:collapse;"><tr><th style="border:1px solid #d1d5db;padding:6px;">Kolonne 1</th><th style="border:1px solid #d1d5db;padding:6px;">Kolonne 2</th></tr><tr><td style="border:1px solid #d1d5db;padding:6px;">Data</td><td style="border:1px solid #d1d5db;padding:6px;">Data</td></tr></table><p></p>')} style={toolbarButtonStyle}>Tabel</button>
+                  <button type="button" onClick={() => insertHtml('<img src=\"https://placehold.co/900x380?text=Billede\" alt=\"Billede\" style=\"max-width:100%;height:auto;border:1px solid #e5e7eb;border-radius:8px;\" /><p></p>')} style={toolbarButtonStyle}>Billede</button>
+                  <button type="button" onClick={() => insertHtml('<hr style=\"border:none;border-top:2px solid #9CA3AF;margin:14px 0;\" />')} style={toolbarButtonStyle}>Kanter og linjer</button>
+                  <button type="button" onClick={() => exec('removeFormat')} style={toolbarButtonStyle}>Ryd formatering</button>
+                </div>
+              )}
+            </div>
+            <div style={{ position: 'relative' }}>
+              <button
+                type="button"
+                onClick={() => setShowToolsMenu(v => !v)}
+                style={{
+                  border: '1px solid #D1D5DB',
+                  background: '#fff',
+                  color: '#374151',
+                  borderRadius: 8,
+                  padding: '5px 10px',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Værktøjer ▾
+              </button>
+              {showToolsMenu && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 6px)',
+                    left: 0,
+                    zIndex: 60,
+                    width: 360,
+                    background: '#fff',
+                    border: '1px solid #E5E7EB',
+                    borderRadius: 12,
+                    boxShadow: '0 18px 32px rgba(0,0,0,0.12)',
+                    padding: 10,
+                    display: 'grid',
+                    gap: 6,
+                  }}
+                >
+                  <button type="button" onClick={() => window.alert('Stave-/grammatikkontrol kan tilkobles med browser eller ekstern API.')} style={toolbarButtonStyle}>
+                    Stavemåde og grammatik
+                  </button>
+                  <button type="button" onClick={() => window.alert(`Antal ord: ${getWordCount()}`)} style={toolbarButtonStyle}>
+                    Antal ord
+                  </button>
+                  <button type="button" onClick={() => window.alert('Gennemse foreslåede redigeringer: kommende collaborative feature')} style={toolbarButtonStyle}>
+                    Gennemse foreslåede redigeringer
+                  </button>
+                  <button type="button" onClick={() => insertHtml('<blockquote>Henvisning: [indsæt kilde]</blockquote><p></p>')} style={toolbarButtonStyle}>
+                    Henvisninger
+                  </button>
+                  <button type="button" onClick={() => insertHtml('<div style=\"margin:10px 0;padding:8px 12px;border:1px dashed #9CA3AF;border-radius:8px;display:inline-block;\">✍️ Elektronisk underskrift</div><p></p>')} style={toolbarButtonStyle}>
+                    Elektronisk underskrift
+                  </button>
+                  <button type="button" onClick={() => setShowLineNumbers(v => !v)} style={toolbarButtonStyle}>
+                    Linjenumre: {showLineNumbers ? 'Til' : 'Fra'}
+                  </button>
+                  <button type="button" onClick={() => insertHtml('<div style=\"padding:8px;border:1px solid #E5E7EB;border-radius:8px;background:#F8FAFC;\">Tilknyttet objekt: [indsæt link/id]</div><p></p>')} style={toolbarButtonStyle}>
+                    Tilknyttede objekter
+                  </button>
+                  <button type="button" onClick={() => {
+                    const word = window.prompt('Ordbog: slå ord op')
+                    if (word) window.open(`https://ordnet.dk/ddo/ordbog?query=${encodeURIComponent(word)}`, '_blank')
+                  }} style={toolbarButtonStyle}>
+                    Ordbog
+                  </button>
+                  <button type="button" onClick={runTranslateDocument} style={toolbarButtonStyle}>
+                    Oversæt dokument
+                  </button>
+                  <button type="button" onClick={() => insertHtml('<button style=\"padding:6px 10px;border-radius:8px;border:1px solid #d1d5db;background:#fff;\">🔊 Afspil lyd</button>')} style={toolbarButtonStyle}>
+                    Lyd
+                  </button>
+                  <button type="button" onClick={() => window.alert('Gemini-assistent kan bruges via chat-panelet ✨')} style={toolbarButtonStyle}>
+                    Gemini
+                  </button>
+                  <button type="button" onClick={() => window.alert('Notifikationsindstillinger: kommende')} style={toolbarButtonStyle}>
+                    Notifikationsindstillinger
+                  </button>
+                  <button type="button" onClick={() => window.alert('Præferencer: kommende')} style={toolbarButtonStyle}>
+                    Præferencer
+                  </button>
+                  <button type="button" onClick={() => window.alert('Tilgængelighed: kommende')} style={toolbarButtonStyle}>
+                    Tilgængelighed
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <button
               onClick={exportToPdf}
@@ -820,8 +1382,8 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '230px 1fr', minHeight: 'calc(100vh - 140px)' }}>
-          <aside
+        <div style={{ display: 'grid', gridTemplateColumns: hideSidebar ? '1fr' : '230px 1fr', minHeight: 'calc(100vh - 140px)' }}>
+          {!hideSidebar && <aside
             style={{
               borderRight: '1px solid #E5E7EB',
               background: '#F8FAFC',
@@ -903,7 +1465,7 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
                 )
               })}
             </div>
-          </aside>
+          </aside>}
 
           <section style={{ background: '#F3F4F6', overflow: 'auto' }}>
             <div
@@ -977,6 +1539,22 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
               <button onMouseDown={e => e.preventDefault()} onClick={() => exec('undo')} type="button" style={toolbarButtonStyle}>Undo</button>
               <button onMouseDown={e => e.preventDefault()} onClick={() => exec('redo')} type="button" style={toolbarButtonStyle}>Redo</button>
             </div>
+            {showRuler && (
+              <div style={{ background: '#fff', borderBottom: '1px solid #E5E7EB', padding: '2px 18px', fontSize: 10, color: '#9CA3AF', letterSpacing: '.02em' }}>
+                {Array.from({ length: 21 }).map((_, i) => (
+                  <span key={i} style={{ display: 'inline-block', width: '10mm', textAlign: 'center' }}>{i}</span>
+                ))}
+              </div>
+            )}
+            {showEquationToolbar && (
+              <div style={{ background: '#fff', borderBottom: '1px solid #E5E7EB', padding: '8px 12px', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button onMouseDown={e => e.preventDefault()} onClick={() => insertHtml('<span>∑</span>')} type="button" style={toolbarButtonStyle}>∑</button>
+                <button onMouseDown={e => e.preventDefault()} onClick={() => insertHtml('<span>∫</span>')} type="button" style={toolbarButtonStyle}>∫</button>
+                <button onMouseDown={e => e.preventDefault()} onClick={() => insertHtml('<span>√x</span>')} type="button" style={toolbarButtonStyle}>√x</button>
+                <button onMouseDown={e => e.preventDefault()} onClick={() => insertHtml('<span>x²</span>')} type="button" style={toolbarButtonStyle}>x²</button>
+                <button onMouseDown={e => e.preventDefault()} onClick={() => insertHtml('<span>π</span>')} type="button" style={toolbarButtonStyle}>π</button>
+              </div>
+            )}
 
             <div style={{ padding: '18px 24px 36px' }}>
               <input
@@ -998,16 +1576,36 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
               <div
                 style={{
                   width: '100%',
-                  maxWidth: 860,
-                  minHeight: 'calc(100vh - 300px)',
+                  maxWidth: showPrintLayout ? (pageOrientation === 'portrait' ? '210mm' : '297mm') : '100%',
+                  minHeight: showPrintLayout ? (pageOrientation === 'portrait' ? '297mm' : '210mm') : 'calc(100vh - 260px)',
                   margin: '0 auto',
                   position: 'relative',
                   border: '1px solid #E5E7EB',
                   borderRadius: 6,
                   background: '#fff',
                   boxShadow: '0 4px 18px rgba(0,0,0,0.06)',
+                  display: 'flex',
+                  flexDirection: 'column',
                 }}
               >
+                <div style={{ borderBottom: '1px solid #E5E7EB', minHeight: '1.27cm', padding: '0.2cm 1.2cm', display: 'flex', alignItems: 'flex-end' }}>
+                  <input
+                    ref={headerInputRef}
+                    value={activePage?.header || ''}
+                    onChange={e => handleHeaderChange(e.target.value)}
+                    disabled={!canEdit}
+                    placeholder="Header (fx projektnavn, dato, team)"
+                    style={{
+                      width: '100%',
+                      border: 'none',
+                      outline: 'none',
+                      background: 'transparent',
+                      fontSize: 12,
+                      color: '#4B5563',
+                      fontStyle: activePage?.header ? 'normal' : 'italic',
+                    }}
+                  />
+                </div>
                 <div
                   onScroll={() => updateRenderedRemoteCursors()}
                   ref={editorRef}
@@ -1020,16 +1618,46 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
                   onClick={rememberSelection}
                   style={{
                     width: '100%',
-                    minHeight: 'calc(100vh - 320px)',
+                    minHeight: 'calc(297mm - 220px)',
+                    flex: 1,
                     outline: 'none',
-                    padding: '32px 42px',
+                    padding: '28px 42px',
                     fontSize: 16,
-                    lineHeight: 1.7,
+                    lineHeight: lineSpacing,
                     color: '#111827',
                     fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif',
                     background: canEdit ? '#fff' : '#FAFAFA',
+                    letterSpacing: showInvisibleChars ? '0.2px' : undefined,
+                    counterReset: showLineNumbers ? 'line' : undefined,
                   }}
                 />
+                {watermarkText && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      pointerEvents: 'none',
+                      zIndex: 2,
+                    }}
+                  >
+                    <div
+                      style={{
+                        transform: 'rotate(-28deg)',
+                        fontSize: 56,
+                        fontWeight: 700,
+                        color: 'rgba(107,114,128,0.12)',
+                        letterSpacing: '.08em',
+                        textTransform: 'uppercase',
+                        userSelect: 'none',
+                      }}
+                    >
+                      {watermarkText}
+                    </div>
+                  </div>
+                )}
                 {remoteCursors.map(cursor => (
                   <div
                     key={cursor.id}
@@ -1058,9 +1686,41 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
                     </div>
                   </div>
                 ))}
+                <div style={{ borderTop: '1px solid #E5E7EB', minHeight: '1.27cm', padding: '0.2cm 1.2cm', display: 'flex', alignItems: 'flex-start' }}>
+                  <input
+                    ref={footerInputRef}
+                    value={activePage?.footer || ''}
+                    onChange={e => handleFooterChange(e.target.value)}
+                    disabled={!canEdit}
+                    placeholder="Footer (fx side nr., fortroligt, firma)"
+                    style={{
+                      width: '100%',
+                      border: 'none',
+                      outline: 'none',
+                      background: 'transparent',
+                      fontSize: 12,
+                      color: '#6B7280',
+                      textAlign: 'right',
+                      fontStyle: activePage?.footer ? 'normal' : 'italic',
+                    }}
+                  />
+                  {showPageNumbers && (
+                    <div style={{ marginTop: 6, fontSize: 11, color: '#9CA3AF', textAlign: 'right' }}>Side 1</div>
+                  )}
+                </div>
               </div>
             </div>
           </section>
+          {showCommentsPanel && (
+            <aside style={{ width: 280, borderLeft: '1px solid #E5E7EB', background: '#fff', padding: 12 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 8 }}>Kommentarer</div>
+              <div style={{ fontSize: 12, color: '#6B7280', lineHeight: 1.5 }}>
+                Brug "Kommenter"-knappen til at åbne/lukke denne panelvisning.
+                <br />
+                Næste step kan være trådede kommentarer pr. tekst-markering.
+              </div>
+            </aside>
+          )}
         </div>
       </div>
     </div>

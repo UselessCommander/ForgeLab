@@ -15,7 +15,13 @@ const PROVIDER_MODELS: Record<SupportedProvider, string[]> = {
   google: ['gemini-2.5-flash', 'gemini-2.0-flash'],
   openai: ['gpt-4o-mini', 'gpt-4o'],
   anthropic: ['claude-3-5-sonnet-latest', 'claude-3-5-haiku-latest'],
-  openrouter: ['google/gemma-4-26b-a4b-it:free', 'openai/gpt-4o-mini'],
+  openrouter: [
+    'google/gemma-4-26b-a4b-it:free',
+    'google/gemma-4-31b-it:free',
+    'openai/gpt-oss-120b:free',
+    'nvidia/nemotron-3-super-120b-a12b:free',
+    'openai/gpt-4o-mini',
+  ],
   mistral: ['mistral-small-latest', 'mistral-medium-latest'],
 }
 const ALLOWED_TOOL_SLUGS = [
@@ -150,7 +156,7 @@ export async function POST(req: Request) {
       `- Prioritér moduler fra denne aktuelle "mulige værktøjer"-liste: ${availableToolSlugs.length > 0 ? availableToolSlugs.join(', ') : 'ingen liste modtaget'}.`,
       '- Hvis intet relevant modul findes i den mulige liste, så foreslå i stedet et modul uden at kalde addTool.',
       '',
-      'Når du arbejder med Affinity Diagram:',
+      'Nårdu arbejder med Affinity Diagram:',
       '- Du må bruge værktøjet "populateAffinityDiagram" til at oprette temaer og noter automatisk.',
       '- Brug det når brugeren beder om at strukturere input, eller når en PDF naturligt kan opsummeres i temaer.',
       '- Hold det kort og konkret: 3-6 temaer, 2-8 noter per tema.',
