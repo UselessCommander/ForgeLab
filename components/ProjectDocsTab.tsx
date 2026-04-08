@@ -49,9 +49,11 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
   const isUnmountedRef = useRef(false)
   const yDocRef = useRef<Y.Doc | null>(null)
   const channelRef = useRef<any>(null)
+  const dbChannelRef = useRef<any>(null)
   const applyingRemoteRef = useRef(false)
   const lastYUpdateOriginRef = useRef<any>(null)
   const isSyncingFromServerRef = useRef(false)
+  const lastLocalEditAtRef = useRef(0)
   const clientPresenceIdRef = useRef(`docs-${Math.random().toString(36).slice(2, 8)}`)
 
   const normalizeDoc = (input: any): ProjectDocData => {
@@ -185,7 +187,7 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
       } finally {
         if (!isUnmountedRef.current) setSaving(false)
       }
-    }, 900)
+    }, 250)
   }
 
   const applyServerDocToY = (serverDoc: ProjectDocData) => {
@@ -307,6 +309,42 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
 
       channelRef.current = channel
 
+      // DB-level realtime as primary cross-client sync signal.
+      // This is more reliable than broadcast-only channels across sessions.
+      const dbChannel = supabase
+        .channel(`project-docs-db:${projectId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'project_tool_data',
+            filter: `project_id=eq.${projectId}`,
+          },
+          async (payload: any) => {
+            const row = payload?.new || payload?.old
+            if (!row || row.tool_slug !== DOC_TOOL_SLUG) return
+            if (isSyncingFromServerRef.current) return
+            try {
+              isSyncingFromServerRef.current = true
+              const serverData = await getProjectToolData(projectId, DOC_TOOL_SLUG)
+              const normalized = normalizeDoc(serverData)
+              const localDoc = readDocFromY()
+              if (JSON.stringify(normalized) !== JSON.stringify(localDoc)) {
+                applyServerDocToY(normalized)
+                if (!isUnmountedRef.current) setSyncInfo('Synkroniseret')
+              }
+            } catch {
+              // Keep UI responsive even if one sync pull fails.
+            } finally {
+              isSyncingFromServerRef.current = false
+            }
+          }
+        )
+        .subscribe()
+
+      dbChannelRef.current = dbChannel
+
       // Reconcile with persisted state periodically as a safety net.
       // This catches rare missed realtime events without requiring refresh.
       reconcileTimerRef.current = setInterval(async () => {
@@ -316,7 +354,13 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
           const serverData = await getProjectToolData(projectId, DOC_TOOL_SLUG)
           const normalized = normalizeDoc(serverData)
           const localDoc = readDocFromY()
-          if (normalized.updatedAt > localDoc.updatedAt) {
+          const isLikelyTyping = Date.now() - lastLocalEditAtRef.current < 350
+          const serverSnapshot = JSON.stringify(normalized)
+          const localSnapshot = JSON.stringify(localDoc)
+
+          // Apply server changes whenever content diverges (not only timestamps),
+          // but avoid hard-overwriting in the middle of a local keystroke burst.
+          if (!isLikelyTyping && serverSnapshot !== localSnapshot) {
             applyServerDocToY(normalized)
             if (!isUnmountedRef.current) setSyncInfo('Synkroniseret')
           }
@@ -325,7 +369,7 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
         } finally {
           isSyncingFromServerRef.current = false
         }
-      }, 1500)
+      }, 500)
     }
 
     boot()
@@ -341,6 +385,10 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current)
         channelRef.current = null
+      }
+      if (dbChannelRef.current) {
+        supabase.removeChannel(dbChannelRef.current)
+        dbChannelRef.current = null
       }
       if (yDocRef.current) {
         yDocRef.current.destroy()
@@ -370,6 +418,7 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
 
   const handleContentChange = (content: string) => {
     if (!canEdit) return
+    lastLocalEditAtRef.current = Date.now()
     const collections = getYCollections()
     if (!collections) return
     const { yDoc, root, pages } = collections
@@ -387,6 +436,7 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
 
   const handleDocumentTitleChange = (title: string) => {
     if (!canEdit) return
+    lastLocalEditAtRef.current = Date.now()
     const collections = getYCollections()
     if (!collections) return
     const { yDoc, root, pages } = collections
@@ -403,6 +453,7 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
   }
 
   const setActivePage = (pageId: string) => {
+    lastLocalEditAtRef.current = Date.now()
     const collections = getYCollections()
     if (!collections) return
     const { yDoc, root } = collections
@@ -414,6 +465,7 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
 
   const addPage = () => {
     if (!canEdit) return
+    lastLocalEditAtRef.current = Date.now()
     const collections = getYCollections()
     if (!collections) return
     const { yDoc, root, pages, pageOrder } = collections
@@ -437,6 +489,7 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
 
   const removePage = (pageId: string) => {
     if (!canEdit || doc.pages.length === 1) return
+    lastLocalEditAtRef.current = Date.now()
     const collections = getYCollections()
     if (!collections) return
     const { yDoc, root, pages, pageOrder } = collections
