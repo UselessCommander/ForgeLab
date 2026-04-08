@@ -26,6 +26,9 @@ import { TOOL_SLUGS } from '@/lib/tool-slugs'
 
 import { ToolEmbedProvider } from '@/components/ToolEmbedContext'
 import { getToolComponent } from '@/components/ToolRegistry'
+import AiChatCompanion from '@/components/AiChatCompanion'
+import DoubleDiamondDiagram from '@/components/dashboard/DoubleDiamondDiagram'
+import ProjectDocsTab from '@/components/ProjectDocsTab'
 
 interface ProjectWorkspaceClientProps {
   projectId: string
@@ -66,7 +69,11 @@ const MOCK_PROJECT: Project = {
 
 export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceClientProps) {
   const [project, setProject] = useState<Project | null>(null)
+  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<'board' | 'docs'>('board')
   const [showAddTool, setShowAddTool] = useState(false)
+  const [addToolSearch, setAddToolSearch] = useState('')
+  const [selectedAddToolCategory, setSelectedAddToolCategory] = useState<'all' | string>('all')
+  const [showAllAddToolResults, setShowAllAddToolResults] = useState(false)
   const [showPanel, setShowPanel] = useState<'settings' | 'collaborate' | null>(null)
   const [loading, setLoading] = useState(true)
   const [modifying, setModifying] = useState(false)
@@ -78,7 +85,10 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   // ── Canvas state ──────────────────────────────────────────────────
   const [pan, setPan] = useState({ x: 60, y: 60 })
   const [zoom, setZoom] = useState(1)
+  const [isSpacePressed, setIsSpacePressed] = useState(false)
+  const [isPanningActive, setIsPanningActive] = useState(false)
   const canvasRef = useRef<HTMLDivElement>(null)
+  const isPointerOverCanvasRef = useRef(false)
   const isPanning = useRef(false)
   const lastPanPos = useRef({ x: 0, y: 0 })
 
@@ -92,6 +102,47 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     loadProject()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId])
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null
+      const isTypingTarget =
+        target?.tagName === 'INPUT' ||
+        target?.tagName === 'TEXTAREA' ||
+        target?.isContentEditable
+
+      if (event.code === 'Space' && !isTypingTarget) {
+        event.preventDefault()
+        setIsSpacePressed(true)
+      }
+    }
+
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (event.code === 'Space') setIsSpacePressed(false)
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('keyup', onKeyUp)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('keyup', onKeyUp)
+    }
+  }, [])
+
+  useEffect(() => {
+    const blockBrowserZoomWhileOnCanvas = (event: WheelEvent) => {
+      if (!isPointerOverCanvasRef.current) return
+      if (event.ctrlKey || event.metaKey) {
+        event.preventDefault()
+      }
+    }
+
+    // Some browsers (especially Safari/trackpad pinch) need native non-passive listeners
+    window.addEventListener('wheel', blockBrowserZoomWhileOnCanvas, { passive: false })
+    return () => {
+      window.removeEventListener('wheel', blockBrowserZoomWhileOnCanvas)
+    }
+  }, [])
 
   const handleDdCanvasLayoutSave = useCallback(
     async (layout: NonNullable<Project['ddCanvasLayout']>) => {
@@ -160,9 +211,21 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   // ── Canvas event handlers ──────────────────────────────────────────
   const onCanvasMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement
+    const middleMousePan = e.button === 1
+    const leftMousePan = e.button === 0 && isSpacePressed
+
+    if (middleMousePan || leftMousePan) {
+      isPanning.current = true
+      setIsPanningActive(true)
+      lastPanPos.current = { x: e.clientX, y: e.clientY }
+      e.preventDefault()
+      return
+    }
+
     // only start panning if clicking the canvas background itself
     if (!target.classList.contains('canvas-bg') && target !== canvasRef.current) return
     isPanning.current = true
+    setIsPanningActive(true)
     lastPanPos.current = { x: e.clientX, y: e.clientY }
     e.preventDefault()
   }
@@ -185,6 +248,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
 
   const onCanvasMouseUp = () => {
     isPanning.current = false
+    setIsPanningActive(false)
     if (dragging.current) {
       const slug = dragging.current
       dragging.current = null
@@ -196,9 +260,31 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     }
   }
 
+  const zoomAtPoint = (clientX: number, clientY: number, factor: number) => {
+    const rect = canvasRef.current?.getBoundingClientRect()
+    if (!rect) return
+
+    const nextZoom = Math.min(2.5, Math.max(0.25, zoom * factor))
+    if (nextZoom === zoom) return
+
+    const worldX = (clientX - rect.left - pan.x) / zoom
+    const worldY = (clientY - rect.top - pan.y) / zoom
+
+    setZoom(nextZoom)
+    setPan({
+      x: clientX - rect.left - worldX * nextZoom,
+      y: clientY - rect.top - worldY * nextZoom,
+    })
+  }
+
   const onWheel = (e: React.WheelEvent) => {
     e.preventDefault()
-    setZoom(z => Math.min(2.5, Math.max(0.25, z * (e.deltaY > 0 ? 0.92 : 1.08))))
+    const shouldZoom = e.ctrlKey || e.metaKey
+    if (shouldZoom) {
+      zoomAtPoint(e.clientX, e.clientY, e.deltaY > 0 ? 0.95 : 1.05)
+      return
+    }
+    setPan(prev => ({ x: prev.x - e.deltaX, y: prev.y - e.deltaY }))
   }
 
   // ── Card drag ──────────────────────────────────────────────────────
@@ -350,11 +436,61 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const toAdd = VAERKTOEJER.filter(t =>
     (isOffline || allowed.has(t.slug)) && !project.toolIds.includes(t.slug)
   )
-  const byKategori = getVaerktoejerGroupedByKategori(t => allowed.has(t.slug) && !project.toolIds.includes(t.slug))
-  const byPhase = DOUBLE_DIAMOND_PHASES.map(phase => ({
+  const byKategori = getVaerktoejerGroupedByKategori(
+    t => (isOffline || allowed.has(t.slug)) && !project.toolIds.includes(t.slug)
+  )
+  const categoryMetaBySlug = new Map<string, { id: string; label: string }>()
+  byKategori.forEach(({ kategori, tools }) => {
+    tools.forEach(tool => categoryMetaBySlug.set(tool.slug, { id: kategori.id, label: kategori.label }))
+  })
+  const phaseMetaBySlug = new Map<string, { id: string; label: string }>()
+  toAdd.forEach(tool => {
+    const phaseId = getDefaultPhaseForTool('double-diamond', tool.slug)
+    const phase = DOUBLE_DIAMOND_PHASES.find(p => p.id === phaseId)
+    if (phase) phaseMetaBySlug.set(tool.slug, { id: phase.id, label: phase.label })
+  })
+  const searchQuery = addToolSearch.trim().toLowerCase()
+  const filteredAddTools = toAdd
+    .filter(tool => {
+      const categoryMeta = categoryMetaBySlug.get(tool.slug)
+      const phaseMeta = phaseMetaBySlug.get(tool.slug)
+      const categoryMatch =
+        selectedAddToolCategory === 'all' ||
+        categoryMeta?.id === selectedAddToolCategory ||
+        phaseMeta?.id === selectedAddToolCategory
+
+      if (!categoryMatch) return false
+      if (!searchQuery) return true
+
+      const searchable = `${tool.title} ${tool.slug} ${tool.shortDescription}`.toLowerCase()
+      return searchable.includes(searchQuery)
+    })
+    .sort((a, b) => {
+      const aTitle = a.title.toLowerCase()
+      const bTitle = b.title.toLowerCase()
+      const aStarts = searchQuery ? (aTitle.startsWith(searchQuery) || a.slug.startsWith(searchQuery) ? 1 : 0) : 0
+      const bStarts = searchQuery ? (bTitle.startsWith(searchQuery) || b.slug.startsWith(searchQuery) ? 1 : 0) : 0
+      if (aStarts !== bStarts) return bStarts - aStarts
+      return a.title.localeCompare(b.title, 'da')
+    })
+  const quickCategoryFilters = [
+    { id: 'all', label: 'Alle', count: toAdd.length },
+    ...DOUBLE_DIAMOND_PHASES.map(phase => ({
+      id: phase.id,
+      label: phase.label,
+      count: toAdd.filter(tool => getDefaultPhaseForTool('double-diamond', tool.slug) === phase.id).length,
+    })).filter(filter => filter.count > 0),
+  ]
+  const visibleAddTools = showAllAddToolResults ? filteredAddTools : filteredAddTools.slice(0, 9)
+  const visibleToolsByPhase = DOUBLE_DIAMOND_PHASES.map(phase => ({
     phase,
-    tools: toAdd.filter(t => getDefaultPhaseForTool('double-diamond', t.slug) === phase.id),
-  })).filter(g => g.tools.length > 0)
+    tools: visibleAddTools.filter(
+      tool => getDefaultPhaseForTool('double-diamond', tool.slug) === phase.id
+    ),
+  })).filter(group => group.tools.length > 0)
+  const selectedPhaseForDiagram = DOUBLE_DIAMOND_PHASES.some(phase => phase.id === selectedAddToolCategory)
+    ? (selectedAddToolCategory as DoubleDiamondPhase)
+    : 'discover'
 
   const toolCount = projectTools.length
   const framework = project.framework || 'none'
@@ -405,12 +541,60 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
         </div>
 
         {/* Center: zoom */}
-        <div style={S.zoomBar}>
-          <button style={S.zoomBtn} onClick={() => setZoom(z => Math.max(0.25, z - 0.1))}>−</button>
-          <button style={{ ...S.zoomBtn, minWidth: 52, fontSize: 12, fontWeight: 700 }} onClick={() => { setZoom(1); setPan({ x: 60, y: 60 }) }}>
-            {Math.round(zoom * 100)}%
+        <div style={{ ...S.zoomBar, padding: '4px', gap: 4 }}>
+          <button
+            style={{
+              ...S.zoomBtn,
+              minWidth: 64,
+              fontSize: 12,
+              fontWeight: 700,
+              background: activeWorkspaceTab === 'board' ? '#111827' : 'transparent',
+              color: activeWorkspaceTab === 'board' ? '#fff' : '#6B7280',
+            }}
+            onClick={() => setActiveWorkspaceTab('board')}
+          >
+            Board
           </button>
-          <button style={S.zoomBtn} onClick={() => setZoom(z => Math.min(2.5, z + 0.1))}>+</button>
+          <button
+            style={{
+              ...S.zoomBtn,
+              minWidth: 64,
+              fontSize: 12,
+              fontWeight: 700,
+              background: activeWorkspaceTab === 'docs' ? '#111827' : 'transparent',
+              color: activeWorkspaceTab === 'docs' ? '#fff' : '#6B7280',
+            }}
+            onClick={() => setActiveWorkspaceTab('docs')}
+          >
+            Docs
+          </button>
+          {activeWorkspaceTab === 'board' && (
+            <>
+              <button
+                style={S.zoomBtn}
+                onClick={() => {
+                  const rect = canvasRef.current?.getBoundingClientRect()
+                  if (!rect) return
+                  zoomAtPoint(rect.left + rect.width / 2, rect.top + rect.height / 2, 0.9)
+                }}
+              >
+                −
+              </button>
+              <button style={{ ...S.zoomBtn, minWidth: 52, fontSize: 12, fontWeight: 700 }} onClick={() => { setZoom(1); setPan({ x: 60, y: 60 }) }}>
+                {Math.round(zoom * 100)}%
+              </button>
+              <button
+                style={S.zoomBtn}
+                onClick={() => {
+                  const rect = canvasRef.current?.getBoundingClientRect()
+                  if (!rect) return
+                  zoomAtPoint(rect.left + rect.width / 2, rect.top + rect.height / 2, 1.1)
+                }}
+              >
+                +
+              </button>
+            </>
+          )}
         </div>
 
         {/* Right */}
@@ -457,6 +641,9 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       {/* ════════════════════════════════════════════════
           INFINITE CANVAS
       ════════════════════════════════════════════════ */}
+      {activeWorkspaceTab === 'docs' ? (
+        <ProjectDocsTab projectId={projectId} canEdit={canEdit} />
+      ) : (
       <ToolEmbedProvider projectId={projectId}>
         <div
         ref={canvasRef}
@@ -465,15 +652,22 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           position: 'fixed',
           inset: 0,
           top: isOffline ? 89 : 56,
-          cursor: isPanning.current ? 'grabbing' : 'grab',
+          cursor: isPanningActive ? 'grabbing' : (isSpacePressed ? 'grab' : 'default'),
           backgroundImage: 'radial-gradient(circle, #C5C1BB 1.2px, transparent 1.2px)',
           backgroundSize: `${24 * zoom}px ${24 * zoom}px`,
           backgroundPosition: `${pan.x % (24 * zoom)}px ${pan.y % (24 * zoom)}px`,
+          touchAction: 'none',
+        }}
+        onMouseEnter={() => {
+          isPointerOverCanvasRef.current = true
+        }}
+        onMouseLeave={() => {
+          isPointerOverCanvasRef.current = false
+          onCanvasMouseUp()
         }}
         onMouseDown={onCanvasMouseDown}
         onMouseMove={onCanvasMouseMove}
         onMouseUp={onCanvasMouseUp}
-        onMouseLeave={onCanvasMouseUp}
         onWheel={onWheel}
       >
         {/* Transform layer */}
@@ -520,7 +714,9 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                   position: 'absolute',
                   left: pos.x,
                   top: pos.y,
-                  width: 600, // Større standardbredde nu hvor de er voksne komponenter
+                  width: 'calc(100vw - 180px)',
+                  maxWidth: 'calc(100vw - 180px)',
+                  minWidth: 680,
                   minHeight: 400,
                   display: 'flex',
                   flexDirection: 'column',
@@ -610,7 +806,15 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
 
                 {/* Værktøjets indhold fylder resten af kortet */}
                 <div 
-                  style={{ flex: 1, padding: '0 0 12px 0', overflow: 'auto', pointerEvents: isDragging ? 'none' : 'auto', userSelect: 'auto', position: 'relative' }}
+                  style={{
+                    flex: 1,
+                    padding: '0 0 12px 0',
+                    overflowY: 'auto',
+                    overflowX: 'auto',
+                    pointerEvents: isDragging ? 'none' : 'auto',
+                    userSelect: 'auto',
+                    position: 'relative',
+                  }}
                   onMouseDown={e => e.stopPropagation()} // Stop dragging from inside tool
                 >
                   {(() => {
@@ -751,7 +955,12 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       {showAddTool && (
         <div
           style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
-          onClick={() => setShowAddTool(false)}
+          onClick={() => {
+            setShowAddTool(false)
+            setAddToolSearch('')
+            setSelectedAddToolCategory('all')
+            setShowAllAddToolResults(false)
+          }}
         >
           <div
             style={{ width: '100%', maxWidth: 500, maxHeight: '82vh', background: 'white', borderRadius: 22, boxShadow: '0 32px 64px rgba(0,0,0,0.22)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
@@ -759,27 +968,134 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           >
             <div style={{ padding: '18px 20px 14px', borderBottom: '1px solid #F3F4F6' }}>
               <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#111827' }}>+ Tilføj værktøj</h3>
-              <p style={{ margin: '3px 0 0', fontSize: 13, color: '#9CA3AF' }}>Vælg et værktøj til dit board.</p>
+              <p style={{ margin: '3px 0 0', fontSize: 13, color: '#9CA3AF' }}>Find hurtigt det rigtige værktøj med søgning og Double Diamond-faser.</p>
+            </div>
+
+            <div style={{ padding: '12px 16px 0', borderBottom: '1px solid #F9FAFB' }}>
+              <div style={{ border: '1px solid #E5E7EB', borderRadius: 12, background: '#fff', padding: 8, overflow: 'hidden', marginBottom: 10 }}>
+                <div style={{ width: 504, height: 292, overflow: 'hidden' }}>
+                  <div style={{ transform: 'scale(0.39)', transformOrigin: 'top left', width: 1200, height: 650 }}>
+                  <DoubleDiamondDiagram
+                    activeSelection={selectedPhaseForDiagram}
+                    onSelect={selection => {
+                      if (selection === 'hmw') return
+                      setSelectedAddToolCategory(selection)
+                      setShowAllAddToolResults(false)
+                    }}
+                  />
+                  </div>
+                </div>
+              </div>
+              <div style={{ position: 'relative' }}>
+                <input
+                  value={addToolSearch}
+                  onChange={e => {
+                    setAddToolSearch(e.target.value)
+                    setShowAllAddToolResults(false)
+                  }}
+                  placeholder="Søg på navn, kategori eller slug..."
+                  style={{
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    padding: '10px 12px',
+                    borderRadius: 12,
+                    border: '1.5px solid #E5E7EB',
+                    fontSize: 13,
+                    outline: 'none',
+                  }}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: 8, overflowX: 'auto', padding: '10px 0 12px' }}>
+                {quickCategoryFilters.map(filter => {
+                  const isActive = selectedAddToolCategory === filter.id
+                  return (
+                    <button
+                      key={filter.id}
+                      onClick={() => {
+                        setSelectedAddToolCategory(filter.id)
+                        setShowAllAddToolResults(false)
+                      }}
+                      style={{
+                        border: isActive ? '1.5px solid #F59E0B' : '1.5px solid #E5E7EB',
+                        background: isActive ? '#FFFBEB' : 'white',
+                        color: isActive ? '#92400E' : '#4B5563',
+                        borderRadius: 999,
+                        padding: '6px 10px',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {filter.label} ({filter.count})
+                    </button>
+                  )
+                })}
+              </div>
             </div>
 
             <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
               {toAdd.length === 0 ? (
                 <p style={{ textAlign: 'center', color: '#9CA3AF', padding: 24 }}>🎉 Alle værktøjer er tilføjet!</p>
-              ) : (framework === 'double-diamond' ? byPhase.map(({ phase, tools }) => (
-                <div key={phase.id} style={{ marginBottom: 18 }}>
-                  <p style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 8px' }}>{phase.label}</p>
-                  {tools.map(tool => <ToolPickerRow key={tool.slug} tool={tool} onAdd={() => handleAddTool(tool.slug)} />)}
+              ) : filteredAddTools.length === 0 ? (
+                <div style={{ textAlign: 'center', color: '#9CA3AF', padding: 24 }}>
+                  <p style={{ margin: 0, fontSize: 14 }}>Ingen værktøjer matcher din søgning.</p>
+                  <p style={{ margin: '6px 0 0', fontSize: 12 }}>Prøv et andet søgeord eller vælg filteret "Alle".</p>
                 </div>
-              )) : byKategori.map(({ kategori, tools }) => (
-                <div key={kategori.id} style={{ marginBottom: 18 }}>
-                  <p style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 8px' }}>{kategori.label}</p>
-                  {tools.map(tool => <ToolPickerRow key={tool.slug} tool={tool} onAdd={() => handleAddTool(tool.slug)} />)}
-                </div>
-              )))}
+              ) : (
+                <>
+                  {visibleToolsByPhase.map(({ phase, tools }) => (
+                    <div key={phase.id} style={{ marginBottom: 12 }}>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 8px' }}>
+                        {phase.label}
+                      </p>
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                          gap: 10,
+                        }}
+                      >
+                        {tools.map(tool => (
+                          <ToolPickerCard key={tool.slug} tool={tool} onAdd={() => handleAddTool(tool.slug)} />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+
+                  {!showAllAddToolResults && filteredAddTools.length > visibleAddTools.length && (
+                    <button
+                      onClick={() => setShowAllAddToolResults(true)}
+                      style={{
+                        width: '100%',
+                        marginTop: 8,
+                        padding: '10px',
+                        borderRadius: 12,
+                        border: '1.5px dashed #FCD34D',
+                        background: '#FFFBEB',
+                        color: '#92400E',
+                        fontSize: 13,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Vis flere ({filteredAddTools.length - visibleAddTools.length} flere)
+                    </button>
+                  )}
+                </>
+              )}
             </div>
 
             <div style={{ padding: '10px 16px', borderTop: '1px solid #F3F4F6' }}>
-              <button onClick={() => setShowAddTool(false)} style={{ width: '100%', padding: '10px', borderRadius: 12, border: '1.5px solid #E5E7EB', background: 'white', fontSize: 14, color: '#374151', cursor: 'pointer', fontWeight: 500 }}>
+              <button
+                onClick={() => {
+                  setShowAddTool(false)
+                  setAddToolSearch('')
+                  setSelectedAddToolCategory('all')
+                  setShowAllAddToolResults(false)
+                }}
+                style={{ width: '100%', padding: '10px', borderRadius: 12, border: '1.5px solid #E5E7EB', background: 'white', fontSize: 14, color: '#374151', cursor: 'pointer', fontWeight: 500 }}
+              >
                 Luk
               </button>
             </div>
@@ -795,6 +1111,20 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
         {canEdit && <><span style={{ opacity: 0.35 }}>·</span><span>✦ Træk kort for at flytte</span></>}
       </div>
       </ToolEmbedProvider>
+      )}
+
+      {/* ── AI Chat Assistant (available in Board + Docs) ─────────────────── */}
+      {canEdit && (
+        <AiChatCompanion
+          projectId={projectId}
+          projectTools={projectTools}
+          availableToolSlugs={toAdd.map(tool => tool.slug)}
+          projectName={project.name}
+          framework={framework}
+          role={project.role || ''}
+          onAddTool={handleAddTool}
+        />
+      )}
     </div>
   )
 }
@@ -843,6 +1173,71 @@ function ToolPickerRow({ tool, onAdd }: { tool: { slug: string; title: string; s
         <p style={{ margin: '1px 0 0', fontSize: 11, color: '#9CA3AF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tool.shortDescription}</p>
       </div>
       <span style={{ fontSize: 12, color: '#F59E0B', fontWeight: 700, flexShrink: 0 }}>+ Tilføj</span>
+    </button>
+  )
+}
+
+function ToolPickerCard({ tool, onAdd }: { tool: { slug: string; title: string; shortDescription: string }; onAdd: () => void }) {
+  const { Icon, bg, text } = getToolIcon(tool.slug)
+  const [hovered, setHovered] = useState(false)
+  return (
+    <button
+      onClick={onAdd}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        width: '100%',
+        minHeight: 132,
+        borderRadius: 14,
+        border: hovered ? '1.5px solid #FCD34D' : '1.5px solid #F3F4F6',
+        background: hovered ? '#FFFBF0' : 'white',
+        cursor: 'pointer',
+        textAlign: 'left',
+        transition: 'all 0.15s',
+        padding: '12px 12px 10px',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+        <div
+          className={`${bg} ${text}`}
+          style={{
+            width: 34,
+            height: 34,
+            borderRadius: 10,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}
+        >
+          <Icon style={{ width: 17, height: 17 }} />
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#111827', lineHeight: 1.25 }}>
+            {tool.title}
+          </p>
+          <p
+            style={{
+              margin: '4px 0 0',
+              fontSize: 11,
+              color: '#9CA3AF',
+              lineHeight: 1.35,
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+            }}
+          >
+            {tool.shortDescription}
+          </p>
+        </div>
+      </div>
+      <div style={{ marginTop: 10, fontSize: 12, color: '#F59E0B', fontWeight: 700 }}>
+        + Tilføj
+      </div>
     </button>
   )
 }

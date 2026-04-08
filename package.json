@@ -10,14 +10,21 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.68",
+    "@ai-sdk/google": "^3.0.59",
+    "@ai-sdk/mistral": "^3.0.30",
+    "@ai-sdk/openai": "^3.0.52",
+    "@ai-sdk/react": "^3.0.151",
     "@supabase/supabase-js": "^2.95.3",
     "@types/bcryptjs": "^2.4.6",
+    "ai": "^6.0.149",
     "bcryptjs": "^3.0.3",
     "lucide-react": "^0.564.0",
     "next": "^16.1.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "resend": "^6.9.4"
+    "resend": "^6.9.4",
+    "zod": "^4.3.6"
   },
   "peerDependencies": {
     "react": "^19.0.0",
