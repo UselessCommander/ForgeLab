@@ -49,6 +49,7 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
   const yDocRef = useRef<Y.Doc | null>(null)
   const channelRef = useRef<any>(null)
   const applyingRemoteRef = useRef(false)
+  const lastYUpdateOriginRef = useRef<any>(null)
   const clientPresenceIdRef = useRef(`docs-${Math.random().toString(36).slice(2, 8)}`)
 
   const normalizeDoc = (input: any): ProjectDocData => {
@@ -207,6 +208,7 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
       if (!yDoc) return
 
       yDoc.on('update', async (update: Uint8Array, origin: any) => {
+        lastYUpdateOriginRef.current = origin
         updateStateFromY()
 
         if (origin === REMOTE_ORIGIN) return
@@ -466,8 +468,28 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
     const isNewPage = lastRenderedPageIdRef.current !== activePage.id
     const hasDifferentHtml = editorRef.current.innerHTML !== (activePage.html || '<p></p>')
     const editorFocused = document.activeElement === editorRef.current
+    const lastOrigin = lastYUpdateOriginRef.current
     if (!isNewPage && !hasDifferentHtml) return
-    if (!isNewPage && editorFocused) return
+    // Keep local typing smooth by not force-rendering local updates while focused.
+    if (!isNewPage && editorFocused && lastOrigin === LOCAL_ORIGIN) return
+
+    // For remote updates, do update immediately (best-effort selection preserve).
+    if (!isNewPage && editorFocused && lastOrigin === REMOTE_ORIGIN) {
+      const selection = window.getSelection()
+      const range = selection && selection.rangeCount > 0 ? selection.getRangeAt(0).cloneRange() : null
+      editorRef.current.innerHTML = activePage.html || '<p></p>'
+      if (range && selection) {
+        try {
+          selection.removeAllRanges()
+          selection.addRange(range)
+        } catch {
+          // Ignore if range can no longer be restored after remote DOM update
+        }
+      }
+      lastRenderedPageIdRef.current = activePage.id
+      return
+    }
+
     editorRef.current.innerHTML = activePage.html || '<p></p>'
     lastRenderedPageIdRef.current = activePage.id
   }, [activePage?.id, activePage?.html])
