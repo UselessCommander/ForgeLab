@@ -22,6 +22,15 @@ type ProjectDocData = {
   updatedAt: number
 }
 
+type CursorPresence = {
+  userId: string
+  color: string
+  pageId: string
+  selectionStart: number
+  selectionEnd: number
+  at: number
+}
+
 const DOC_TOOL_SLUG = 'project-docs'
 const createId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 const createPage = (title = 'Fane 1'): ProjectDocPage => ({ id: createId(), title, html: '<p></p>' })
@@ -38,6 +47,7 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
   const [loaded, setLoaded] = useState(false)
   const [saving, setSaving] = useState(false)
   const [onlineCount, setOnlineCount] = useState(1)
+  const [remoteCursors, setRemoteCursors] = useState<Array<{ id: string; label: string; color: string; left: number; top: number }>>([])
   const [syncInfo, setSyncInfo] = useState<string>('Forbinder…')
   const [fontName, setFontName] = useState('Georgia')
   const [fontSize, setFontSize] = useState('4')
@@ -55,6 +65,8 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
   const isSyncingFromServerRef = useRef(false)
   const lastLocalEditAtRef = useRef(0)
   const clientPresenceIdRef = useRef(`docs-${Math.random().toString(36).slice(2, 8)}`)
+  const presenceThrottleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastPresencePayloadRef = useRef<string>('')
 
   const normalizeDoc = (input: any): ProjectDocData => {
     const pages = Array.isArray(input?.pages)
@@ -100,6 +112,119 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
     const bytes = new Uint8Array(binary.length)
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
     return bytes
+  }
+
+  const colorForUserId = (id: string) => {
+    const palette = ['#EF4444', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316']
+    let hash = 0
+    for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) | 0
+    return palette[Math.abs(hash) % palette.length]
+  }
+
+  const getSelectionOffsetsInEditor = () => {
+    const editor = editorRef.current
+    const selection = window.getSelection()
+    if (!editor || !selection || selection.rangeCount === 0) return null
+    const range = selection.getRangeAt(0)
+    if (!editor.contains(range.startContainer) || !editor.contains(range.endContainer)) return null
+
+    const preStart = document.createRange()
+    preStart.setStart(editor, 0)
+    preStart.setEnd(range.startContainer, range.startOffset)
+
+    const preEnd = document.createRange()
+    preEnd.setStart(editor, 0)
+    preEnd.setEnd(range.endContainer, range.endOffset)
+
+    return {
+      selectionStart: preStart.toString().length,
+      selectionEnd: preEnd.toString().length,
+    }
+  }
+
+  const createRangeFromOffsets = (root: Node, start: number, end: number) => {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+    let currentOffset = 0
+    let startNode: Node | null = null
+    let endNode: Node | null = null
+    let startOffsetInNode = 0
+    let endOffsetInNode = 0
+    while (walker.nextNode()) {
+      const node = walker.currentNode
+      const len = node.textContent?.length || 0
+      const nextOffset = currentOffset + len
+      if (!startNode && start <= nextOffset) {
+        startNode = node
+        startOffsetInNode = Math.max(0, start - currentOffset)
+      }
+      if (!endNode && end <= nextOffset) {
+        endNode = node
+        endOffsetInNode = Math.max(0, end - currentOffset)
+      }
+      currentOffset = nextOffset
+      if (startNode && endNode) break
+    }
+    if (!startNode || !endNode) return null
+    const range = document.createRange()
+    range.setStart(startNode, startOffsetInNode)
+    range.setEnd(endNode, endOffsetInNode)
+    return range
+  }
+
+  const publishPresence = () => {
+    const offsets = getSelectionOffsetsInEditor()
+    if (!offsets || !channelRef.current) return
+    const payload: CursorPresence = {
+      userId: clientPresenceIdRef.current,
+      color: colorForUserId(clientPresenceIdRef.current),
+      pageId: doc.activePageId,
+      selectionStart: offsets.selectionStart,
+      selectionEnd: offsets.selectionEnd,
+      at: Date.now(),
+    }
+    const asString = JSON.stringify(payload)
+    if (asString === lastPresencePayloadRef.current) return
+    lastPresencePayloadRef.current = asString
+    channelRef.current.track(payload).catch(() => {})
+  }
+
+  const schedulePresencePublish = () => {
+    if (presenceThrottleTimerRef.current) clearTimeout(presenceThrottleTimerRef.current)
+    presenceThrottleTimerRef.current = setTimeout(() => {
+      publishPresence()
+    }, 60)
+  }
+
+  const updateRenderedRemoteCursors = (presenceState?: Record<string, any[]>) => {
+    const editor = editorRef.current
+    if (!editor || !doc.activePageId) return
+    const state = presenceState || (channelRef.current?.presenceState?.() as Record<string, any[]>) || {}
+    const editorRect = editor.getBoundingClientRect()
+    const next: Array<{ id: string; label: string; color: string; left: number; top: number }> = []
+
+    for (const [key, entries] of Object.entries(state)) {
+      const data = Array.isArray(entries) && entries.length > 0 ? entries[entries.length - 1] : null
+      if (!data) continue
+      if (data.userId === clientPresenceIdRef.current || key === clientPresenceIdRef.current) continue
+      if (data.pageId !== doc.activePageId) continue
+      if (typeof data.selectionStart !== 'number' || typeof data.selectionEnd !== 'number') continue
+
+      const end = Math.max(data.selectionStart, data.selectionEnd)
+      const range = createRangeFromOffsets(editor, end, end)
+      if (!range) continue
+      const rect = range.getClientRects()[0] || range.getBoundingClientRect()
+      if (!rect || (!rect.left && !rect.top && !rect.width && !rect.height)) continue
+
+      next.push({
+        id: data.userId || key,
+        label: String(data.userId || key).slice(-6),
+        color: data.color || colorForUserId(String(data.userId || key)),
+        left: rect.left - editorRect.left,
+        top: rect.top - editorRect.top,
+      })
+    }
+
+    setRemoteCursors(next)
   }
 
   const getYCollections = () => {
@@ -295,13 +420,20 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
         .on('presence', { event: 'sync' }, () => {
           const state = channel.presenceState()
           const count = Object.keys(state).length || 1
-          if (!isUnmountedRef.current) setOnlineCount(count)
+          if (!isUnmountedRef.current) {
+            setOnlineCount(count)
+            updateRenderedRemoteCursors(state as Record<string, any[]>)
+          }
         })
         .subscribe(async (status: string) => {
           if (status === 'SUBSCRIBED') {
             await channel.track({
+              userId: clientPresenceIdRef.current,
+              color: colorForUserId(clientPresenceIdRef.current),
+              pageId: doc.activePageId,
+              selectionStart: 0,
+              selectionEnd: 0,
               at: Date.now(),
-              docsUser: clientPresenceIdRef.current,
             })
             if (!isUnmountedRef.current) setSyncInfo('Realtime aktiv')
           }
@@ -382,6 +514,7 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
         reconcileTimerRef.current = null
       }
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+      if (presenceThrottleTimerRef.current) clearTimeout(presenceThrottleTimerRef.current)
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current)
         channelRef.current = null
@@ -533,6 +666,7 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
     const range = selection.getRangeAt(0)
     if (editorEl.contains(range.commonAncestorContainer)) {
       selectionRangeRef.current = range.cloneRange()
+      schedulePresencePublish()
     }
   }
 
@@ -609,6 +743,14 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
     editorRef.current.innerHTML = activePage.html || '<p></p>'
     lastRenderedPageIdRef.current = activePage.id
   }, [activePage?.id, activePage?.html])
+
+  useEffect(() => {
+    schedulePresencePublish()
+    // Recompute rendered cursor positions after page switches/renders.
+    const t = setTimeout(() => updateRenderedRemoteCursors(), 80)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doc.activePageId, activePage?.html])
 
   const toolbarButtonStyle: React.CSSProperties = {
     border: '1px solid #D1D5DB',
@@ -859,6 +1001,7 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
                   maxWidth: 860,
                   minHeight: 'calc(100vh - 300px)',
                   margin: '0 auto',
+                  position: 'relative',
                   border: '1px solid #E5E7EB',
                   borderRadius: 6,
                   background: '#fff',
@@ -866,6 +1009,7 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
                 }}
               >
                 <div
+                  onScroll={() => updateRenderedRemoteCursors()}
                   ref={editorRef}
                   contentEditable={canEdit}
                   suppressContentEditableWarning
@@ -873,6 +1017,7 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
                   onMouseUp={rememberSelection}
                   onKeyUp={rememberSelection}
                   onBlur={rememberSelection}
+                  onClick={rememberSelection}
                   style={{
                     width: '100%',
                     minHeight: 'calc(100vh - 320px)',
@@ -885,6 +1030,34 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
                     background: canEdit ? '#fff' : '#FAFAFA',
                   }}
                 />
+                {remoteCursors.map(cursor => (
+                  <div
+                    key={cursor.id}
+                    style={{
+                      position: 'absolute',
+                      left: cursor.left,
+                      top: cursor.top,
+                      pointerEvents: 'none',
+                      zIndex: 30,
+                    }}
+                  >
+                    <div style={{ width: 2, height: 18, background: cursor.color, borderRadius: 2 }} />
+                    <div
+                      style={{
+                        marginTop: 2,
+                        background: cursor.color,
+                        color: '#fff',
+                        fontSize: 10,
+                        fontWeight: 700,
+                        borderRadius: 6,
+                        padding: '2px 6px',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {cursor.label}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </section>
