@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { getProjectToolData, saveProjectToolData } from '@/lib/projects'
+import { supabase } from '@/lib/supabase'
+import * as Y from 'yjs'
 
 type ProjectDocsTabProps = {
   projectId: string
@@ -23,6 +25,8 @@ type ProjectDocData = {
 const DOC_TOOL_SLUG = 'project-docs'
 const createId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 const createPage = (title = 'Fane 1'): ProjectDocPage => ({ id: createId(), title, html: '<p></p>' })
+const LOCAL_ORIGIN = 'local'
+const REMOTE_ORIGIN = 'remote'
 const DEFAULT_DOC: ProjectDocData = {
   pages: [createPage('Fane 1')],
   activePageId: '',
@@ -33,16 +37,19 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
   const [doc, setDoc] = useState<ProjectDocData>(DEFAULT_DOC)
   const [loaded, setLoaded] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [dirty, setDirty] = useState(false)
+  const [onlineCount, setOnlineCount] = useState(1)
   const [syncInfo, setSyncInfo] = useState<string>('Forbinder…')
   const [fontName, setFontName] = useState('Georgia')
   const [fontSize, setFontSize] = useState('4')
   const editorRef = useRef<HTMLDivElement>(null)
-  const docRef = useRef<ProjectDocData>(DEFAULT_DOC)
   const lastRenderedPageIdRef = useRef<string>('')
   const selectionRangeRef = useRef<Range | null>(null)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isUnmountedRef = useRef(false)
+  const yDocRef = useRef<Y.Doc | null>(null)
+  const channelRef = useRef<any>(null)
+  const applyingRemoteRef = useRef(false)
+  const clientPresenceIdRef = useRef(`docs-${Math.random().toString(36).slice(2, 8)}`)
 
   const normalizeDoc = (input: any): ProjectDocData => {
     const pages = Array.isArray(input?.pages)
@@ -71,127 +78,318 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
     }
   }
 
-  const loadFromServer = async () => {
-    try {
-      const serverData = await getProjectToolData(projectId, DOC_TOOL_SLUG)
-      const normalized = normalizeDoc(serverData)
-      setDoc(prev => {
-        if (dirty) return prev
-        if (normalized.updatedAt > prev.updatedAt) return normalized
-        if (!loaded) return normalized
-        return prev
-      })
-      if (!dirty) setSyncInfo('Synkroniseret')
-    } catch {
-      setSyncInfo('Kunne ikke hente nyeste version')
-    } finally {
-      if (!loaded) setLoaded(true)
-    }
-  }
-
-  const persistNow = async (nextDoc: ProjectDocData) => {
-    try {
-      setSaving(true)
-      await saveProjectToolData(projectId, DOC_TOOL_SLUG, nextDoc as any)
-      if (!isUnmountedRef.current) {
-        setDirty(false)
-        setSyncInfo('Alle ændringer gemt')
+  const encodeUpdate = (update: Uint8Array) => {
+    const chunkSize = 0x8000
+    let binary = ''
+    for (let i = 0; i < update.length; i += chunkSize) {
+      const chunk = update.subarray(i, i + chunkSize)
+      for (let j = 0; j < chunk.length; j++) {
+        binary += String.fromCharCode(chunk[j])
       }
-    } catch {
-      if (!isUnmountedRef.current) setSyncInfo('Gem fejlede — prøver igen')
-    } finally {
-      if (!isUnmountedRef.current) setSaving(false)
+    }
+    return btoa(binary)
+  }
+
+  const decodeUpdate = (encoded: string) => {
+    const binary = atob(encoded)
+    const bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+    return bytes
+  }
+
+  const getYCollections = () => {
+    const yDoc = yDocRef.current
+    if (!yDoc) return null
+    const root = yDoc.getMap('root')
+    const pages = yDoc.getMap<Y.Map<any>>('pages')
+    const pageOrder = yDoc.getArray<string>('pageOrder')
+    return { yDoc, root, pages, pageOrder }
+  }
+
+  const readDocFromY = (): ProjectDocData => {
+    const collections = getYCollections()
+    if (!collections) return DEFAULT_DOC
+    const { root, pages, pageOrder } = collections
+
+    const orderedIds = pageOrder.toArray().filter(id => pages.has(id))
+    const missingIds = Array.from(pages.keys()).filter(id => !orderedIds.includes(id))
+    const allIds = [...orderedIds, ...missingIds]
+
+    const normalizedPages: ProjectDocPage[] = allIds.map(id => {
+      const pageMap = pages.get(id)
+      const titleText = pageMap?.get('title') as Y.Text | undefined
+      const htmlText = pageMap?.get('html') as Y.Text | undefined
+      return {
+        id,
+        title: titleText?.toString()?.trim() || 'Untitled',
+        html: htmlText?.toString() || '<p></p>',
+      }
+    })
+
+    const ensuredPages = normalizedPages.length > 0 ? normalizedPages : [createPage('Fane 1')]
+    const rawActive = root.get('activePageId')
+    const activePageId =
+      typeof rawActive === 'string' && ensuredPages.some(page => page.id === rawActive)
+        ? rawActive
+        : ensuredPages[0].id
+    const updatedAt = Number(root.get('updatedAt') || 0)
+
+    return {
+      pages: ensuredPages,
+      activePageId,
+      updatedAt: Number.isFinite(updatedAt) ? updatedAt : 0,
     }
   }
 
-  useEffect(() => {
-    docRef.current = doc
-  }, [doc])
+  const initializeYDoc = (initialDoc: ProjectDocData) => {
+    const yDoc = new Y.Doc()
+    yDocRef.current = yDoc
+    const root = yDoc.getMap('root')
+    const pages = yDoc.getMap<Y.Map<any>>('pages')
+    const pageOrder = yDoc.getArray<string>('pageOrder')
+
+    yDoc.transact(() => {
+      for (const page of initialDoc.pages) {
+        const pageMap = new Y.Map<any>()
+        const title = new Y.Text()
+        title.insert(0, page.title || 'Untitled')
+        const html = new Y.Text()
+        html.insert(0, page.html || '<p></p>')
+        pageMap.set('title', title)
+        pageMap.set('html', html)
+        pages.set(page.id, pageMap)
+      }
+      pageOrder.insert(0, initialDoc.pages.map(page => page.id))
+      root.set('activePageId', initialDoc.activePageId || initialDoc.pages[0]?.id || '')
+      root.set('updatedAt', initialDoc.updatedAt || Date.now())
+    }, 'init')
+  }
+
+  const updateStateFromY = () => {
+    if (isUnmountedRef.current) return
+    setDoc(readDocFromY())
+  }
+
+  const schedulePersist = () => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = setTimeout(async () => {
+      try {
+        setSaving(true)
+        await saveProjectToolData(projectId, DOC_TOOL_SLUG, readDocFromY() as any)
+        if (!isUnmountedRef.current) setSyncInfo('Alle ændringer gemt')
+      } catch {
+        if (!isUnmountedRef.current) setSyncInfo('Gem fejlede — prøver igen')
+      } finally {
+        if (!isUnmountedRef.current) setSaving(false)
+      }
+    }, 900)
+  }
 
   useEffect(() => {
-    loadFromServer()
-    const pollTimer = setInterval(() => {
-      loadFromServer()
-    }, 2200)
+    let cancelled = false
+    const boot = async () => {
+      try {
+        const serverData = await getProjectToolData(projectId, DOC_TOOL_SLUG)
+        if (cancelled) return
+        const normalized = normalizeDoc(serverData)
+        initializeYDoc(normalized)
+        updateStateFromY()
+      } catch {
+        if (cancelled) return
+        initializeYDoc(normalizeDoc(DEFAULT_DOC))
+        updateStateFromY()
+        setSyncInfo('Kunne ikke hente nyeste version')
+      } finally {
+        if (!cancelled) setLoaded(true)
+      }
+
+      const yDoc = yDocRef.current
+      if (!yDoc) return
+
+      yDoc.on('update', async (update: Uint8Array, origin: any) => {
+        updateStateFromY()
+
+        if (origin === REMOTE_ORIGIN) return
+        if (!applyingRemoteRef.current) {
+          try {
+            await channelRef.current?.send({
+              type: 'broadcast',
+              event: 'y-update',
+              payload: {
+                from: clientPresenceIdRef.current,
+                update: encodeUpdate(update),
+              },
+            })
+            if (!isUnmountedRef.current) setSyncInfo('Synkroniserer…')
+          } catch {
+            if (!isUnmountedRef.current) setSyncInfo('Realtime afbrudt')
+          }
+        }
+        if (origin === LOCAL_ORIGIN) {
+          schedulePersist()
+        }
+      })
+
+      const channel = supabase
+        .channel(`project-docs:${projectId}`, {
+          config: {
+            broadcast: { self: false },
+            presence: { key: clientPresenceIdRef.current },
+          },
+        })
+        .on('broadcast', { event: 'y-update' }, ({ payload }: any) => {
+          if (!payload?.update || payload?.from === clientPresenceIdRef.current) return
+          const localYDoc = yDocRef.current
+          if (!localYDoc) return
+          try {
+            applyingRemoteRef.current = true
+            Y.applyUpdate(localYDoc, decodeUpdate(payload.update), REMOTE_ORIGIN)
+            if (!isUnmountedRef.current) setSyncInfo('Synkroniseret realtime')
+          } finally {
+            applyingRemoteRef.current = false
+          }
+        })
+        .on('presence', { event: 'sync' }, () => {
+          const state = channel.presenceState()
+          const count = Object.keys(state).length || 1
+          if (!isUnmountedRef.current) setOnlineCount(count)
+        })
+        .subscribe(async (status: string) => {
+          if (status === 'SUBSCRIBED') {
+            await channel.track({
+              at: Date.now(),
+              docsUser: clientPresenceIdRef.current,
+            })
+            if (!isUnmountedRef.current) setSyncInfo('Realtime aktiv')
+          }
+        })
+
+      channelRef.current = channel
+    }
+
+    boot()
 
     return () => {
+      cancelled = true
       isUnmountedRef.current = true
-      clearInterval(pollTimer)
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current)
+        channelRef.current = null
+      }
+      if (yDocRef.current) {
+        yDocRef.current.destroy()
+        yDocRef.current = null
+      }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, dirty])
+  }, [projectId])
+
+  const applyTextDiff = (yText: Y.Text, nextValue: string) => {
+    const prev = yText.toString()
+    if (prev === nextValue) return
+    let start = 0
+    const prevLen = prev.length
+    const nextLen = nextValue.length
+    while (start < prevLen && start < nextLen && prev[start] === nextValue[start]) start++
+    let endPrev = prevLen - 1
+    let endNext = nextLen - 1
+    while (endPrev >= start && endNext >= start && prev[endPrev] === nextValue[endNext]) {
+      endPrev--
+      endNext--
+    }
+    const deleteLen = Math.max(0, endPrev - start + 1)
+    const insertText = nextValue.slice(start, endNext + 1)
+    if (deleteLen > 0) yText.delete(start, deleteLen)
+    if (insertText) yText.insert(start, insertText)
+  }
 
   const handleContentChange = (content: string) => {
     if (!canEdit) return
-    const currentDoc = docRef.current
-    const nextDoc: ProjectDocData = {
-      ...currentDoc,
-      pages: currentDoc.pages.map(page => (page.id === currentDoc.activePageId ? { ...page, html: content } : page)),
-      updatedAt: Date.now(),
-    }
-    docRef.current = nextDoc
-    setDirty(true)
-    setSyncInfo('Gemmer…')
+    const collections = getYCollections()
+    if (!collections) return
+    const { yDoc, root, pages } = collections
+    const activePageId = root.get('activePageId')
+    if (typeof activePageId !== 'string') return
+    const pageMap = pages.get(activePageId)
+    const html = pageMap?.get('html') as Y.Text | undefined
+    if (!html) return
 
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-    saveTimerRef.current = setTimeout(() => {
-      persistNow(nextDoc)
-    }, 700)
+    yDoc.transact(() => {
+      applyTextDiff(html, content || '<p></p>')
+      root.set('updatedAt', Date.now())
+    }, LOCAL_ORIGIN)
   }
 
   const handleDocumentTitleChange = (title: string) => {
     if (!canEdit) return
-    const nextDoc: ProjectDocData = {
-      ...doc,
-      pages: doc.pages.map(page => (page.id === doc.activePageId ? { ...page, title } : page)),
-      updatedAt: Date.now(),
-    }
-    setDoc(nextDoc)
-    setDirty(true)
-    setSyncInfo('Gemmer…')
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-    saveTimerRef.current = setTimeout(() => {
-      persistNow(nextDoc)
-    }, 500)
+    const collections = getYCollections()
+    if (!collections) return
+    const { yDoc, root, pages } = collections
+    const activePageId = root.get('activePageId')
+    if (typeof activePageId !== 'string') return
+    const pageMap = pages.get(activePageId)
+    const titleText = pageMap?.get('title') as Y.Text | undefined
+    if (!titleText) return
+
+    yDoc.transact(() => {
+      applyTextDiff(titleText, title || 'Untitled')
+      root.set('updatedAt', Date.now())
+    }, LOCAL_ORIGIN)
   }
 
   const setActivePage = (pageId: string) => {
-    setDoc(prev => ({ ...prev, activePageId: pageId }))
+    const collections = getYCollections()
+    if (!collections) return
+    const { yDoc, root } = collections
+    yDoc.transact(() => {
+      root.set('activePageId', pageId)
+      root.set('updatedAt', Date.now())
+    }, LOCAL_ORIGIN)
   }
 
   const addPage = () => {
     if (!canEdit) return
+    const collections = getYCollections()
+    if (!collections) return
+    const { yDoc, root, pages, pageOrder } = collections
     const nextTitle = `Fane ${doc.pages.length + 1}`
     const page = createPage(nextTitle)
-    const nextDoc: ProjectDocData = {
-      ...doc,
-      pages: [...doc.pages, page],
-      activePageId: page.id,
-      updatedAt: Date.now(),
-    }
-    setDoc(nextDoc)
-    setDirty(true)
-    setSyncInfo('Gemmer…')
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-    saveTimerRef.current = setTimeout(() => persistNow(nextDoc), 450)
+
+    yDoc.transact(() => {
+      const pageMap = new Y.Map<any>()
+      const title = new Y.Text()
+      title.insert(0, page.title)
+      const html = new Y.Text()
+      html.insert(0, page.html)
+      pageMap.set('title', title)
+      pageMap.set('html', html)
+      pages.set(page.id, pageMap)
+      pageOrder.push([page.id])
+      root.set('activePageId', page.id)
+      root.set('updatedAt', Date.now())
+    }, LOCAL_ORIGIN)
   }
 
   const removePage = (pageId: string) => {
     if (!canEdit || doc.pages.length === 1) return
-    const remaining = doc.pages.filter(page => page.id !== pageId)
-    const nextActive = remaining.some(page => page.id === doc.activePageId) ? doc.activePageId : remaining[0].id
-    const nextDoc: ProjectDocData = {
-      ...doc,
-      pages: remaining,
-      activePageId: nextActive,
-      updatedAt: Date.now(),
-    }
-    setDoc(nextDoc)
-    setDirty(true)
-    setSyncInfo('Gemmer…')
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-    saveTimerRef.current = setTimeout(() => persistNow(nextDoc), 450)
+    const collections = getYCollections()
+    if (!collections) return
+    const { yDoc, root, pages, pageOrder } = collections
+
+    yDoc.transact(() => {
+      pages.delete(pageId)
+      const ids = pageOrder.toArray()
+      const index = ids.indexOf(pageId)
+      if (index >= 0) pageOrder.delete(index, 1)
+      const remainingIds = pageOrder.toArray().filter(id => pages.has(id))
+      if (remainingIds.length > 0) {
+        const active = root.get('activePageId')
+        if (typeof active !== 'string' || !remainingIds.includes(active)) {
+          root.set('activePageId', remainingIds[0])
+        }
+      }
+      root.set('updatedAt', Date.now())
+    }, LOCAL_ORIGIN)
   }
 
   const exec = (command: string, value?: string) => {
@@ -265,10 +463,14 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
 
   useEffect(() => {
     if (!editorRef.current || !activePage) return
-    if (lastRenderedPageIdRef.current === activePage.id) return
+    const isNewPage = lastRenderedPageIdRef.current !== activePage.id
+    const hasDifferentHtml = editorRef.current.innerHTML !== (activePage.html || '<p></p>')
+    const editorFocused = document.activeElement === editorRef.current
+    if (!isNewPage && !hasDifferentHtml) return
+    if (!isNewPage && editorFocused) return
     editorRef.current.innerHTML = activePage.html || '<p></p>'
     lastRenderedPageIdRef.current = activePage.id
-  }, [activePage])
+  }, [activePage?.id, activePage?.html])
 
   const toolbarButtonStyle: React.CSSProperties = {
     border: '1px solid #D1D5DB',
@@ -333,6 +535,7 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
             >
               Eksportér PDF
             </button>
+            <div style={{ fontSize: 12, color: '#64748B' }}>👥 {onlineCount} online</div>
             <div style={{ fontSize: 12, color: '#6B7280' }}>{saveStatus}</div>
           </div>
         </div>
