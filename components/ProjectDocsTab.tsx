@@ -50,6 +50,14 @@ const DEFAULT_DOC: ProjectDocData = {
   updatedAt: 0,
 }
 
+const docsSyncDebug =
+  typeof process !== 'undefined' && process.env.NEXT_PUBLIC_DOCS_SYNC_DEBUG === '1'
+
+function logDocsSync(phase: string, detail?: Record<string, unknown>) {
+  if (!docsSyncDebug) return
+  console.debug(`[docs-sync] ${phase}`, { ...detail, ms: Math.round(performance.now()) })
+}
+
 export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabProps) {
   const [doc, setDoc] = useState<ProjectDocData>(DEFAULT_DOC)
   const [loaded, setLoaded] = useState(false)
@@ -83,6 +91,7 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
   const lastRenderedPageIdRef = useRef<string>('')
   const selectionRangeRef = useRef<Range | null>(null)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const persistGenRef = useRef(0)
   const reconcileTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const presenceRefreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const isUnmountedRef = useRef(false)
@@ -370,12 +379,17 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
 
   const schedulePersist = () => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    persistGenRef.current += 1
+    const persistId = persistGenRef.current
+    logDocsSync('persist_scheduled', { persistId, debounceMs: 250 })
     saveTimerRef.current = setTimeout(async () => {
       try {
         setSaving(true)
         await saveProjectToolData(projectId, DOC_TOOL_SLUG, readDocFromY() as any)
+        logDocsSync('persist_completed', { persistId, ok: true })
         if (!isUnmountedRef.current) setSyncInfo('Alle ændringer gemt')
-      } catch {
+      } catch (e) {
+        logDocsSync('persist_completed', { persistId, ok: false, error: String(e) })
         if (!isUnmountedRef.current) setSyncInfo('Gem fejlede — prøver igen')
       } finally {
         if (!isUnmountedRef.current) setSaving(false)
@@ -383,10 +397,22 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
     }, 250)
   }
 
-  const applyServerDocToY = (serverDoc: ProjectDocData) => {
+  const applyServerDocToY = (
+    serverDoc: ProjectDocData,
+    source: 'postgres_changes' | 'reconcile_timer'
+  ) => {
     const collections = getYCollections()
-    if (!collections) return
+    if (!collections) {
+      logDocsSync('apply_server_to_y_skipped', { source, reason: 'no_y_collections' })
+      return
+    }
     const { yDoc, root, pages, pageOrder } = collections
+
+    logDocsSync('apply_server_to_y', {
+      source,
+      pageCount: serverDoc.pages.length,
+      updatedAt: serverDoc.updatedAt,
+    })
 
     yDoc.transact(() => {
       const incomingIds = serverDoc.pages.map(p => p.id)
@@ -435,10 +461,15 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
         const normalized = normalizeDoc(serverData)
         initializeYDoc(normalized)
         updateStateFromY()
+        logDocsSync('boot_ydoc_initialized', {
+          from: 'server',
+          pageCount: normalized.pages.length,
+        })
       } catch {
         if (cancelled) return
         initializeYDoc(normalizeDoc(DEFAULT_DOC))
         updateStateFromY()
+        logDocsSync('boot_ydoc_initialized', { from: 'default', pageCount: DEFAULT_DOC.pages.length })
         setSyncInfo('Kunne ikke hente nyeste version')
       } finally {
         if (!cancelled) setLoaded(true)
@@ -449,6 +480,12 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
 
       yDoc.on('update', async (update: Uint8Array, origin: any) => {
         lastYUpdateOriginRef.current = origin
+        const originLabel = origin === REMOTE_ORIGIN ? 'remote' : origin === LOCAL_ORIGIN ? 'local' : String(origin)
+        logDocsSync('y_doc_update', {
+          origin: originLabel,
+          updateBytes: update.length,
+          applyingRemote: applyingRemoteRef.current,
+        })
         updateStateFromY()
 
         if (origin === REMOTE_ORIGIN) return
@@ -462,10 +499,14 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
                 update: encodeUpdate(update),
               },
             })
+            logDocsSync('broadcast_sent', { origin: originLabel, updateBytes: update.length })
             if (!isUnmountedRef.current) setSyncInfo('Synkroniserer…')
-          } catch {
+          } catch (e) {
+            logDocsSync('broadcast_send_failed', { origin: originLabel, error: String(e) })
             if (!isUnmountedRef.current) setSyncInfo('Realtime afbrudt')
           }
+        } else {
+          logDocsSync('broadcast_skipped', { reason: 'applying_remote_ref', origin: originLabel })
         }
         if (origin === LOCAL_ORIGIN) {
           schedulePersist()
@@ -481,12 +522,19 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
 
       channel
         .on('broadcast', { event: 'y-update' }, ({ payload }: any) => {
-          if (!payload?.update || payload?.from === clientPresenceIdRef.current) return
+          if (!payload?.update || payload?.from === clientPresenceIdRef.current) {
+            if (docsSyncDebug && payload?.from === clientPresenceIdRef.current) {
+              logDocsSync('broadcast_received_ignored', { reason: 'self' })
+            }
+            return
+          }
           const localYDoc = yDocRef.current
           if (!localYDoc) return
+          const raw = decodeUpdate(payload.update)
+          logDocsSync('broadcast_received', { from: payload.from, updateBytes: raw.length })
           try {
             applyingRemoteRef.current = true
-            Y.applyUpdate(localYDoc, decodeUpdate(payload.update), REMOTE_ORIGIN)
+            Y.applyUpdate(localYDoc, raw, REMOTE_ORIGIN)
             if (!isUnmountedRef.current) setSyncInfo('Synkroniseret realtime')
           } finally {
             applyingRemoteRef.current = false
@@ -538,17 +586,27 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
           async (payload: any) => {
             const row = payload?.new || payload?.old
             if (!row || row.tool_slug !== DOC_TOOL_SLUG) return
-            if (isSyncingFromServerRef.current) return
+            logDocsSync('postgres_change', {
+              eventType: payload?.eventType,
+              toolSlug: row.tool_slug,
+            })
+            if (isSyncingFromServerRef.current) {
+              logDocsSync('postgres_pull_skipped', { reason: 'sync_already_in_progress' })
+              return
+            }
             try {
               isSyncingFromServerRef.current = true
               const serverData = await getProjectToolData(projectId, DOC_TOOL_SLUG)
               const normalized = normalizeDoc(serverData)
               const localDoc = readDocFromY()
-              if (JSON.stringify(normalized) !== JSON.stringify(localDoc)) {
-                applyServerDocToY(normalized)
+              const identical = JSON.stringify(normalized) === JSON.stringify(localDoc)
+              logDocsSync('postgres_pull_result', { identical })
+              if (!identical) {
+                applyServerDocToY(normalized, 'postgres_changes')
                 if (!isUnmountedRef.current) setSyncInfo('Synkroniseret')
               }
-            } catch {
+            } catch (e) {
+              logDocsSync('postgres_pull_failed', { error: String(e) })
               // Keep UI responsive even if one sync pull fails.
             } finally {
               isSyncingFromServerRef.current = false
@@ -568,7 +626,11 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
       // Reconcile with persisted state periodically as a safety net.
       // This catches rare missed realtime events without requiring refresh.
       reconcileTimerRef.current = setInterval(async () => {
-        if (isUnmountedRef.current || isSyncingFromServerRef.current) return
+        if (isUnmountedRef.current) return
+        if (isSyncingFromServerRef.current) {
+          logDocsSync('reconcile_skipped', { reason: 'sync_already_in_progress' })
+          return
+        }
         try {
           isSyncingFromServerRef.current = true
           const serverData = await getProjectToolData(projectId, DOC_TOOL_SLUG)
@@ -577,14 +639,23 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
           const isLikelyTyping = Date.now() - lastLocalEditAtRef.current < 350
           const serverSnapshot = JSON.stringify(normalized)
           const localSnapshot = JSON.stringify(localDoc)
+          const diverged = serverSnapshot !== localSnapshot
 
           // Apply server changes whenever content diverges (not only timestamps),
           // but avoid hard-overwriting in the middle of a local keystroke burst.
-          if (!isLikelyTyping && serverSnapshot !== localSnapshot) {
-            applyServerDocToY(normalized)
+          if (isLikelyTyping) {
+            if (diverged) {
+              logDocsSync('reconcile_skipped', { reason: 'likely_typing_while_diverged' })
+            }
+          } else if (!diverged) {
+            // Intentionally quiet: this runs every 500ms when in sync.
+          } else {
+            logDocsSync('reconcile_apply', { source: 'reconcile_timer' })
+            applyServerDocToY(normalized, 'reconcile_timer')
             if (!isUnmountedRef.current) setSyncInfo('Synkroniseret')
           }
-        } catch {
+        } catch (e) {
+          logDocsSync('reconcile_failed', { error: String(e) })
           // Silent: realtime channel remains primary
         } finally {
           isSyncingFromServerRef.current = false
@@ -968,6 +1039,10 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
 
     // For remote updates, do update immediately (best-effort selection preserve).
     if (!isNewPage && editorFocused && lastOrigin === REMOTE_ORIGIN) {
+      logDocsSync('dom_innerhtml_remote', {
+        pageId: activePage.id,
+        htmlLen: (activePage.html || '<p></p>').length,
+      })
       const selection = window.getSelection()
       const range = selection && selection.rangeCount > 0 ? selection.getRangeAt(0).cloneRange() : null
       editorRef.current.innerHTML = activePage.html || '<p></p>'
@@ -983,6 +1058,11 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
       return
     }
 
+    logDocsSync('dom_innerhtml_full', {
+      pageId: activePage.id,
+      isNewPage,
+      htmlLen: (activePage.html || '<p></p>').length,
+    })
     editorRef.current.innerHTML = activePage.html || '<p></p>'
     lastRenderedPageIdRef.current = activePage.id
   }, [activePage?.id, activePage?.html])
