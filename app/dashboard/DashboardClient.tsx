@@ -60,6 +60,25 @@ export default function DashboardClient() {
     loadCurrentUser()
   }, [])
 
+  useEffect(() => {
+    // Keep bell notifications fresh without manual reload.
+    const refresh = () => {
+      void loadInviteNotifications()
+    }
+    const interval = window.setInterval(refresh, 15000)
+    const onFocus = () => refresh()
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') refresh()
+    }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      window.clearInterval(interval)
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [])
+
   const loadCurrentUser = async () => {
     try {
       const res = await fetch('/api/auth/me', { credentials: 'include' })
@@ -101,7 +120,10 @@ export default function DashboardClient() {
 
   const loadInviteNotifications = async () => {
     try {
-      const res = await fetch('/api/notifications/project-invites', { credentials: 'include' })
+      const res = await fetch('/api/notifications/project-invites', {
+        credentials: 'include',
+        cache: 'no-store',
+      })
       if (!res.ok) return
       const payload = await res.json()
       const items = Array.isArray(payload?.items) ? payload.items : []

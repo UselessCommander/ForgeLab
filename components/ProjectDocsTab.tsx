@@ -472,13 +472,14 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
         }
       })
 
-      const channel = supabase
-        .channel(`project-docs:${projectId}`, {
-          config: {
-            broadcast: { self: false },
-            presence: { key: clientPresenceIdRef.current },
-          },
-        })
+      const channel = supabase.channel(`project-docs:${projectId}`, {
+        config: {
+          broadcast: { self: false },
+          presence: { key: clientPresenceIdRef.current },
+        },
+      })
+
+      channel
         .on('broadcast', { event: 'y-update' }, ({ payload }: any) => {
           if (!payload?.update || payload?.from === clientPresenceIdRef.current) return
           const localYDoc = yDocRef.current
@@ -492,31 +493,33 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
           }
         })
         .on('presence', { event: 'sync' }, () => {
-          const state = channel.presenceState() as Record<string, any[]>
+          const state = channelRef.current?.presenceState?.() as Record<string, any[]> | undefined
           refreshPresenceUi(state)
         })
         .on('presence', { event: 'join' }, () => {
-          const state = channel.presenceState() as Record<string, any[]>
+          const state = channelRef.current?.presenceState?.() as Record<string, any[]> | undefined
           refreshPresenceUi(state)
         })
         .on('presence', { event: 'leave' }, () => {
-          const state = channel.presenceState() as Record<string, any[]>
+          const state = channelRef.current?.presenceState?.() as Record<string, any[]> | undefined
           refreshPresenceUi(state)
         })
-        .subscribe(async (status: string) => {
-          if (status === 'SUBSCRIBED') {
-            await channel.track({
-              userId: clientPresenceIdRef.current,
-              color: colorForUserId(clientPresenceIdRef.current),
-              pageId: doc.activePageId,
-              selectionStart: 0,
-              selectionEnd: 0,
-              at: Date.now(),
-            })
-            if (!isUnmountedRef.current) setSyncInfo('Realtime aktiv')
-            refreshPresenceUi(channel.presenceState() as Record<string, any[]>)
-          }
-        })
+
+      channel.subscribe(async (status: string) => {
+        if (status === 'SUBSCRIBED') {
+          await channelRef.current?.track?.({
+            userId: clientPresenceIdRef.current,
+            color: colorForUserId(clientPresenceIdRef.current),
+            pageId: doc.activePageId,
+            selectionStart: 0,
+            selectionEnd: 0,
+            at: Date.now(),
+          })
+          if (!isUnmountedRef.current) setSyncInfo('Realtime aktiv')
+          const state = channelRef.current?.presenceState?.() as Record<string, any[]> | undefined
+          refreshPresenceUi(state)
+        }
+      })
 
       channelRef.current = channel
 

@@ -11,7 +11,7 @@ interface AiChatCompanionProps {
   projectTools: { slug: string; tool: any }[]
   availableToolSlugs: string[]
   projectName: string
-  workspaceTab?: 'board' | 'docs' | 'slides'
+  workspaceTab?: 'board' | 'planning' | 'docs' | 'slides'
   framework: string
   role: string
   onAddTool: (slug: string) => void

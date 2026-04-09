@@ -80,6 +80,8 @@ const FLOW_SHAPE_LIBRARY: Array<{ shape: FlowShape; label: string }> = [
   { shape: 'database', label: 'Database' },
 ]
 
+const BOARD_EXCLUDED_TOOL_SLUGS = new Set<string>(['kanban', 'gantt-chart'])
+
 function getCardColor(slug: string) {
   let hash = 0
   for (let i = 0; i < slug.length; i++) hash = slug.charCodeAt(i) + ((hash << 5) - hash)
@@ -102,7 +104,7 @@ const MOCK_PROJECT: Project = {
 
 export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceClientProps) {
   const [project, setProject] = useState<Project | null>(null)
-  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<'board' | 'docs' | 'slides'>('board')
+  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<'board' | 'planning' | 'docs' | 'slides'>('board')
   const [showAddTool, setShowAddTool] = useState(false)
   const [addToolSearch, setAddToolSearch] = useState('')
   const [selectedAddToolCategory, setSelectedAddToolCategory] = useState<'all' | string>('all')
@@ -740,6 +742,8 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   // ── Derived data ───────────────────────────────────────────────────
   const allowed = new Set<string>(TOOL_SLUGS as readonly string[])
   const projectTools = project.toolIds.map(id => ({ slug: id, tool: getVaerktoejBySlug(id) })).filter(x => x.tool)
+  const boardTools = projectTools.filter(({ slug }) => !BOARD_EXCLUDED_TOOL_SLUGS.has(slug))
+  const planningTools = projectTools.filter(({ slug }) => BOARD_EXCLUDED_TOOL_SLUGS.has(slug))
   // In offline/demo mode allow all tools, not just allowed slugs
   const toAdd = VAERKTOEJER.filter(t =>
     (isOffline || allowed.has(t.slug)) && !project.toolIds.includes(t.slug)
@@ -822,6 +826,10 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const lastUpdated = project.updatedAt ? new Date(project.updatedAt).toLocaleString('da-DK') : '–'
   const flowNodeMap = new Map(flowNodes.map(node => [node.id, node]))
   const visibleFlowEdges = flowEdges.filter(edge => flowNodeMap.has(edge.from) && flowNodeMap.has(edge.to))
+  const hasKanbanTool = planningTools.some(tool => tool.slug === 'kanban')
+  const hasGanttTool = planningTools.some(tool => tool.slug === 'gantt-chart')
+  const KanbanComponent = getToolComponent('kanban')
+  const GanttComponent = getToolComponent('gantt-chart')
 
   // ── Render ─────────────────────────────────────────────────────────
   return (
@@ -830,7 +838,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       {/* Offline / demo mode banner */}
       {isOffline && (
         <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 200,
+          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 550,
           background: 'linear-gradient(90deg, #FEF3C7, #FDE68A)',
           borderBottom: '1px solid #FCD34D',
           padding: '6px 16px',
@@ -869,7 +877,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           <button
             style={{
               ...S.zoomBtn,
-              minWidth: 64,
+              minWidth: 72,
               fontSize: 12,
               fontWeight: 700,
               background: activeWorkspaceTab === 'board' ? '#111827' : 'transparent',
@@ -882,7 +890,26 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           <button
             style={{
               ...S.zoomBtn,
-              minWidth: 64,
+              minWidth: 74,
+              fontSize: 12,
+              fontWeight: 700,
+              background: activeWorkspaceTab === 'planning' ? '#111827' : 'transparent',
+              color: activeWorkspaceTab === 'planning' ? '#fff' : '#6B7280',
+            }}
+            onClick={() => setActiveWorkspaceTab('planning')}
+          >
+            Plan
+          </button>
+          <button
+            style={{
+              ...S.zoomBtn,
+              minWidth: 112,
+              height: 30,
+              padding: '0 10px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
               fontSize: 12,
               fontWeight: 700,
               background: activeWorkspaceTab === 'docs' ? '#111827' : 'transparent',
@@ -893,7 +920,6 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
             Docs
             <span
               style={{
-                marginLeft: 6,
                 padding: '1px 6px',
                 borderRadius: 999,
                 fontSize: 10,
@@ -910,7 +936,13 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           <button
             style={{
               ...S.zoomBtn,
-              minWidth: 64,
+              minWidth: 116,
+              height: 30,
+              padding: '0 10px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
               fontSize: 12,
               fontWeight: 700,
               background: activeWorkspaceTab === 'slides' ? '#111827' : 'transparent',
@@ -921,7 +953,6 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
             Slides
             <span
               style={{
-                marginLeft: 6,
                 padding: '1px 6px',
                 borderRadius: 999,
                 fontSize: 10,
@@ -1110,6 +1141,60 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
         <ProjectDocsTab projectId={projectId} canEdit={canEdit} />
       ) : activeWorkspaceTab === 'slides' ? (
         <ProjectSlidesTab projectId={projectId} canEdit={canEdit} />
+      ) : activeWorkspaceTab === 'planning' ? (
+      <ToolEmbedProvider projectId={projectId}>
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            top: isOffline ? 89 : 56,
+            background: '#EEF2F7',
+            padding: 14,
+            overflow: 'auto',
+          }}
+        >
+          <div
+            style={{
+              maxWidth: 1680,
+              margin: '0 auto',
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: 12,
+              minHeight: 'calc(100vh - 110px)',
+            }}
+          >
+            <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 14, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ padding: '10px 12px', borderBottom: '1px solid #F1F5F9', fontSize: 12, fontWeight: 800, color: '#1F2937', letterSpacing: '0.03em', textTransform: 'uppercase' }}>
+                Kanban
+              </div>
+              <div style={{ flex: 1, minHeight: 520, overflow: 'auto' }}>
+                {hasKanbanTool && KanbanComponent ? (
+                  <KanbanComponent />
+                ) : (
+                  <p style={{ margin: 12, fontSize: 13, color: '#6B7280' }}>
+                    Tilføj værktøjet <strong>Kanban</strong> for at arbejde her.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 14, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ padding: '10px 12px', borderBottom: '1px solid #F1F5F9', fontSize: 12, fontWeight: 800, color: '#1F2937', letterSpacing: '0.03em', textTransform: 'uppercase' }}>
+                Gantt
+              </div>
+              <div style={{ flex: 1, minHeight: 520, overflow: 'auto' }}>
+                {hasGanttTool && GanttComponent ? (
+                  <GanttComponent />
+                ) : (
+                  <p style={{ margin: 12, fontSize: 13, color: '#6B7280' }}>
+                    Tilføj værktøjet <strong>Gantt</strong> for at arbejde her.
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </ToolEmbedProvider>
       ) : (
       <ToolEmbedProvider projectId={projectId}>
         <div
@@ -1165,7 +1250,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           }}
         >
           {/* Empty state */}
-          {toolCount === 0 && (
+          {boardTools.length === 0 && (
             <div style={{
               position: 'absolute', top: 200, left: 300,
               textAlign: 'center', userSelect: 'none', pointerEvents: 'none',
@@ -1376,7 +1461,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           )}
 
           {/* ── Tool cards ─────────────────────────────── */}
-          {projectTools.map(({ slug, tool }, idx) => {
+          {boardTools.map(({ slug, tool }, idx) => {
             if (!tool) return null
             const { Icon } = getToolIcon(slug)
             const c = getCardColor(slug)
@@ -1523,7 +1608,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       {showPanel && (
         <div style={{
           position: 'fixed', top: isOffline ? 89 : 56, right: 0, bottom: 0, width: 300,
-          background: 'white', borderLeft: '1px solid #E5E7EB', zIndex: 200,
+          background: 'white', borderLeft: '1px solid #E5E7EB', zIndex: 560,
           display: 'flex', flexDirection: 'column',
           boxShadow: '-6px 0 24px rgba(0,0,0,0.07)',
           animation: 'slideIn 0.2s ease',
@@ -2022,7 +2107,7 @@ const S = {
   } as React.CSSProperties,
 
   topbar: {
-    position: 'fixed', left: 0, right: 0, height: 56, zIndex: 100,
+    position: 'fixed', left: 0, right: 0, height: 56, zIndex: 540,
     background: 'rgba(255,255,255,0.97)', backdropFilter: 'blur(12px)',
     borderBottom: '1px solid #E5E7EB',
     display: 'flex', alignItems: 'center', padding: '0 14px', gap: 12,

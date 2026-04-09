@@ -1,6 +1,65 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
 let supabaseClient: SupabaseClient | null = null
+let hasWarnedMissingEnv = false
+
+function createNoopQueryBuilder() {
+  const self: any = {}
+  self.select = () => self
+  self.insert = () => self
+  self.update = () => self
+  self.delete = () => self
+  self.upsert = () => self
+  self.eq = () => self
+  self.neq = () => self
+  self.gte = () => self
+  self.lte = () => self
+  self.like = () => self
+  self.ilike = () => self
+  self.in = () => self
+  self.order = () => self
+  self.limit = () => self
+  self.range = () => self
+  self.single = async () => ({ data: null, error: null })
+  self.maybeSingle = async () => ({ data: null, error: null })
+  self.then = (resolve: (v: any) => any) => Promise.resolve({ data: null, error: null }).then(resolve)
+  return self
+}
+
+function createNoopChannel() {
+  return {
+    on: () => createNoopChannel(),
+    send: async () => ({ status: 'ok' }),
+    track: async () => ({ status: 'ok' }),
+    presenceState: () => ({}),
+    subscribe: (cb?: (status: string) => void) => {
+      cb?.('SUBSCRIBED')
+      return createNoopChannel()
+    },
+    unsubscribe: async () => ({ status: 'ok' }),
+  }
+}
+
+function createMockSupabaseClient(): SupabaseClient {
+  const mock: any = {
+    from: () => createNoopQueryBuilder(),
+    rpc: async () => ({ data: null, error: null }),
+    channel: () => createNoopChannel(),
+    removeChannel: async () => ({ data: null, error: null }),
+    auth: {
+      getSession: async () => ({ data: { session: null }, error: null }),
+      getUser: async () => ({ data: { user: null }, error: null }),
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+    },
+  }
+
+  return new Proxy(mock, {
+    get(target, prop) {
+      if (prop in target) return target[prop as keyof typeof target]
+      return () => createNoopQueryBuilder()
+    },
+  }) as SupabaseClient
+}
 
 function getSupabaseClient(): SupabaseClient {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -8,10 +67,18 @@ function getSupabaseClient(): SupabaseClient {
 
   // Check if environment variables are set
   if (!supabaseUrl || !supabaseAnonKey) {
-    console.error('❌ FEJL: Supabase environment variabler mangler!');
-    console.error('NEXT_PUBLIC_SUPABASE_URL:', supabaseUrl ? '✅ Sat' : '❌ Mangler');
-    console.error('NEXT_PUBLIC_SUPABASE_ANON_KEY:', supabaseAnonKey ? '✅ Sat' : '❌ Mangler');
-    throw new Error('Missing Supabase environment variables. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in Vercel.')
+    const isLocalDev = process.env.NODE_ENV !== 'production'
+    if (isLocalDev) {
+      if (!hasWarnedMissingEnv) {
+        console.warn('Supabase env mangler i localhost. Kører i mock/no-op mode.')
+        console.warn('NEXT_PUBLIC_SUPABASE_URL:', supabaseUrl ? 'Sat' : 'Mangler')
+        console.warn('NEXT_PUBLIC_SUPABASE_ANON_KEY:', supabaseAnonKey ? 'Sat' : 'Mangler')
+        hasWarnedMissingEnv = true
+      }
+      if (!supabaseClient) supabaseClient = createMockSupabaseClient()
+      return supabaseClient
+    }
+    throw new Error('Missing Supabase environment variables. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.')
   }
 
   // Only cache client if we have valid env vars
