@@ -32,6 +32,7 @@ type ProjectInviteNotification = {
 
 export default function DashboardClient() {
   const [projects, setProjects] = useState<Project[]>([])
+  const [username, setUsername] = useState<string>('')
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [newName, setNewName] = useState('')
   const [newDesc, setNewDesc] = useState('')
@@ -45,7 +46,23 @@ export default function DashboardClient() {
   useEffect(() => {
     loadProjects()
     loadInviteNotifications()
+    loadCurrentUser()
   }, [])
+
+  const loadCurrentUser = async () => {
+    try {
+      const res = await fetch('/api/auth/me', { credentials: 'include' })
+      if (!res.ok) return
+      const payload = await res.json()
+      const nextUsername =
+        typeof payload?.username === 'string' && payload.username.trim()
+          ? payload.username.trim()
+          : ''
+      setUsername(nextUsername)
+    } catch (error) {
+      console.warn('Kunne ikke hente nuværende bruger:', error)
+    }
+  }
 
   const loadProjects = async () => {
     try {
@@ -158,11 +175,13 @@ export default function DashboardClient() {
 
   const greeting = (() => {
     const hour = new Date().getHours()
-    if (hour < 5) return 'God aften'
-    if (hour < 10) return 'Godmorgen'
+    if (hour < 5) return 'God nat'
+    if (hour < 10) return 'God morgen'
+    if (hour < 12) return 'God formiddag'
     if (hour < 18) return 'God eftermiddag'
     return 'God aften'
   })()
+  const greetingWithName = username ? `${greeting}, ${username}` : greeting
 
   const projectCount = projects.length
   const ownedProjects = projects.filter(p => (p.role || 'viewer') === 'owner')
@@ -400,7 +419,7 @@ export default function DashboardClient() {
                   Dit ForgeLab dashboard
                 </p>
                 <h1 className="text-2xl md:text-3xl lg:text-4xl font-semibold tracking-tight mb-2">
-                  {greeting}, klar til næste eksperiment?
+                  {greetingWithName}, klar til næste eksperiment?
                 </h1>
                 <p className="text-sm md:text-base text-amber-50/90 max-w-2xl">
                   Opret et nyt projekt på få sekunder, tilføj værktøjer som A/B/N test eller spørgeskemaer – og følg resultaterne direkte i Analytics.
