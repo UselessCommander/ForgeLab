@@ -1704,86 +1704,97 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
                     }}
                   />
                 </div>
+                {/* Cursor positions are editor-relative; this shell is their offset parent (not the whole page card). */}
                 <div
-                  onScroll={() => updateRenderedRemoteCursors()}
-                  ref={editorRef}
-                  contentEditable={canEdit}
-                  suppressContentEditableWarning
-                  onInput={e => handleContentChange((e.target as HTMLDivElement).innerHTML)}
-                  onMouseUp={rememberSelection}
-                  onKeyUp={rememberSelection}
-                  onBlur={rememberSelection}
-                  onClick={rememberSelection}
                   style={{
-                    width: '100%',
-                    minHeight: 'calc(297mm - 220px)',
+                    position: 'relative',
                     flex: 1,
-                    outline: 'none',
-                    padding: '28px 42px',
-                    fontSize: 16,
-                    lineHeight: lineSpacing,
-                    color: '#111827',
-                    fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif',
-                    background: canEdit ? '#fff' : '#FAFAFA',
-                    letterSpacing: showInvisibleChars ? '0.2px' : undefined,
-                    counterReset: showLineNumbers ? 'line' : undefined,
+                    minHeight: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
                   }}
-                />
-                {watermarkText && (
+                >
                   <div
+                    onScroll={() => updateRenderedRemoteCursors()}
+                    ref={editorRef}
+                    contentEditable={canEdit}
+                    suppressContentEditableWarning
+                    onInput={e => handleContentChange((e.target as HTMLDivElement).innerHTML)}
+                    onMouseUp={rememberSelection}
+                    onKeyUp={rememberSelection}
+                    onBlur={rememberSelection}
+                    onClick={rememberSelection}
                     style={{
-                      position: 'absolute',
-                      inset: 0,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      pointerEvents: 'none',
-                      zIndex: 2,
+                      width: '100%',
+                      minHeight: 'calc(297mm - 220px)',
+                      flex: 1,
+                      outline: 'none',
+                      padding: '28px 42px',
+                      fontSize: 16,
+                      lineHeight: lineSpacing,
+                      color: '#111827',
+                      fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif',
+                      background: canEdit ? '#fff' : '#FAFAFA',
+                      letterSpacing: showInvisibleChars ? '0.2px' : undefined,
+                      counterReset: showLineNumbers ? 'line' : undefined,
                     }}
-                  >
+                  />
+                  {watermarkText && (
                     <div
                       style={{
-                        transform: 'rotate(-28deg)',
-                        fontSize: 56,
-                        fontWeight: 700,
-                        color: 'rgba(107,114,128,0.12)',
-                        letterSpacing: '.08em',
-                        textTransform: 'uppercase',
-                        userSelect: 'none',
+                        position: 'absolute',
+                        inset: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        pointerEvents: 'none',
+                        zIndex: 2,
                       }}
                     >
-                      {watermarkText}
+                      <div
+                        style={{
+                          transform: 'rotate(-28deg)',
+                          fontSize: 56,
+                          fontWeight: 700,
+                          color: 'rgba(107,114,128,0.12)',
+                          letterSpacing: '.08em',
+                          textTransform: 'uppercase',
+                          userSelect: 'none',
+                        }}
+                      >
+                        {watermarkText}
+                      </div>
                     </div>
-                  </div>
-                )}
-                {remoteCursors.map(cursor => (
-                  <div
-                    key={cursor.id}
-                    style={{
-                      position: 'absolute',
-                      left: cursor.left,
-                      top: cursor.top,
-                      pointerEvents: 'none',
-                      zIndex: 30,
-                    }}
-                  >
-                    <div style={{ width: 2, height: 18, background: cursor.color, borderRadius: 2 }} />
+                  )}
+                  {remoteCursors.map(cursor => (
                     <div
+                      key={cursor.id}
                       style={{
-                        marginTop: 2,
-                        background: cursor.color,
-                        color: '#fff',
-                        fontSize: 10,
-                        fontWeight: 700,
-                        borderRadius: 6,
-                        padding: '2px 6px',
-                        whiteSpace: 'nowrap',
+                        position: 'absolute',
+                        left: cursor.left,
+                        top: cursor.top,
+                        pointerEvents: 'none',
+                        zIndex: 30,
                       }}
                     >
-                      {cursor.label}
+                      <div style={{ width: 2, height: 18, background: cursor.color, borderRadius: 2 }} />
+                      <div
+                        style={{
+                          marginTop: 2,
+                          background: cursor.color,
+                          color: '#fff',
+                          fontSize: 10,
+                          fontWeight: 700,
+                          borderRadius: 6,
+                          padding: '2px 6px',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {cursor.label}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
                 <div style={{ borderTop: '1px solid #E5E7EB', minHeight: '1.27cm', padding: '0.2cm 1.2cm', display: 'flex', alignItems: 'flex-start' }}>
                   <input
                     ref={footerInputRef}
