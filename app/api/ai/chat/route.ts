@@ -4,6 +4,7 @@ import { createOpenAI, openai } from '@ai-sdk/openai'
 import { anthropic } from '@ai-sdk/anthropic'
 import { mistral } from '@ai-sdk/mistral'
 import { z } from 'zod'
+import { refreshProjectKnowledgeIndex, retrieveProjectKnowledge } from '@/lib/project-rag'
 
 export const maxDuration = 30
 const SUPPORTED_AI_PROVIDERS = [
@@ -142,6 +143,7 @@ export async function POST(req: Request) {
 
     const contextObject =
       context && typeof context === 'object' ? context : null
+    const projectId = typeof contextObject?.projectId === 'string' ? contextObject.projectId : ''
     const workspaceTab =
       typeof contextObject?.workspaceTab === 'string' ? contextObject.workspaceTab : 'board'
 
@@ -159,6 +161,15 @@ export async function POST(req: Request) {
       ? contextObject.availableToolSlugs.filter((x: unknown): x is string => typeof x === 'string')
       : []
     const latestUserMessage = [...messages].reverse().find((m: any) => m?.role === 'user')
+    const latestUserMessageText =
+      typeof latestUserMessage?.content === 'string'
+        ? latestUserMessage.content
+        : Array.isArray(latestUserMessage?.parts)
+          ? latestUserMessage.parts
+              .filter((p: any) => p?.type === 'text' && typeof p?.text === 'string')
+              .map((p: any) => p.text)
+              .join('\n')
+          : ''
     const latestUserMessageHasPdf = Array.isArray(latestUserMessage?.parts)
       ? latestUserMessage.parts.some(
           (part: any) => part?.type === 'file' && typeof part?.mediaType === 'string' && part.mediaType.includes('pdf')
@@ -170,12 +181,38 @@ export async function POST(req: Request) {
         ? context
         : 'Ingen ekstra board-kontekst modtaget.'
 
+    let ragContextText = ''
+    if (projectId && latestUserMessageText.trim()) {
+      try {
+        const sourceSlugs =
+          workspaceTab === 'slides'
+            ? Array.isArray(contextObject?.slidesIncludedToolSlugs)
+              ? contextObject.slidesIncludedToolSlugs.filter((x: unknown): x is string => typeof x === 'string')
+              : activeToolSlugs
+            : activeToolSlugs
+
+        const allowedSources = Array.from(new Set(['project-docs', ...sourceSlugs])).filter(Boolean)
+        await refreshProjectKnowledgeIndex(projectId, allowedSources)
+        const ragChunks = await retrieveProjectKnowledge({
+          projectId,
+          query: latestUserMessageText,
+          sourceSlugs: allowedSources,
+          maxChunks: workspaceTab === 'slides' ? 10 : 8,
+        })
+        ragContextText = ragChunks
+          .map((chunk, i) => `[${i + 1}] (${chunk.sourceSlug}) ${chunk.chunkText}`)
+          .join('\n\n')
+      } catch (error) {
+        console.warn('RAG retrieval failed, continuing without retrieved context', error)
+      }
+    }
+
     // Provide context about the current ForgeLab projects/board to the model
     const systemPrompt =
       workspaceTab === 'slides'
         ? [
             'Du er ForgeLabs præsentations-assistent i projektets Slides-fane.',
-            'Nedenfor får du JSON-kontekst (bl.a. slidesIncludeDocs, slidesIncludedToolSlugs, slidesProjectContextDigest med udtræk af Projekt Docs og valgte board-værktøjer, samt board-metadata).',
+            'Nedenfor får du JSON-kontekst (bl.a. slidesContextMode, slidesIncludedToolSlugs, slidesProjectContextDigest med udtræk af Projekt Docs og board-værktøjer, samt board-metadata).',
             safeContext,
             '',
             'Svar altid på dansk.',
@@ -183,7 +220,10 @@ export async function POST(req: Request) {
             'KRITISK — INGEN NETSØGNING:',
             '- Du må ALDRIG søge på internettet eller påstå du har fundet data online. Skriv aldrig "søger", "Searching", "på nettet", "website", "Google" som kilde.',
             '- Brug KUN: (1) brugerens vedhæftede filer i chatbeskeder, (2) slidesProjectContextDigest og øvrig medsendt projektkontekst.',
-            '- Hvis kilder mangler, sig det ærligt og bed brugeren vedhæfte PDF/billeder eller sætte flueben ved Projekt Docs / relevante værktøjer i panelet.',
+            '- Hvis kilder mangler, sig det ærligt og bed brugeren vedhæfte PDF/billeder eller beskrive hvilke dele af projektet der skal vægtes.',
+            ragContextText
+              ? `\nRETRIEVED PROJEKTKONTEKST (brug dette først):\n${ragContextText}`
+              : '\nRETRIEVED PROJEKTKONTEKST: Ingen relevante snippets fundet.',
             '',
             'STEP-BY-STEP (outline → godkendelse → slides):',
             '1) Kort analyse i punktform: sprog, emne, målgruppe, evt. visuel stil og ca. antal slides hvis ikke angivet.',
@@ -196,6 +236,9 @@ export async function POST(req: Request) {
             'Du er ForgeLabs dedikerede AI-assistent. Din opgave er at hjælpe brugeren med at tænke kreativt og handlingsorienteret med deres projekt.',
             'Kontekst fra brugerens nuværende board:',
             safeContext,
+            ragContextText
+              ? `\nRETRIEVED PROJEKTKONTEKST (mest relevante bidder):\n${ragContextText}`
+              : '\nRETRIEVED PROJEKTKONTEKST: Ingen relevante snippets fundet.',
             '',
             'Svar altid på dansk.',
             '',

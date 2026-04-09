@@ -62,47 +62,57 @@ export default function AiChatCompanion({
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const slidesContextDigestRef = useRef('')
+  const slidesIncludedToolSlugsRef = useRef<string[]>([])
   const createId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
-  const [slidesIncludeDocs, setSlidesIncludeDocs] = useState(false)
-  const [slidesToolInclude, setSlidesToolInclude] = useState<Record<string, boolean>>({})
+  const [slidesContextMode, setSlidesContextMode] = useState<'focused' | 'broad'>('focused')
   const [pendingSlideOutline, setPendingSlideOutline] = useState<{
     analysisSummary: string
     slides: Array<{ order: number; title: string; slideType: string; summary: string }>
   } | null>(null)
   const [applyingOutline, setApplyingOutline] = useState(false)
 
-  useEffect(() => {
-    setSlidesToolInclude(prev => {
-      const next = { ...prev }
-      for (const t of projectTools) {
-        if (t.slug === 'project-slides') continue
-        if (!(t.slug in next)) next[t.slug] = false
-      }
-      return next
-    })
-  }, [projectTools])
+  const resolveSlidesIncludedToolSlugs = useCallback(
+    (queryText?: string) => {
+      const boardTools = projectTools.filter(t => t.slug !== 'project-slides')
+      if (slidesContextMode === 'broad') return boardTools.map(t => t.slug)
 
-  const rebuildSlidesContextDigest = useCallback(async () => {
+      const query = (queryText || '').trim().toLowerCase()
+      if (!query) return boardTools.map(t => t.slug)
+
+      const matched = boardTools
+        .filter(t => {
+          const slug = t.slug.toLowerCase()
+          const title = String(t.tool?.title || '').toLowerCase()
+          return (slug && query.includes(slug)) || (title && query.includes(title))
+        })
+        .map(t => t.slug)
+
+      return matched.length > 0 ? matched : boardTools.map(t => t.slug)
+    },
+    [projectTools, slidesContextMode]
+  )
+
+  const rebuildSlidesContextDigest = useCallback(async (queryText?: string) => {
     if (!kimiOnlyMode) return
     const parts: string[] = []
-    if (slidesIncludeDocs) {
-      const d = await getProjectToolData(projectId, 'project-docs')
-      parts.push('=== PROJEKT DOCS (afkortet) ===\n' + JSON.stringify(d).slice(0, 14000))
+    const docsData = await getProjectToolData(projectId, 'project-docs')
+    if (docsData && Object.keys(docsData).length > 0) {
+      parts.push('=== PROJEKT DOCS (afkortet) ===\n' + JSON.stringify(docsData).slice(0, 12000))
     }
-    for (const { slug } of projectTools) {
-      if (slug === 'project-slides') continue
-      if (!slidesToolInclude[slug]) continue
+    const includedToolSlugs = resolveSlidesIncludedToolSlugs(queryText)
+    slidesIncludedToolSlugsRef.current = includedToolSlugs
+    for (const slug of includedToolSlugs) {
       const d = await getProjectToolData(projectId, slug)
       parts.push(`=== VÆRKTØJ "${slug}" (afkortet) ===\n` + JSON.stringify(d).slice(0, 10000))
     }
     slidesContextDigestRef.current = parts.join('\n\n')
-  }, [kimiOnlyMode, projectId, projectTools, slidesIncludeDocs, slidesToolInclude])
+  }, [kimiOnlyMode, projectId, resolveSlidesIncludedToolSlugs])
 
   useEffect(() => {
     if (!kimiOnlyMode) return
     void rebuildSlidesContextDigest()
-  }, [kimiOnlyMode, rebuildSlidesContextDigest, slidesIncludeDocs, slidesToolInclude, projectId, projectTools])
+  }, [kimiOnlyMode, rebuildSlidesContextDigest, projectId, projectTools, slidesContextMode])
 
   const isPlainObject = (value: unknown): value is Record<string, unknown> =>
     typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -228,8 +238,6 @@ export default function AiChatCompanion({
     }
   }
 
-  const slidesBoardTools = projectTools.filter(t => t.slug !== 'project-slides')
-
   const updatePendingOutlineSlide = (
     index: number,
     patch: Partial<{ order: number; title: string; slideType: string; summary: string }>
@@ -333,15 +341,11 @@ export default function AiChatCompanion({
           .map((m: any) => getMessageText(m))
           .filter(Boolean)
 
-        const slidesIncludedToolSlugs = Object.entries(slidesToolInclude)
-          .filter(([, on]) => on)
-          .map(([slug]) => slug)
-          .filter(slug => slug !== 'project-slides')
-
         return {
           aiProvider: kimiOnlyMode ? 'kimi' : selectedProvider,
           aiModel: kimiOnlyMode ? 'kimi-k2.5' : selectedModel,
           context: {
+            projectId,
             projectName,
             framework,
             role,
@@ -353,8 +357,8 @@ export default function AiChatCompanion({
             recentUserMessages,
             ...(kimiOnlyMode
               ? {
-                  slidesIncludeDocs,
-                  slidesIncludedToolSlugs,
+                  slidesContextMode,
+                  slidesIncludedToolSlugs: slidesIncludedToolSlugsRef.current,
                   slidesProjectContextDigest: slidesContextDigestRef.current || '',
                 }
               : {}),
@@ -725,9 +729,7 @@ export default function AiChatCompanion({
     setUploadError(null)
     if ((!input.trim() && pendingFiles.length === 0) || isTyping) return
 
-    if (kimiOnlyMode) {
-      await rebuildSlidesContextDigest()
-    }
+    if (kimiOnlyMode) await rebuildSlidesContextDigest(input.trim())
 
     let fileParts: any[] = []
     if (pendingFiles.length > 0) {
@@ -986,8 +988,8 @@ export default function AiChatCompanion({
                     <>
                       <p style={{ margin: '0 0 8px', fontWeight: 600, color: '#374151' }}>Slides-assistent</p>
                       <p style={{ margin: '0 0 6px' }}>
-                        Beskriv præsentationen. Jeg bruger kun det du giver: vedhæftede filer og det du fluebenmarker
-                        nedenfor (Projekt Docs + board-værktøjer).
+                        Beskriv præsentationen. Jeg bruger dine vedhæftede filer og relevant projektkontekst fra
+                        docs + board-værktøjer automatisk.
                       </p>
                       <p style={{ margin: 0, fontSize: 12.5 }}>
                         Først får du en disposition (outline) du kan rette; derefter opretter du slides med knappen i
@@ -1175,38 +1177,46 @@ export default function AiChatCompanion({
                     color: '#374151',
                   }}
                 >
-                  <div style={{ fontWeight: 600, marginBottom: 8 }}>Medtag kontekst</div>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: 6 }}>
-                    <input
-                      type="checkbox"
-                      checked={slidesIncludeDocs}
-                      onChange={e => setSlidesIncludeDocs(e.target.checked)}
+                  <div style={{ fontWeight: 600, marginBottom: 8 }}>Projektkontekst</div>
+                  <p style={{ margin: '0 0 8px', fontSize: 11, color: '#6B7280' }}>
+                    AI bruger altid docs + værktøjer automatisk. Vælg hvordan konteksten vægtes:
+                  </p>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={() => setSlidesContextMode('focused')}
                       disabled={isTyping}
-                    />
-                    <span>Projekt Docs</span>
-                  </label>
-                  {slidesBoardTools.length === 0 ? (
-                    <p style={{ margin: '6px 0 0', fontSize: 11, color: '#6B7280' }}>
-                      Ingen board-værktøjer på projektet endnu.
-                    </p>
-                  ) : (
-                    slidesBoardTools.map(t => (
-                      <label
-                        key={t.slug}
-                        style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: 4 }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={!!slidesToolInclude[t.slug]}
-                          onChange={e =>
-                            setSlidesToolInclude(prev => ({ ...prev, [t.slug]: e.target.checked }))
-                          }
-                          disabled={isTyping}
-                        />
-                        <span>{t.tool?.title || t.slug}</span>
-                      </label>
-                    ))
-                  )}
+                      style={{
+                        padding: '6px 10px',
+                        borderRadius: 999,
+                        border: slidesContextMode === 'focused' ? '1px solid #4F46E5' : '1px solid #D1D5DB',
+                        background: slidesContextMode === 'focused' ? '#EEF2FF' : '#fff',
+                        color: slidesContextMode === 'focused' ? '#3730A3' : '#374151',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Fokuser på nævnte værktøjer
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSlidesContextMode('broad')}
+                      disabled={isTyping}
+                      style={{
+                        padding: '6px 10px',
+                        borderRadius: 999,
+                        border: slidesContextMode === 'broad' ? '1px solid #4F46E5' : '1px solid #D1D5DB',
+                        background: slidesContextMode === 'broad' ? '#EEF2FF' : '#fff',
+                        color: slidesContextMode === 'broad' ? '#3730A3' : '#374151',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Bred søgning i hele projektet
+                    </button>
+                  </div>
                 </div>
               )}
               {pendingSlideOutline && (
