@@ -447,8 +447,8 @@ export default function DashboardClient() {
                 </div>
               )}
             </div>
-            <Link href="/admin" className="text-sm text-gray-600 hover:text-gray-900 font-medium transition-colors">
-              Analytics
+            <Link href="/profile" className="text-sm text-gray-600 hover:text-gray-900 font-medium transition-colors">
+              Profil
             </Link>
             <LogoutButton />
           </div>
@@ -467,10 +467,13 @@ export default function DashboardClient() {
           <span>Demo-tilstand aktiv — ingen database. Projekter gemmes kun i denne browser-session.</span>
         </div>
       )}
-      <div className="layout-page py-10">
+      <div className="layout-page py-12">
         {/* Hero / topsektion */}
         <section className="mb-10">
-          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-amber-500 via-amber-500/90 to-amber-600 text-white p-6 md:p-8 shadow-[0_20px_45px_rgba(249,115,22,0.35)]">
+          <div
+            className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-amber-500 via-amber-500/90 to-amber-600 text-white p-6 md:p-8"
+            style={{ boxShadow: 'var(--forge-hero-shadow)' }}
+          >
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
               <div className="max-w-2xl md:max-w-3xl">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-100/90 mb-1">
@@ -503,7 +506,7 @@ export default function DashboardClient() {
                 </div>
               </div>
               <div className="flex-shrink-0 grid grid-cols-2 gap-3 text-xs md:text-sm">
-                <div className="rounded-2xl bg-black/15 border border-white/15 px-4 py-3">
+                <div className="rounded-2xl bg-white/10 px-4 py-3">
                   <p className="text-amber-100/80 text-[11px] font-medium uppercase tracking-wide mb-1">
                     Aktive projekter
                   </p>
@@ -512,7 +515,7 @@ export default function DashboardClient() {
                     Samler alle dine værktøjer ét sted.
                   </p>
                 </div>
-                <div className="rounded-2xl bg-black/10 border border-white/10 px-4 py-3">
+                <div className="rounded-2xl bg-white/10 px-4 py-3">
                   <p className="text-amber-100/80 text-[11px] font-medium uppercase tracking-wide mb-1">
                     Tilgængelige værktøjer
                   </p>
@@ -587,7 +590,7 @@ export default function DashboardClient() {
                 </div>
 
                 <div>
-                  <div className="mb-3 flex items-center justify-between">
+                  <div className="mb-3 mt-6 pt-4 border-t border-gray-200/60 flex items-center justify-between">
                     <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Delt med mig</h3>
                     <span className="text-xs text-gray-400">{sharedProjects.length}</span>
                   </div>
@@ -623,14 +626,14 @@ export default function DashboardClient() {
                   ? 'Design Thinking'
                   : 'Double Diamond'}
             </h2>
-            <div className="inline-flex rounded-xl border border-neutral-200 bg-white p-1">
+            <div className="inline-flex rounded-xl bg-white/70 p-1">
               <button
                 type="button"
                 onClick={() => setActiveFrameworkView('double-diamond')}
                 className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
                   activeFrameworkView === 'double-diamond'
                     ? 'bg-neutral-900 text-white'
-                    : 'text-neutral-600 hover:bg-neutral-100'
+                    : 'text-neutral-600 hover:bg-white'
                 }`}
               >
                 Double Diamond
@@ -641,7 +644,7 @@ export default function DashboardClient() {
                 className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
                   activeFrameworkView === 'google-design-sprint'
                     ? 'bg-neutral-900 text-white'
-                    : 'text-neutral-600 hover:bg-neutral-100'
+                    : 'text-neutral-600 hover:bg-white'
                 }`}
               >
                 Google Design Sprint
@@ -652,7 +655,7 @@ export default function DashboardClient() {
                 className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
                   activeFrameworkView === 'design-thinking'
                     ? 'bg-neutral-900 text-white'
-                    : 'text-neutral-600 hover:bg-neutral-100'
+                    : 'text-neutral-600 hover:bg-white'
                 }`}
               >
                 Design Thinking
@@ -664,7 +667,13 @@ export default function DashboardClient() {
           </p>
 
           <div className="swiss-panel p-4 md:p-6 mb-5">
-            <div className="rounded-xl border border-neutral-200 bg-white p-3 md:p-4 mb-5 overflow-x-auto">
+            <div
+              className={
+                activeFrameworkView === 'double-diamond'
+                  ? 'p-0 mb-5 overflow-x-auto'
+                  : 'rounded-xl border border-neutral-200 bg-white p-3 md:p-4 mb-5 overflow-x-auto'
+              }
+            >
               {activeFrameworkView === 'google-design-sprint' ? (
                 <GoogleDesignSprintDiagram
                   activeSelection={activeSelection as GoogleDesignSprintPhase}
@@ -713,7 +722,7 @@ export default function DashboardClient() {
 
                 if (methods.length === 0) return null
                 return (
-                  <div className="mb-4 border border-amber-200 bg-amber-50/60 p-3">
+                  <div className="mb-4 bg-amber-50/40 p-3 rounded-lg">
                     <p className="text-xs uppercase tracking-widest text-amber-800 mb-2">
                       {sectionLabel} (ikke nødvendigvis tools)
                     </p>
@@ -731,9 +740,9 @@ export default function DashboardClient() {
                     <Link
                       key={tool.slug}
                       href={`/tools/${tool.slug}`}
-                      className="flex items-center gap-3 p-3 border border-neutral-300 bg-white hover:bg-neutral-50 transition-colors"
+                      className="flex items-center gap-3 p-3 bg-white/70 hover:bg-white transition-colors rounded-lg"
                     >
-                      <div className={`w-9 h-9 border border-neutral-300 flex items-center justify-center ${bg} ${text}`}>
+                      <div className={`w-9 h-9 flex items-center justify-center rounded-lg ${bg} ${text}`}>
                         <Icon className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">

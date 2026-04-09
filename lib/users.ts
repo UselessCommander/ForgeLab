@@ -6,6 +6,9 @@ export interface User {
     id: string;
     username: string;
     email?: string | null;
+    first_name?: string | null;
+    last_name?: string | null;
+    profile_role?: string | null;
     password: string; // Hashed password
     createdAt: string;
 }
@@ -95,6 +98,9 @@ export async function createUser(username: string, password: string, email?: str
             id: data.id,
             username: data.username,
             email: data.email,
+            first_name: data.first_name ?? null,
+            last_name: data.last_name ?? null,
+            profile_role: data.profile_role ?? null,
             password: data.password_hash,
             createdAt: data.created_at
         };
@@ -127,6 +133,9 @@ export async function getUserByUsername(username: string): Promise<User | null> 
             id: userData.id,
             username: userData.username,
             email: userData.email,
+            first_name: userData.first_name ?? null,
+            last_name: userData.last_name ?? null,
+            profile_role: userData.profile_role ?? null,
             password: userData.password_hash,
             createdAt: userData.created_at
         };
@@ -159,6 +168,9 @@ export async function getUserById(id: string): Promise<User | null> {
             id: userData.id,
             username: userData.username,
             email: userData.email,
+            first_name: userData.first_name ?? null,
+            last_name: userData.last_name ?? null,
+            profile_role: userData.profile_role ?? null,
             password: userData.password_hash,
             createdAt: userData.created_at
         };
@@ -223,6 +235,9 @@ export async function getUserByEmail(email: string): Promise<User | null> {
             id: userData.id,
             username: userData.username,
             email: userData.email,
+            first_name: userData.first_name ?? null,
+            last_name: userData.last_name ?? null,
+            profile_role: userData.profile_role ?? null,
             password: userData.password_hash,
             createdAt: userData.created_at
         };

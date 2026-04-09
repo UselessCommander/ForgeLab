@@ -50,6 +50,9 @@ interface ProjectWorkspaceClientProps {
 type CardPosition = { x: number; y: number }
 type FlowShape = 'terminator' | 'process' | 'decision' | 'data' | 'document' | 'database'
 type FlowNode = { id: string; x: number; y: number; label: string; shape: FlowShape }
+type StickyNote = { id: string; x: number; y: number; title: string; text: string; color: string }
+type BoardSection = { id: string; x: number; y: number; width: number; height: number; title: string; color: string }
+type BoardComment = { id: string; x: number; y: number; text: string; createdAt: number; createdBy: string }
 type FlowConnectorSide = 'left' | 'top' | 'bottom'
 type FlowEdge = { id: string; from: string; to: string; fromSide?: FlowConnectorSide; toSide?: FlowConnectorSide }
 type FlowEdgeDraft = {
@@ -87,6 +90,7 @@ type MarqueeSelection = {
 }
 
 const FLOWCHART_TOOL_SLUG = 'project-board-flowchart'
+const STICKY_NOTE_COLORS = ['#FFF9C4', '#FCE7F3', '#E0F2FE', '#DCFCE7', '#FEE2E2', '#EDE9FE']
 const CURSOR_STALE_MS = 12000
 const CURSOR_SEND_INTERVAL_MS = 50
 const CURSOR_COLORS = ['#2563EB', '#7C3AED', '#DB2777', '#059669', '#D97706', '#0891B2', '#4F46E5']
@@ -179,8 +183,14 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const [cardPositions, setCardPositions] = useState<Record<string, CardPosition>>({})
   const [flowNodes, setFlowNodes] = useState<FlowNode[]>([])
   const [flowEdges, setFlowEdges] = useState<FlowEdge[]>([])
+  const [stickyNotes, setStickyNotes] = useState<StickyNote[]>([])
+  const [boardSections, setBoardSections] = useState<BoardSection[]>([])
+  const [boardComments, setBoardComments] = useState<BoardComment[]>([])
   const [selectedCardSlugs, setSelectedCardSlugs] = useState<string[]>([])
   const [selectedFlowNodeIds, setSelectedFlowNodeIds] = useState<string[]>([])
+  const [selectedStickyNoteIds, setSelectedStickyNoteIds] = useState<string[]>([])
+  const [selectedSectionIds, setSelectedSectionIds] = useState<string[]>([])
+  const [selectedCommentIds, setSelectedCommentIds] = useState<string[]>([])
   const [lockedCardSlugs, setLockedCardSlugs] = useState<string[]>([])
   const [cardZOrder, setCardZOrder] = useState<Record<string, number>>({})
   const [linkingFromNodeId, setLinkingFromNodeId] = useState<string | null>(null)
@@ -189,6 +199,9 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const [draggingPaletteShape, setDraggingPaletteShape] = useState<FlowShape | null>(null)
   const [edgeDraft, setEdgeDraft] = useState<FlowEdgeDraft | null>(null)
   const dragging = useRef<string | null>(null)
+  const draggingStickyNote = useRef<string | null>(null)
+  const draggingBoardSection = useRef<string | null>(null)
+  const draggingBoardComment = useRef<string | null>(null)
   const isMarqueeSelecting = useRef(false)
   const marqueeIsAdditiveRef = useRef(false)
   const draggingFlowNode = useRef<string | null>(null)
@@ -379,7 +392,13 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
         target?.isContentEditable
       if (isTypingTarget) return
 
-      if (selectedFlowNodeIds.length === 0 && selectedCardSlugs.length === 0) return
+      if (
+        selectedFlowNodeIds.length === 0 &&
+        selectedCardSlugs.length === 0 &&
+        selectedStickyNoteIds.length === 0 &&
+        selectedSectionIds.length === 0 &&
+        selectedCommentIds.length === 0
+      ) return
       event.preventDefault()
       if (selectedFlowNodeIds.length > 0) {
         removeFlowNodesByIds(selectedFlowNodeIds)
@@ -387,13 +406,22 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       if (selectedCardSlugs.length > 0) {
         void removeToolCardsByIds(selectedCardSlugs)
       }
+      if (selectedStickyNoteIds.length > 0) {
+        removeStickyNotesByIds(selectedStickyNoteIds)
+      }
+      if (selectedSectionIds.length > 0) {
+        removeSectionsByIds(selectedSectionIds)
+      }
+      if (selectedCommentIds.length > 0) {
+        removeCommentsByIds(selectedCommentIds)
+      }
     }
 
     window.addEventListener('keydown', onKeyDownDeleteSelected)
     return () => {
       window.removeEventListener('keydown', onKeyDownDeleteSelected)
     }
-  }, [project?.role, selectedFlowNodeIds, selectedCardSlugs])
+  }, [project?.role, selectedFlowNodeIds, selectedCardSlugs, selectedStickyNoteIds, selectedSectionIds, selectedCommentIds])
 
   const handleDdCanvasLayoutSave = useCallback(
     async (layout: NonNullable<Project['ddCanvasLayout']>) => {
@@ -511,6 +539,46 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
               toSide: (e.toSide === 'left' || e.toSide === 'top' || e.toSide === 'bottom') ? e.toSide : undefined,
             }))
         )
+        const notes = Array.isArray(raw?.stickyNotes) ? raw.stickyNotes : []
+        setStickyNotes(
+          notes
+            .filter((n: any) => n && typeof n.id === 'string')
+            .map((n: any) => ({
+              id: n.id,
+              x: typeof n.x === 'number' ? n.x : 120,
+              y: typeof n.y === 'number' ? n.y : 120,
+              title: typeof n.title === 'string' ? n.title : '',
+              text: typeof n.text === 'string' ? n.text : '',
+              color: typeof n.color === 'string' ? n.color : STICKY_NOTE_COLORS[0],
+            }))
+        )
+        const sections = Array.isArray(raw?.sections) ? raw.sections : []
+        setBoardSections(
+          sections
+            .filter((s: any) => s && typeof s.id === 'string')
+            .map((s: any) => ({
+              id: s.id,
+              x: typeof s.x === 'number' ? s.x : 100,
+              y: typeof s.y === 'number' ? s.y : 100,
+              width: typeof s.width === 'number' ? Math.max(260, s.width) : 420,
+              height: typeof s.height === 'number' ? Math.max(180, s.height) : 260,
+              title: typeof s.title === 'string' ? s.title : 'Sektion',
+              color: typeof s.color === 'string' ? s.color : '#CBD5E1',
+            }))
+        )
+        const comments = Array.isArray(raw?.comments) ? raw.comments : []
+        setBoardComments(
+          comments
+            .filter((c: any) => c && typeof c.id === 'string')
+            .map((c: any) => ({
+              id: c.id,
+              x: typeof c.x === 'number' ? c.x : 180,
+              y: typeof c.y === 'number' ? c.y : 180,
+              text: typeof c.text === 'string' ? c.text : '',
+              createdAt: typeof c.createdAt === 'number' ? c.createdAt : Date.now(),
+              createdBy: typeof c.createdBy === 'string' ? c.createdBy : currentUsername,
+            }))
+        )
       } catch {
         // ignore load errors and start with empty flowchart
       }
@@ -519,20 +587,29 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     return () => {
       mounted = false
     }
-  }, [projectId])
+  }, [projectId, currentUsername])
 
   const persistFlowchart = useCallback(
-    (nextNodes: FlowNode[], nextEdges: FlowEdge[]) => {
+    (
+      nextNodes: FlowNode[],
+      nextEdges: FlowEdge[],
+      nextStickyNotes: StickyNote[] = stickyNotes,
+      nextSections: BoardSection[] = boardSections,
+      nextComments: BoardComment[] = boardComments
+    ) => {
       if (flowSaveTimer.current) clearTimeout(flowSaveTimer.current)
       flowSaveTimer.current = setTimeout(() => {
         saveProjectToolData(projectId, FLOWCHART_TOOL_SLUG, {
           nodes: nextNodes,
           edges: nextEdges,
+          stickyNotes: nextStickyNotes,
+          sections: nextSections,
+          comments: nextComments,
           updatedAt: Date.now(),
         }).catch(console.error)
       }, 400)
     },
-    [projectId]
+    [projectId, stickyNotes, boardSections, boardComments]
   )
 
   const persistLayout = useCallback(
@@ -579,6 +656,9 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       if (!marqueeIsAdditiveRef.current) {
         setSelectedCardSlugs([])
         setSelectedFlowNodeIds([])
+        setSelectedStickyNoteIds([])
+        setSelectedSectionIds([])
+        setSelectedCommentIds([])
       }
       e.preventDefault()
       return
@@ -609,6 +689,24 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       const rawPos = { x: worldPoint.x - dragOffset.current.x, y: worldPoint.y - dragOffset.current.y }
       const newPos = snapPoint(rawPos.x, rawPos.y)
       setCardPositions(prev => ({ ...prev, [dragging.current!]: newPos }))
+    }
+    if (draggingStickyNote.current) {
+      const noteId = draggingStickyNote.current
+      const rawPos = { x: worldPoint.x - dragOffset.current.x, y: worldPoint.y - dragOffset.current.y }
+      const newPos = snapPoint(rawPos.x, rawPos.y)
+      setStickyNotes(prev => prev.map(note => (note.id === noteId ? { ...note, x: newPos.x, y: newPos.y } : note)))
+    }
+    if (draggingBoardSection.current) {
+      const sectionId = draggingBoardSection.current
+      const rawPos = { x: worldPoint.x - dragOffset.current.x, y: worldPoint.y - dragOffset.current.y }
+      const newPos = snapPoint(rawPos.x, rawPos.y)
+      setBoardSections(prev => prev.map(section => (section.id === sectionId ? { ...section, x: newPos.x, y: newPos.y } : section)))
+    }
+    if (draggingBoardComment.current) {
+      const commentId = draggingBoardComment.current
+      const rawPos = { x: worldPoint.x - dragOffset.current.x, y: worldPoint.y - dragOffset.current.y }
+      const newPos = snapPoint(rawPos.x, rawPos.y)
+      setBoardComments(prev => prev.map(comment => (comment.id === commentId ? { ...comment, x: newPos.x, y: newPos.y } : comment)))
     }
     if (draggingFlowNode.current) {
       const nodeId = draggingFlowNode.current
@@ -678,6 +776,9 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
         if (!marqueeIsAdditiveRef.current) {
           setSelectedCardSlugs([])
           setSelectedFlowNodeIds([])
+          setSelectedStickyNoteIds([])
+          setSelectedSectionIds([])
+          setSelectedCommentIds([])
           setSelectedFlowNodeId(null)
         }
       } else if (marqueeIsAdditiveRef.current) {
@@ -704,6 +805,18 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     if (draggingFlowNode.current) {
       draggingFlowNode.current = null
       persistFlowchart(flowNodes, flowEdges)
+    }
+    if (draggingStickyNote.current) {
+      draggingStickyNote.current = null
+      persistFlowchart(flowNodes, flowEdges, stickyNotes, boardSections, boardComments)
+    }
+    if (draggingBoardSection.current) {
+      draggingBoardSection.current = null
+      persistFlowchart(flowNodes, flowEdges, stickyNotes, boardSections, boardComments)
+    }
+    if (draggingBoardComment.current) {
+      draggingBoardComment.current = null
+      persistFlowchart(flowNodes, flowEdges, stickyNotes, boardSections, boardComments)
     }
     if (edgeDraft) {
       const worldPoint = e ? getCanvasWorldPoint(e.clientX, e.clientY) : { x: edgeDraft.currentX, y: edgeDraft.currentY }
@@ -759,6 +872,10 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     if (!canEdit) return
     if (lockedCardSlugs.includes(slug)) return
     setContextMenu(null)
+    setSelectedFlowNodeIds([])
+    setSelectedStickyNoteIds([])
+    setSelectedSectionIds([])
+    setSelectedCommentIds([])
     e.stopPropagation()
     const rect = canvasRef.current!.getBoundingClientRect()
     const pos = cardPositions[slug] || defaultPos(slug, idx)
@@ -897,6 +1014,12 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     if (!canEdit) return
     e.stopPropagation()
     const additive = e.metaKey || e.ctrlKey || e.shiftKey
+    if (!additive) {
+      setSelectedCardSlugs([])
+      setSelectedStickyNoteIds([])
+      setSelectedSectionIds([])
+      setSelectedCommentIds([])
+    }
     setSelectedFlowNodeIds(prev => {
       if (!additive) return [nodeId]
       if (prev.includes(nodeId)) return prev.filter(id => id !== nodeId)
@@ -910,6 +1033,63 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     const my = (e.clientY - rect.top - pan.y) / zoom
     dragOffset.current = { x: mx - node.x, y: my - node.y }
     draggingFlowNode.current = nodeId
+    e.preventDefault()
+  }
+
+  const onStickyNoteMouseDown = (e: React.MouseEvent, noteId: string) => {
+    if (!canEdit) return
+    e.stopPropagation()
+    setContextMenu(null)
+    setSelectedStickyNoteIds([noteId])
+    setSelectedCardSlugs([])
+    setSelectedFlowNodeIds([])
+    setSelectedSectionIds([])
+    setSelectedCommentIds([])
+    const rect = canvasRef.current!.getBoundingClientRect()
+    const note = stickyNotes.find(n => n.id === noteId)
+    if (!note) return
+    const mx = (e.clientX - rect.left - pan.x) / zoom
+    const my = (e.clientY - rect.top - pan.y) / zoom
+    dragOffset.current = { x: mx - note.x, y: my - note.y }
+    draggingStickyNote.current = noteId
+    e.preventDefault()
+  }
+
+  const onSectionMouseDown = (e: React.MouseEvent, sectionId: string) => {
+    if (!canEdit) return
+    e.stopPropagation()
+    setContextMenu(null)
+    setSelectedSectionIds([sectionId])
+    setSelectedCardSlugs([])
+    setSelectedFlowNodeIds([])
+    setSelectedStickyNoteIds([])
+    setSelectedCommentIds([])
+    const rect = canvasRef.current!.getBoundingClientRect()
+    const section = boardSections.find(s => s.id === sectionId)
+    if (!section) return
+    const mx = (e.clientX - rect.left - pan.x) / zoom
+    const my = (e.clientY - rect.top - pan.y) / zoom
+    dragOffset.current = { x: mx - section.x, y: my - section.y }
+    draggingBoardSection.current = sectionId
+    e.preventDefault()
+  }
+
+  const onCommentMouseDown = (e: React.MouseEvent, commentId: string) => {
+    if (!canEdit) return
+    e.stopPropagation()
+    setContextMenu(null)
+    setSelectedCommentIds([commentId])
+    setSelectedCardSlugs([])
+    setSelectedFlowNodeIds([])
+    setSelectedStickyNoteIds([])
+    setSelectedSectionIds([])
+    const rect = canvasRef.current!.getBoundingClientRect()
+    const comment = boardComments.find(c => c.id === commentId)
+    if (!comment) return
+    const mx = (e.clientX - rect.left - pan.x) / zoom
+    const my = (e.clientY - rect.top - pan.y) / zoom
+    dragOffset.current = { x: mx - comment.x, y: my - comment.y }
+    draggingBoardComment.current = commentId
     e.preventDefault()
   }
 
@@ -986,6 +1166,106 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     setSelectedFlowNodeIds(prev => prev.filter(id => !nodeSet.has(id)))
     if (linkingFromNodeId && nodeSet.has(linkingFromNodeId)) setLinkingFromNodeId(null)
     if (hoveredFlowNodeId && nodeSet.has(hoveredFlowNodeId)) setHoveredFlowNodeId(null)
+  }
+
+  const addStickyNote = (at?: { x: number; y: number }) => {
+    if (!canEdit) return
+    const rect = canvasRef.current?.getBoundingClientRect()
+    const centerX = at ? at.x : rect ? (rect.width / 2 - pan.x) / zoom : 180
+    const centerY = at ? at.y : rect ? (rect.height / 2 - pan.y) / zoom : 180
+    const pos = snapPoint(centerX, centerY)
+    const note: StickyNote = {
+      id: `sticky-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      x: pos.x,
+      y: pos.y,
+      title: 'Sticky',
+      text: '',
+      color: STICKY_NOTE_COLORS[Math.floor(Math.random() * STICKY_NOTE_COLORS.length)],
+    }
+    setStickyNotes(prev => {
+      const next = [...prev, note]
+      persistFlowchart(flowNodes, flowEdges, next, boardSections, boardComments)
+      return next
+    })
+    setSelectedStickyNoteIds([note.id])
+  }
+
+  const addBoardSection = (at?: { x: number; y: number }) => {
+    if (!canEdit) return
+    const rect = canvasRef.current?.getBoundingClientRect()
+    const centerX = at ? at.x : rect ? (rect.width / 2 - pan.x) / zoom : 220
+    const centerY = at ? at.y : rect ? (rect.height / 2 - pan.y) / zoom : 220
+    const pos = snapPoint(centerX, centerY)
+    const section: BoardSection = {
+      id: `section-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      x: pos.x,
+      y: pos.y,
+      width: 420,
+      height: 260,
+      title: 'Sektion',
+      color: '#CBD5E1',
+    }
+    setBoardSections(prev => {
+      const next = [...prev, section]
+      persistFlowchart(flowNodes, flowEdges, stickyNotes, next, boardComments)
+      return next
+    })
+    setSelectedSectionIds([section.id])
+  }
+
+  const addBoardComment = (at?: { x: number; y: number }) => {
+    if (!canEdit) return
+    const rect = canvasRef.current?.getBoundingClientRect()
+    const centerX = at ? at.x : rect ? (rect.width / 2 - pan.x) / zoom : 240
+    const centerY = at ? at.y : rect ? (rect.height / 2 - pan.y) / zoom : 240
+    const pos = snapPoint(centerX, centerY)
+    const comment: BoardComment = {
+      id: `comment-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      x: pos.x,
+      y: pos.y,
+      text: '',
+      createdAt: Date.now(),
+      createdBy: currentUsername,
+    }
+    setBoardComments(prev => {
+      const next = [...prev, comment]
+      persistFlowchart(flowNodes, flowEdges, stickyNotes, boardSections, next)
+      return next
+    })
+    setSelectedCommentIds([comment.id])
+  }
+
+  const removeStickyNotesByIds = (ids: string[]) => {
+    if (!canEdit || ids.length === 0) return
+    const idSet = new Set(ids)
+    setStickyNotes(prev => {
+      const next = prev.filter(item => !idSet.has(item.id))
+      persistFlowchart(flowNodes, flowEdges, next, boardSections, boardComments)
+      return next
+    })
+    setSelectedStickyNoteIds(prev => prev.filter(id => !idSet.has(id)))
+  }
+
+  const removeSectionsByIds = (ids: string[]) => {
+    if (!canEdit || ids.length === 0) return
+    const idSet = new Set(ids)
+    setBoardSections(prev => {
+      const next = prev.filter(item => !idSet.has(item.id))
+      persistFlowchart(flowNodes, flowEdges, stickyNotes, next, boardComments)
+      return next
+    })
+    setSelectedSectionIds(prev => prev.filter(id => !idSet.has(id)))
+  }
+
+  const removeCommentsByIds = (ids: string[]) => {
+    if (!canEdit || ids.length === 0) return
+    const idSet = new Set(ids)
+    setBoardComments(prev => {
+      const next = prev.filter(item => !idSet.has(item.id))
+      persistFlowchart(flowNodes, flowEdges, stickyNotes, boardSections, next)
+      return next
+    })
+    setSelectedCommentIds(prev => prev.filter(id => !idSet.has(id)))
   }
 
   const removeToolCardsByIds = async (toolIds: string[]) => {
@@ -1092,9 +1372,18 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const handleAddTool = async (toolId: string) => {
     if (project?.role === 'viewer') return alert('Du har kun læseadgang til dette projekt.')
     if (modifying) return
+    const currentFramework: FrameworkId = project?.framework === 'none' || !project?.framework ? 'double-diamond' : project.framework
+    const defaultPhase = getDefaultPhaseForTool(currentFramework, toolId)
     if (isOffline) {
       // Local demo mode: just add to local state
-      setProject(prev => prev ? { ...prev, toolIds: [...prev.toolIds, toolId] } : prev)
+      setProject(prev => {
+        if (!prev || prev.toolIds.includes(toolId)) return prev
+        return {
+          ...prev,
+          toolIds: [...prev.toolIds, toolId],
+          toolPhases: defaultPhase ? { ...(prev.toolPhases || {}), [toolId]: defaultPhase } : prev.toolPhases,
+        }
+      })
       setShowAddTool(false)
       return
     }
@@ -1105,18 +1394,43 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
         if (!prev) return prev
         if (prev.toolIds.includes(toolId)) return prev
         shouldRollback = true
-        return { ...prev, toolIds: [...prev.toolIds, toolId] }
+        return {
+          ...prev,
+          toolIds: [...prev.toolIds, toolId],
+          toolPhases: defaultPhase ? { ...(prev.toolPhases || {}), [toolId]: defaultPhase } : prev.toolPhases,
+        }
       })
       const added = await addToolToProject(projectId, toolId)
       if (!added && shouldRollback) {
-        setProject(prev => prev ? { ...prev, toolIds: prev.toolIds.filter(id => id !== toolId) } : prev)
+        setProject(prev => {
+          if (!prev) return prev
+          const nextToolPhases = { ...(prev.toolPhases || {}) }
+          delete nextToolPhases[toolId]
+          return {
+            ...prev,
+            toolIds: prev.toolIds.filter(id => id !== toolId),
+            toolPhases: nextToolPhases,
+          }
+        })
         alert('Kunne ikke tilføje værktøj. Prøv igen.')
         return
+      }
+      if (defaultPhase) {
+        await updateProjectToolPhases(projectId, { [toolId]: defaultPhase })
       }
       setShowAddTool(false)
     } catch {
       if (shouldRollback) {
-        setProject(prev => prev ? { ...prev, toolIds: prev.toolIds.filter(id => id !== toolId) } : prev)
+        setProject(prev => {
+          if (!prev) return prev
+          const nextToolPhases = { ...(prev.toolPhases || {}) }
+          delete nextToolPhases[toolId]
+          return {
+            ...prev,
+            toolIds: prev.toolIds.filter(id => id !== toolId),
+            toolPhases: nextToolPhases,
+          }
+        })
       }
       alert('Kunne ikke tilføje værktøj. Prøv igen.')
     } finally {
@@ -1182,12 +1496,36 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
 
   const handleInvite = async () => {
     if (!isOwner || !inviteEmail.trim()) return
+    const emails = Array.from(
+      new Set(
+        inviteEmail
+          .split(/[\n,;]+/)
+          .map((email) => email.trim().toLowerCase())
+          .filter(Boolean)
+      )
+    )
+    if (emails.length === 0) return
+
     try {
       setModifying(true)
-      await inviteProjectMember(projectId, inviteEmail.trim(), inviteRole)
+      const failed: Array<{ email: string; reason: string }> = []
+      for (const email of emails) {
+        try {
+          await inviteProjectMember(projectId, email, inviteRole)
+        } catch (err: any) {
+          failed.push({ email, reason: err?.message || 'Ukendt fejl' })
+        }
+      }
       setInviteEmail('')
       setInviteRole('editor')
       setMembers((await getProjectMembers(projectId)) || [])
+      if (failed.length > 0) {
+        const successCount = emails.length - failed.length
+        alert(
+          `Inviteret: ${successCount}/${emails.length}\n` +
+            failed.map((f) => `- ${f.email}: ${f.reason}`).join('\n')
+        )
+      }
     } catch (err: any) {
       alert(err?.message || 'Kunne ikke invitere medlem.')
     } finally {
@@ -1494,6 +1832,63 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
 
         {/* Right */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, justifyContent: 'flex-end' }}>
+          {members.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', marginRight: 2 }}>
+              {members.slice(0, 5).map((m, i) => {
+                const label = m.email || m.username || m.user_id
+                const initial = (label || '?').charAt(0).toUpperCase()
+                return (
+                  <div
+                    key={m.user_id}
+                    title={`${label} (${m.role})`}
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: '50%',
+                      border: '2px solid #fff',
+                      marginLeft: i === 0 ? 0 : -8,
+                      background: m.role === 'owner'
+                        ? 'linear-gradient(135deg,#F59E0B,#D97706)'
+                        : m.role === 'editor'
+                          ? 'linear-gradient(135deg,#60A5FA,#2563EB)'
+                          : 'linear-gradient(135deg,#D1D5DB,#9CA3AF)',
+                      color: '#fff',
+                      fontSize: 11,
+                      fontWeight: 800,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+                      cursor: 'default',
+                    }}
+                  >
+                    {initial}
+                  </div>
+                )
+              })}
+              {members.length > 5 && (
+                <div
+                  title={`${members.length - 5} flere medlemmer`}
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: '50%',
+                    border: '2px solid #fff',
+                    marginLeft: -8,
+                    background: '#E5E7EB',
+                    color: '#374151',
+                    fontSize: 10,
+                    fontWeight: 800,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  +{members.length - 5}
+                </div>
+              )}
+            </div>
+          )}
           <button
             onClick={() => setShowPanel(p => p === 'collaborate' ? null : 'collaborate')}
             style={{ ...S.iconBtn, background: showPanel === 'collaborate' ? '#FEF3C7' : 'white', color: showPanel === 'collaborate' ? '#92400E' : '#374151' }}
@@ -1541,40 +1936,14 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       ════════════════════════════════════════════════ */}
       {activeWorkspaceTab === 'board' && (
         <>
-          <button
-            type="button"
-            onClick={() => setShowFlowPanel(v => !v)}
-            style={{
-              position: 'fixed',
-              top: isOffline ? 104 : 70,
-              left: 14,
-              zIndex: 140,
-              border: '1.5px solid #D1D5DB',
-              background: showFlowPanel ? '#111827' : '#fff',
-              color: showFlowPanel ? '#fff' : '#374151',
-              borderRadius: 10,
-              padding: '7px 10px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              fontSize: 12,
-              fontWeight: 700,
-              boxShadow: '0 10px 24px rgba(15,23,42,0.10)',
-              cursor: 'pointer',
-            }}
-          >
-            <span style={{ fontSize: 14 }}>🧩</span>
-            Flowchart
-          </button>
-
           {showFlowPanel && (
             <div
               style={{
                 position: 'fixed',
-                top: isOffline ? 142 : 108,
-                left: 14,
+                bottom: 82,
+                left: 18,
                 width: 248,
-                maxHeight: 'calc(100vh - 170px)',
+                maxHeight: 'calc(100vh - 190px)',
                 overflowY: 'auto',
                 background: '#fff',
                 border: '1px solid #E5E7EB',
@@ -1635,6 +2004,97 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
               </p>
             </div>
           )}
+          <div
+            style={{
+              position: 'fixed',
+              left: '50%',
+              bottom: 16,
+              transform: 'translateX(-50%)',
+              zIndex: 145,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              background: 'rgba(255,255,255,0.96)',
+              border: '1px solid #D1D5DB',
+              borderRadius: 14,
+              padding: 8,
+              boxShadow: '0 14px 32px rgba(0,0,0,0.16)',
+              maxWidth: 'calc(100vw - 28px)',
+              overflowX: 'auto',
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setShowFlowPanel(v => !v)}
+              style={{
+                border: '1px solid #D1D5DB',
+                background: showFlowPanel ? '#111827' : '#fff',
+                color: showFlowPanel ? '#fff' : '#374151',
+                borderRadius: 10,
+                padding: '8px 10px',
+                fontSize: 12,
+                fontWeight: 700,
+                whiteSpace: 'nowrap',
+                cursor: 'pointer',
+              }}
+            >
+              Flowchart
+            </button>
+            <button
+              type="button"
+              disabled={!canEdit}
+              onClick={() => addStickyNote()}
+              style={{
+                border: '1px solid #D1D5DB',
+                background: '#fff',
+                color: canEdit ? '#374151' : '#9CA3AF',
+                borderRadius: 10,
+                padding: '8px 10px',
+                fontSize: 12,
+                fontWeight: 700,
+                whiteSpace: 'nowrap',
+                cursor: canEdit ? 'pointer' : 'not-allowed',
+              }}
+            >
+              Sticky note
+            </button>
+            <button
+              type="button"
+              disabled={!canEdit}
+              onClick={() => addBoardSection()}
+              style={{
+                border: '1px solid #D1D5DB',
+                background: '#fff',
+                color: canEdit ? '#374151' : '#9CA3AF',
+                borderRadius: 10,
+                padding: '8px 10px',
+                fontSize: 12,
+                fontWeight: 700,
+                whiteSpace: 'nowrap',
+                cursor: canEdit ? 'pointer' : 'not-allowed',
+              }}
+            >
+              Sektion
+            </button>
+            <button
+              type="button"
+              disabled={!canEdit}
+              onClick={() => addBoardComment()}
+              style={{
+                border: '1px solid #D1D5DB',
+                background: '#fff',
+                color: canEdit ? '#374151' : '#9CA3AF',
+                borderRadius: 10,
+                padding: '8px 10px',
+                fontSize: 12,
+                fontWeight: 700,
+                whiteSpace: 'nowrap',
+                cursor: canEdit ? 'pointer' : 'not-allowed',
+              }}
+            >
+              Kommentar
+            </button>
+          </div>
         </>
       )}
       {activeWorkspaceTab === 'docs' ? (
@@ -1866,6 +2326,75 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
             </div>
           )}
 
+          {boardSections.map(section => {
+            const isSelected = selectedSectionIds.includes(section.id)
+            return (
+              <div
+                key={section.id}
+                style={{
+                  position: 'absolute',
+                  left: section.x,
+                  top: section.y,
+                  width: section.width,
+                  height: section.height,
+                  borderRadius: 14,
+                  border: `2px solid ${isSelected ? '#2563EB' : section.color}`,
+                  background: 'rgba(255,255,255,0.35)',
+                  boxShadow: isSelected ? '0 0 0 3px rgba(37,99,235,0.18)' : 'inset 0 0 0 1px rgba(255,255,255,0.35)',
+                  zIndex: 1,
+                }}
+              >
+                <div
+                  onMouseDown={e => onSectionMouseDown(e, section.id)}
+                  style={{
+                    height: 32,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0 10px',
+                    borderBottom: `1px solid ${section.color}`,
+                    background: 'rgba(255,255,255,0.72)',
+                    cursor: canEdit ? 'grab' : 'default',
+                    userSelect: 'none',
+                  }}
+                >
+                  <input
+                    value={section.title}
+                    onMouseDown={e => e.stopPropagation()}
+                    onChange={e => {
+                      const nextTitle = e.target.value
+                      setBoardSections(prev => {
+                        const next = prev.map(item => (item.id === section.id ? { ...item, title: nextTitle } : item))
+                        persistFlowchart(flowNodes, flowEdges, stickyNotes, next, boardComments)
+                        return next
+                      })
+                    }}
+                    disabled={!canEdit}
+                    style={{
+                      border: 'none',
+                      background: 'transparent',
+                      outline: 'none',
+                      width: '100%',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: '#334155',
+                    }}
+                  />
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onMouseDown={e => e.stopPropagation()}
+                      onClick={() => removeSectionsByIds([section.id])}
+                      style={{ border: 'none', background: 'transparent', color: '#B91C1C', fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+
           {/* ── Flowchart edges + noder ─────────────────── */}
           {flowNodes.length > 0 && (
             <>
@@ -2076,6 +2605,162 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
             </>
           )}
 
+          {stickyNotes.map(note => {
+            const isSelected = selectedStickyNoteIds.includes(note.id)
+            return (
+              <div
+                key={note.id}
+                style={{
+                  position: 'absolute',
+                  left: note.x,
+                  top: note.y,
+                  width: 220,
+                  minHeight: 180,
+                  borderRadius: 12,
+                  border: isSelected ? '2px solid #2563EB' : '1.5px solid rgba(148,163,184,0.45)',
+                  background: note.color,
+                  boxShadow: isSelected ? '0 0 0 3px rgba(37,99,235,0.2), 0 10px 22px rgba(0,0,0,0.14)' : '0 10px 20px rgba(0,0,0,0.12)',
+                  zIndex: 4,
+                }}
+              >
+                <div
+                  onMouseDown={e => onStickyNoteMouseDown(e, note.id)}
+                  style={{
+                    height: 30,
+                    padding: '0 10px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    borderBottom: '1px solid rgba(148,163,184,0.45)',
+                    cursor: canEdit ? 'grab' : 'default',
+                  }}
+                >
+                  <input
+                    value={note.title}
+                    onMouseDown={e => e.stopPropagation()}
+                    onChange={e => {
+                      const nextTitle = e.target.value
+                      setStickyNotes(prev => {
+                        const next = prev.map(item => (item.id === note.id ? { ...item, title: nextTitle } : item))
+                        persistFlowchart(flowNodes, flowEdges, next, boardSections, boardComments)
+                        return next
+                      })
+                    }}
+                    disabled={!canEdit}
+                    style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: 12, fontWeight: 700, width: '100%' }}
+                  />
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onMouseDown={e => e.stopPropagation()}
+                      onClick={() => removeStickyNotesByIds([note.id])}
+                      style={{ border: 'none', background: 'transparent', color: '#991B1B', cursor: 'pointer', fontWeight: 700 }}
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+                <textarea
+                  value={note.text}
+                  onMouseDown={e => e.stopPropagation()}
+                  onChange={e => {
+                    const nextText = e.target.value
+                    setStickyNotes(prev => {
+                      const next = prev.map(item => (item.id === note.id ? { ...item, text: nextText } : item))
+                      persistFlowchart(flowNodes, flowEdges, next, boardSections, boardComments)
+                      return next
+                    })
+                  }}
+                  disabled={!canEdit}
+                  placeholder="Skriv note..."
+                  style={{
+                    width: '100%',
+                    minHeight: 140,
+                    border: 'none',
+                    resize: 'vertical',
+                    background: 'transparent',
+                    padding: 10,
+                    fontSize: 13,
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+            )
+          })}
+
+          {boardComments.map(comment => {
+            const isSelected = selectedCommentIds.includes(comment.id)
+            return (
+              <div
+                key={comment.id}
+                style={{
+                  position: 'absolute',
+                  left: comment.x,
+                  top: comment.y,
+                  width: 260,
+                  borderRadius: 12,
+                  border: isSelected ? '2px solid #2563EB' : '1px solid #D1D5DB',
+                  background: '#FFFFFF',
+                  boxShadow: isSelected ? '0 0 0 3px rgba(37,99,235,0.2), 0 8px 20px rgba(0,0,0,0.12)' : '0 8px 18px rgba(0,0,0,0.10)',
+                  zIndex: 4,
+                }}
+              >
+                <div
+                  onMouseDown={e => onCommentMouseDown(e, comment.id)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 10,
+                    padding: '8px 10px',
+                    borderBottom: '1px solid #F1F5F9',
+                    cursor: canEdit ? 'grab' : 'default',
+                    userSelect: 'none',
+                  }}
+                >
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>
+                    Kommentar · {comment.createdBy}
+                  </span>
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onMouseDown={e => e.stopPropagation()}
+                      onClick={() => removeCommentsByIds([comment.id])}
+                      style={{ border: 'none', background: 'transparent', color: '#B91C1C', cursor: 'pointer', fontWeight: 700 }}
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+                <textarea
+                  value={comment.text}
+                  onMouseDown={e => e.stopPropagation()}
+                  onChange={e => {
+                    const nextText = e.target.value
+                    setBoardComments(prev => {
+                      const next = prev.map(item => (item.id === comment.id ? { ...item, text: nextText } : item))
+                      persistFlowchart(flowNodes, flowEdges, stickyNotes, boardSections, next)
+                      return next
+                    })
+                  }}
+                  disabled={!canEdit}
+                  placeholder="Skriv kommentar..."
+                  style={{
+                    width: '100%',
+                    minHeight: 96,
+                    padding: 10,
+                    border: 'none',
+                    resize: 'vertical',
+                    outline: 'none',
+                    fontSize: 13,
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+            )
+          })}
+
           {Object.values(liveCursors)
             .filter(cursor => cursor.visible)
             .map(cursor => {
@@ -2168,7 +2853,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
             const isDragging = dragging.current === slug
             const isSelected = selectedCardSlugs.includes(slug)
             const isLocked = lockedCardSlugs.includes(slug)
-            const phase = toolPhases[slug] || null
+            const phase = toolPhases[slug] || getDefaultPhaseForTool(pickerFramework, slug)
             const phaseLabel = phase ? frameworkPhases.find(p => p.id === phase)?.label : null
 
             return (
@@ -2437,7 +3122,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                     <input
                       value={inviteEmail}
                       onChange={e => setInviteEmail(e.target.value)}
-                      placeholder="Email (fx navn@firma.dk)"
+                      placeholder="Emails (fx navn@firma.dk, kollega@firma.dk)"
                       style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 10, border: '1.5px solid #E5E7EB', fontSize: 13, marginBottom: 8, outline: 'none' }}
                       onFocus={e => (e.currentTarget.style.borderColor = '#F59E0B')}
                       onBlur={e => (e.currentTarget.style.borderColor = '#E5E7EB')}
@@ -2521,7 +3206,13 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
             </div>
 
             <div style={{ padding: '12px 16px 0', borderBottom: '1px solid #F9FAFB' }}>
-              <div style={{ border: '1px solid #E5E7EB', borderRadius: 12, background: '#fff', padding: 8, overflow: 'hidden', marginBottom: 10 }}>
+              <div
+                style={
+                  pickerFramework === 'double-diamond'
+                    ? { padding: 0, overflow: 'hidden', marginBottom: 10 }
+                    : { border: '1px solid #E5E7EB', borderRadius: 12, background: '#fff', padding: 8, overflow: 'hidden', marginBottom: 10 }
+                }
+              >
                 {pickerFramework === 'google-design-sprint' ? (
                   <GoogleDesignSprintDiagram
                     activeSelection={selectedPhaseForDiagram as GoogleDesignSprintPhase}
@@ -2735,6 +3426,9 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
               <button type="button" onClick={() => { addFlowNode('process', { x: contextMenu.worldX, y: contextMenu.worldY }); setContextMenu(null) }} style={S.ctxItem}>Indsæt form: Rektangel</button>
               <button type="button" onClick={() => { addFlowNode('decision', { x: contextMenu.worldX, y: contextMenu.worldY }); setContextMenu(null) }} style={S.ctxItem}>Indsæt form: Diamant</button>
               <button type="button" onClick={() => { addFlowNode('terminator', { x: contextMenu.worldX, y: contextMenu.worldY }); setContextMenu(null) }} style={S.ctxItem}>Indsæt form: Oval</button>
+              <button type="button" onClick={() => { addStickyNote({ x: contextMenu.worldX, y: contextMenu.worldY }); setContextMenu(null) }} style={S.ctxItem}>Indsæt sticky note</button>
+              <button type="button" onClick={() => { addBoardSection({ x: contextMenu.worldX, y: contextMenu.worldY }); setContextMenu(null) }} style={S.ctxItem}>Indsæt sektion</button>
+              <button type="button" onClick={() => { addBoardComment({ x: contextMenu.worldX, y: contextMenu.worldY }); setContextMenu(null) }} style={S.ctxItem}>Indsæt kommentar</button>
               <div style={S.ctxDivider} />
               <button type="button" onClick={() => { setZoom(1); setPan({ x: 60, y: 60 }); setContextMenu(null) }} style={S.ctxItem}>Reset zoom (100%)</button>
               <button type="button" onClick={() => { setSnapToGrid(v => !v); setContextMenu(null) }} style={S.ctxItem}>

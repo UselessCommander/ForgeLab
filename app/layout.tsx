@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import ThemeInitializer from '@/components/ThemeInitializer'
 
 export const metadata: Metadata = {
   title: 'ForgeLab - Online Værktøjer',
@@ -12,8 +13,11 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="da">
-      <body>{children}</body>
+    <html lang="da" suppressHydrationWarning>
+      <body suppressHydrationWarning>
+        <ThemeInitializer />
+        {children}
+      </body>
     </html>
   )
 }
