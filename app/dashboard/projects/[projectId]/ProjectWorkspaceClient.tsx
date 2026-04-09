@@ -29,6 +29,7 @@ import { getToolComponent } from '@/components/ToolRegistry'
 import AiChatCompanion from '@/components/AiChatCompanion'
 import DoubleDiamondDiagram from '@/components/dashboard/DoubleDiamondDiagram'
 import ProjectDocsTab from '@/components/ProjectDocsTab'
+import ProjectSlidesTab from '@/components/ProjectSlidesTab'
 
 interface ProjectWorkspaceClientProps {
   projectId: string
@@ -69,7 +70,7 @@ const MOCK_PROJECT: Project = {
 
 export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceClientProps) {
   const [project, setProject] = useState<Project | null>(null)
-  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<'board' | 'docs'>('board')
+  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<'board' | 'docs' | 'slides'>('board')
   const [showAddTool, setShowAddTool] = useState(false)
   const [addToolSearch, setAddToolSearch] = useState('')
   const [selectedAddToolCategory, setSelectedAddToolCategory] = useState<'all' | string>('all')
@@ -568,6 +569,19 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           >
             Docs
           </button>
+          <button
+            style={{
+              ...S.zoomBtn,
+              minWidth: 64,
+              fontSize: 12,
+              fontWeight: 700,
+              background: activeWorkspaceTab === 'slides' ? '#111827' : 'transparent',
+              color: activeWorkspaceTab === 'slides' ? '#fff' : '#6B7280',
+            }}
+            onClick={() => setActiveWorkspaceTab('slides')}
+          >
+            Slides
+          </button>
           {activeWorkspaceTab === 'board' && (
             <>
               <button
@@ -643,6 +657,8 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       ════════════════════════════════════════════════ */}
       {activeWorkspaceTab === 'docs' ? (
         <ProjectDocsTab projectId={projectId} canEdit={canEdit} />
+      ) : activeWorkspaceTab === 'slides' ? (
+        <ProjectSlidesTab projectId={projectId} canEdit={canEdit} />
       ) : (
       <ToolEmbedProvider projectId={projectId}>
         <div
@@ -1117,13 +1133,14 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       </ToolEmbedProvider>
       )}
 
-      {/* ── AI Chat Assistant (available in Board + Docs) ─────────────────── */}
+      {/* ── AI Chat Assistant (Board / Docs / Slides — separat samtale pr. fane) ── */}
       {canEdit && (
         <AiChatCompanion
           projectId={projectId}
           projectTools={projectTools}
           availableToolSlugs={toAdd.map(tool => tool.slug)}
           projectName={project.name}
+          workspaceTab={activeWorkspaceTab}
           framework={framework}
           role={project.role || ''}
           onAddTool={handleAddTool}

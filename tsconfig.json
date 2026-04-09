@@ -37,6 +37,9 @@
     ".next/dev/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "test-ai.ts",
+    "test-ai2.ts",
+    "test-ai.js"
   ]
 }

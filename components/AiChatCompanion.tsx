@@ -1,15 +1,17 @@
 'use client'
 
 // @ts-nocheck
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
+import { getProjectToolData } from '@/lib/projects'
 
 interface AiChatCompanionProps {
   projectId: string
   projectTools: { slug: string; tool: any }[]
   availableToolSlugs: string[]
   projectName: string
+  workspaceTab?: 'board' | 'docs' | 'slides'
   framework: string
   role: string
   onAddTool: (slug: string) => void
@@ -20,6 +22,7 @@ export default function AiChatCompanion({
   projectTools,
   availableToolSlugs,
   projectName,
+  workspaceTab = 'board',
   framework,
   role,
   onAddTool,
@@ -31,13 +34,15 @@ export default function AiChatCompanion({
     openai: ['gpt-4o-mini', 'gpt-4o'],
     anthropic: ['claude-3-5-sonnet-latest', 'claude-3-5-haiku-latest'],
     openrouter: [
-      'google/gemma-4-26b-a4b-it:free',
       'google/gemma-4-31b-it:free',
+      'google/gemma-4-26b-a4b-it:free',
       'openai/gpt-oss-120b:free',
       'nvidia/nemotron-3-super-120b-a12b:free',
       'openai/gpt-4o-mini',
     ],
     mistral: ['mistral-small-latest', 'mistral-medium-latest'],
+    groq: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768'],
+    kimi: ['kimi-k2.5', 'kimi-k2', 'moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k'],
   }
 
   const MAX_FILES = 5
@@ -49,8 +54,55 @@ export default function AiChatCompanion({
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [selectedProvider, setSelectedProvider] = useState<string>('auto')
   const [selectedModel, setSelectedModel] = useState<string>('auto')
+  const kimiOnlyMode = workspaceTab === 'slides'
+
+  const providerSelectKeys = Object.keys(MODEL_OPTIONS).filter(
+    key => key !== 'kimi' || workspaceTab === 'slides'
+  )
+
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const slidesContextDigestRef = useRef('')
   const createId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+
+  const [slidesIncludeDocs, setSlidesIncludeDocs] = useState(false)
+  const [slidesToolInclude, setSlidesToolInclude] = useState<Record<string, boolean>>({})
+  const [pendingSlideOutline, setPendingSlideOutline] = useState<{
+    analysisSummary: string
+    slides: Array<{ order: number; title: string; slideType: string; summary: string }>
+  } | null>(null)
+  const [applyingOutline, setApplyingOutline] = useState(false)
+
+  useEffect(() => {
+    setSlidesToolInclude(prev => {
+      const next = { ...prev }
+      for (const t of projectTools) {
+        if (t.slug === 'project-slides') continue
+        if (!(t.slug in next)) next[t.slug] = false
+      }
+      return next
+    })
+  }, [projectTools])
+
+  const rebuildSlidesContextDigest = useCallback(async () => {
+    if (!kimiOnlyMode) return
+    const parts: string[] = []
+    if (slidesIncludeDocs) {
+      const d = await getProjectToolData(projectId, 'project-docs')
+      parts.push('=== PROJEKT DOCS (afkortet) ===\n' + JSON.stringify(d).slice(0, 14000))
+    }
+    for (const { slug } of projectTools) {
+      if (slug === 'project-slides') continue
+      if (!slidesToolInclude[slug]) continue
+      const d = await getProjectToolData(projectId, slug)
+      parts.push(`=== VÆRKTØJ "${slug}" (afkortet) ===\n` + JSON.stringify(d).slice(0, 10000))
+    }
+    slidesContextDigestRef.current = parts.join('\n\n')
+  }, [kimiOnlyMode, projectId, projectTools, slidesIncludeDocs, slidesToolInclude])
+
+  useEffect(() => {
+    if (!kimiOnlyMode) return
+    void rebuildSlidesContextDigest()
+  }, [kimiOnlyMode, rebuildSlidesContextDigest, slidesIncludeDocs, slidesToolInclude, projectId, projectTools])
 
   const isPlainObject = (value: unknown): value is Record<string, unknown> =>
     typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -127,6 +179,104 @@ export default function AiChatCompanion({
       .replaceAll('"', '&quot;')
       .replaceAll("'", '&#39;')
 
+  const outlineRowToSlideHtml = (row: { title: string; slideType: string; summary: string }) => {
+    const paras = row.summary
+      .split(/\n{2,}/)
+      .map(p => p.trim())
+      .filter(Boolean)
+      .map(p => `<p>${escapeHtml(p)}</p>`)
+      .join('')
+    const typeHtml = row.slideType
+      ? `<p style="font-size:12px;color:#64748b;margin:0 0 8px;">${escapeHtml(row.slideType)}</p>`
+      : ''
+    return `<h2>${escapeHtml(row.title)}</h2>${typeHtml}${paras || '<p></p>'}`
+  }
+
+  const applyPendingOutlineToSlides = async () => {
+    if (!pendingSlideOutline?.slides?.length) return
+    setApplyingOutline(true)
+    try {
+      const ordered = pendingSlideOutline.slides
+        .slice()
+        .sort((a, b) => a.order - b.order)
+        .map(row => ({
+          id: createId(),
+          title: row.title?.trim() || 'Slide',
+          html: outlineRowToSlideHtml({
+            title: row.title || 'Slide',
+            slideType: row.slideType || '',
+            summary: row.summary || '',
+          }),
+        }))
+      const doc = {
+        slides: ordered,
+        activeSlideId: ordered[0]?.id || '',
+        updatedAt: Date.now(),
+      }
+      const res = await fetch(`/api/projects/${projectId}/tools/project-slides/data`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: doc }),
+      })
+      if (!res.ok) throw new Error('save failed')
+      setPendingSlideOutline(null)
+      window.dispatchEvent(new CustomEvent('forgelab-reload-project-slides'))
+    } catch {
+      alert('Kunne ikke gemme slides. Prøv igen.')
+    } finally {
+      setApplyingOutline(false)
+    }
+  }
+
+  const slidesBoardTools = projectTools.filter(t => t.slug !== 'project-slides')
+
+  const updatePendingOutlineSlide = (
+    index: number,
+    patch: Partial<{ order: number; title: string; slideType: string; summary: string }>
+  ) => {
+    setPendingSlideOutline(prev => {
+      if (!prev) return prev
+      const slides = prev.slides.map((s, i) => (i === index ? { ...s, ...patch } : s))
+      return { ...prev, slides }
+    })
+  }
+
+  const removePendingOutlineSlide = (index: number) => {
+    setPendingSlideOutline(prev => {
+      if (!prev) return prev
+      const slides = prev.slides.filter((_, i) => i !== index).map((s, i) => ({ ...s, order: i + 1 }))
+      return { ...prev, slides }
+    })
+  }
+
+  const addPendingOutlineSlide = () => {
+    setPendingSlideOutline(prev => {
+      if (!prev) return prev
+      const nextOrder = prev.slides.length ? Math.max(...prev.slides.map(s => s.order)) + 1 : 1
+      return {
+        ...prev,
+        slides: [
+          ...prev.slides,
+          { order: nextOrder, title: 'Ny slide', slideType: '', summary: 'Kort disposition…' },
+        ],
+      }
+    })
+  }
+
+  const movePendingOutlineSlide = (index: number, dir: -1 | 1) => {
+    setPendingSlideOutline(prev => {
+      if (!prev) return prev
+      const j = index + dir
+      if (j < 0 || j >= prev.slides.length) return prev
+      const slides = [...prev.slides]
+      ;[slides[index], slides[j]] = [slides[j], slides[index]]
+      return {
+        ...prev,
+        slides: slides.map((s, i) => ({ ...s, order: i + 1 })),
+      }
+    })
+  }
+
   const textToDocHtml = (value: string) => {
     const lines = value
       .split(/\r?\n/)
@@ -171,6 +321,9 @@ export default function AiChatCompanion({
   const [loadingMessageIndex, setLoadingMessageIndex] = useState(0)
   const [loadingDotCount, setLoadingDotCount] = useState(1)
   const { messages, sendMessage, isLoading, status, error } = (useChat as any)({
+    // Nyt chat-id pr. fane: ellers genbruger AI SDK samme Chat/transport fra første mount,
+    // og body() har stale closure → API får altid workspaceTab fra første visning (typisk "board").
+    id: `${projectId}-${workspaceTab}`,
     transport: new DefaultChatTransport({
       api: '/api/ai/chat',
       body: () => {
@@ -180,23 +333,36 @@ export default function AiChatCompanion({
           .map((m: any) => getMessageText(m))
           .filter(Boolean)
 
+        const slidesIncludedToolSlugs = Object.entries(slidesToolInclude)
+          .filter(([, on]) => on)
+          .map(([slug]) => slug)
+          .filter(slug => slug !== 'project-slides')
+
         return {
-          aiProvider: selectedProvider,
-          aiModel: selectedModel,
+          aiProvider: kimiOnlyMode ? 'kimi' : selectedProvider,
+          aiModel: kimiOnlyMode ? 'kimi-k2.5' : selectedModel,
           context: {
             projectName,
             framework,
             role,
+            workspaceTab,
             activeToolSlugs: projectTools.map(t => t.slug),
             activeToolTitles: projectTools.map(t => t.tool?.title || t.slug),
             availableToolSlugs,
             toolCount: projectTools.length,
             recentUserMessages,
+            ...(kimiOnlyMode
+              ? {
+                  slidesIncludeDocs,
+                  slidesIncludedToolSlugs,
+                  slidesProjectContextDigest: slidesContextDigestRef.current || '',
+                }
+              : {}),
           },
         }
       },
     }),
-    maxSteps: 3,
+    maxSteps: kimiOnlyMode ? 8 : 3,
     async onToolCall({ toolCall }: { toolCall: any }) {
       if (toolCall.toolName === 'addTool') {
         const slug =
@@ -361,6 +527,110 @@ export default function AiChatCompanion({
 
         return `Opdaterede docs-siden "${targetPage.title}" (${mode === 'replace' ? 'erstattet' : 'tilføjet'}).`
       }
+      if (toolCall.toolName === 'editProjectSlides') {
+        const payload = toolCall?.args || toolCall?.input || {}
+        const mode = payload?.mode === 'replace' ? 'replace' : 'append'
+        const slideTitle = typeof payload?.slideTitle === 'string' ? payload.slideTitle.trim() : ''
+        const title = typeof payload?.title === 'string' ? payload.title.trim() : ''
+        const contentHtml =
+          typeof payload?.contentHtml === 'string' && payload.contentHtml.trim()
+            ? payload.contentHtml.trim()
+            : ''
+
+        if (!contentHtml) return 'Kunne ikke opdatere slides: contentHtml mangler.'
+
+        const createSlide = (index: number) => ({
+          id: createId(),
+          title: `Slide ${index}`,
+          html: '<h2>Ny slide</h2><p>Tilføj indhold…</p>',
+        })
+
+        const normalizeSlides = (raw: any) => {
+          const slides = Array.isArray(raw?.slides)
+            ? raw.slides
+                .map((slide: any, index: number) => ({
+                  id: typeof slide?.id === 'string' && slide.id.trim() ? slide.id : createId(),
+                  title:
+                    typeof slide?.title === 'string' && slide.title.trim()
+                      ? slide.title.trim()
+                      : `Slide ${index + 1}`,
+                  html:
+                    typeof slide?.html === 'string' && slide.html.trim()
+                      ? slide.html
+                      : '<h2>Ny slide</h2><p>Tilføj indhold…</p>',
+                }))
+                .filter((slide: any) => slide.id)
+            : []
+
+          if (slides.length === 0) slides.push(createSlide(1))
+          const activeSlideId =
+            typeof raw?.activeSlideId === 'string' && slides.some((s: any) => s.id === raw.activeSlideId)
+              ? raw.activeSlideId
+              : slides[0].id
+
+          return {
+            slides,
+            activeSlideId,
+            updatedAt: Date.now(),
+          }
+        }
+
+        const existingResponse = await fetch(`/api/projects/${projectId}/tools/project-slides/data`)
+        if (!existingResponse.ok) {
+          return 'Kunne ikke hente slides-data.'
+        }
+        const existingPayload = await existingResponse.json()
+        const slidesDoc = normalizeSlides(existingPayload?.data)
+
+        let targetSlide =
+          (slideTitle
+            ? slidesDoc.slides.find(
+                (slide: any) => slide.title.trim().toLowerCase() === slideTitle.toLowerCase()
+              )
+            : undefined) || slidesDoc.slides.find((slide: any) => slide.id === slidesDoc.activeSlideId)
+
+        if (!targetSlide) {
+          targetSlide = createSlide(slidesDoc.slides.length + 1)
+          slidesDoc.slides.push(targetSlide)
+        }
+
+        if (title) targetSlide.title = title
+        targetSlide.html = mode === 'replace' ? contentHtml : `${targetSlide.html}${contentHtml}`
+
+        slidesDoc.activeSlideId = targetSlide.id
+        slidesDoc.updatedAt = Date.now()
+
+        const response = await fetch(`/api/projects/${projectId}/tools/project-slides/data`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ data: slidesDoc }),
+        })
+
+        if (!response.ok) return 'Kunne ikke gemme AI-opdatering i slides.'
+        window.dispatchEvent(new CustomEvent('forgelab-reload-project-slides'))
+        return `Opdaterede slide "${targetSlide.title}".`
+      }
+
+      if (toolCall.toolName === 'proposeSlideDeckOutline') {
+        const payload = toolCall?.args || toolCall?.input || {}
+        const analysisSummary =
+          typeof payload.analysisSummary === 'string' ? payload.analysisSummary.trim() : ''
+        const rawSlides = Array.isArray(payload.slides) ? payload.slides : []
+        const normalized = rawSlides.map((s: any, i: number) => ({
+          order: typeof s?.order === 'number' && Number.isFinite(s.order) ? s.order : i + 1,
+          title: String(s?.title || `Slide ${i + 1}`).trim() || `Slide ${i + 1}`,
+          slideType: typeof s?.slideType === 'string' ? s.slideType.trim() : '',
+          summary: typeof s?.summary === 'string' ? s.summary.trim() : '',
+        }))
+        if (normalized.length > 0) {
+          setPendingSlideOutline({
+            analysisSummary: analysisSummary || 'Outline fra AI',
+            slides: normalized,
+          })
+        }
+        return 'Outline er klar. Gennemse og redigér nedenfor, og tryk «Opret slides».'
+      }
+
       return 'Ingen ændring udført'
     }
   })
@@ -368,6 +638,16 @@ export default function AiChatCompanion({
   useEffect(() => {
     const storedProvider = localStorage.getItem('forgelab.aiProvider')
     const storedModel = localStorage.getItem('forgelab.aiModel')
+    if (kimiOnlyMode) {
+      setSelectedProvider('kimi')
+      setSelectedModel('kimi-k2.5')
+      return
+    }
+    if (storedProvider === 'kimi') {
+      setSelectedProvider('auto')
+      setSelectedModel('auto')
+      return
+    }
     if (storedProvider && MODEL_OPTIONS[storedProvider]) {
       setSelectedProvider(storedProvider)
       if (storedModel && MODEL_OPTIONS[storedProvider].includes(storedModel)) {
@@ -376,12 +656,19 @@ export default function AiChatCompanion({
         setSelectedModel(MODEL_OPTIONS[storedProvider][0])
       }
     }
-  }, [])
+  }, [kimiOnlyMode])
+
+  useLayoutEffect(() => {
+    if (workspaceTab === 'slides') return
+    setSelectedProvider(prev => (prev === 'kimi' ? 'auto' : prev))
+    setSelectedModel(prev => (prev === 'kimi-k2.5' ? 'auto' : prev))
+  }, [workspaceTab])
 
   useEffect(() => {
+    if (kimiOnlyMode) return
     localStorage.setItem('forgelab.aiProvider', selectedProvider)
     localStorage.setItem('forgelab.aiModel', selectedModel)
-  }, [selectedProvider, selectedModel])
+  }, [selectedProvider, selectedModel, kimiOnlyMode])
 
   // In newer Vercel AI SDKs, loading can be inferred from status or isLoading
   const isTyping = isLoading || status === 'in_progress' || status === 'submitted' || status === 'streaming'
@@ -437,6 +724,10 @@ export default function AiChatCompanion({
     e.preventDefault()
     setUploadError(null)
     if ((!input.trim() && pendingFiles.length === 0) || isTyping) return
+
+    if (kimiOnlyMode) {
+      await rebuildSlidesContextDigest()
+    }
 
     let fileParts: any[] = []
     if (pendingFiles.length > 0) {
@@ -520,6 +811,10 @@ export default function AiChatCompanion({
       return 'API-nøglen mangler eller er ugyldig. Tjek GOOGLE_GENERATIVE_AI_API_KEY i .env.local.'
     }
 
+    if (lower.includes('groq') && (lower.includes('api key') || lower.includes('401'))) {
+      return 'Groq API key mangler eller er ugyldig. Tjek GROQ_API_KEY i .env.local.'
+    }
+
     if (lower.includes('failed to fetch') || lower.includes('network')) {
       return 'Netværksfejl ved kontakt til AI-serveren. Tjek forbindelse og prøv igen.'
     }
@@ -543,73 +838,168 @@ export default function AiChatCompanion({
       >
         {isOpen && (
           <div style={{
-            width: 380, height: 500, background: '#fff', borderRadius: 24,
+            width: kimiOnlyMode ? 420 : 400, height: 500, background: '#fff', borderRadius: 24,
             boxShadow: '0 20px 40px rgba(0,0,0,0.15)', border: '1px solid #E5E7EB',
             display: 'flex', flexDirection: 'column', overflow: 'hidden'
           }}>
             {/* Header */}
-            <div style={{ background: '#7C3AED', color: '#fff', padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontSize: 24 }}>✨</span>
-                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>Forge AI</h3>
+            <div
+              style={{
+                background: '#7C3AED',
+                color: '#fff',
+                padding: '12px 14px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+                flexShrink: 0,
+                minHeight: 52,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, minWidth: 0 }}>
+                <span style={{ fontSize: 22, lineHeight: 1, flexShrink: 0 }}>✨</span>
+                <h3
+                  style={{
+                    margin: 0,
+                    fontSize: 16,
+                    fontWeight: 600,
+                    lineHeight: 1.2,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Forge AI
+                </h3>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <select
-                  value={selectedProvider}
-                  onChange={e => {
-                    const provider = e.target.value
-                    setSelectedProvider(provider)
-                    setSelectedModel(MODEL_OPTIONS[provider]?.[0] || '')
-                  }}
-                  style={{
-                    background: 'rgba(255,255,255,0.16)',
-                    border: '1px solid rgba(255,255,255,0.3)',
-                    color: '#fff',
-                    borderRadius: 8,
-                    fontSize: 11,
-                    padding: '4px 6px',
-                  }}
-                  disabled={isTyping}
-                >
-                  {Object.keys(MODEL_OPTIONS).map(provider => (
-                    <option key={provider} value={provider} style={{ color: '#111827' }}>
-                      {provider}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={selectedModel}
-                  onChange={e => setSelectedModel(e.target.value)}
-                  style={{
-                    background: 'rgba(255,255,255,0.16)',
-                    border: '1px solid rgba(255,255,255,0.3)',
-                    color: '#fff',
-                    borderRadius: 8,
-                    fontSize: 11,
-                    padding: '4px 6px',
-                    maxWidth: 150,
-                  }}
-                  disabled={isTyping}
-                >
-                  {(MODEL_OPTIONS[selectedProvider] || []).map(model => (
-                    <option key={model} value={model} style={{ color: '#111827' }}>
-                      {model}
-                    </option>
-                  ))}
-                </select>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'flex-end',
+                  gap: 8,
+                  flex: 1,
+                  minWidth: 0,
+                  flexWrap: 'nowrap',
+                }}
+              >
+                {kimiOnlyMode ? (
+                  <span
+                    title="Slides bruger Moonshots officielle Kimi API (kimi-k2.5). Sæt MOONSHOT_API_KEY eller KIMI_API_KEY og evt. KIMI_MODEL / MOONSHOT_BASE_URL i .env."
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      lineHeight: 1.3,
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      maxWidth: '100%',
+                      padding: '6px 10px',
+                      borderRadius: 999,
+                      background: 'rgba(255,255,255,0.18)',
+                      border: '1px solid rgba(255,255,255,0.35)',
+                    }}
+                  >
+                    Slides · KIMI K2
+                  </span>
+                ) : (
+                  <>
+                    <select
+                      value={
+                        providerSelectKeys.includes(selectedProvider)
+                          ? selectedProvider
+                          : providerSelectKeys[0] || 'auto'
+                      }
+                      onChange={e => {
+                        const provider = e.target.value
+                        setSelectedProvider(provider)
+                        setSelectedModel(MODEL_OPTIONS[provider]?.[0] || '')
+                      }}
+                      style={{
+                        background: 'rgba(255,255,255,0.16)',
+                        border: '1px solid rgba(255,255,255,0.3)',
+                        color: '#fff',
+                        borderRadius: 8,
+                        fontSize: 11,
+                        padding: '6px 8px',
+                        maxHeight: 32,
+                        lineHeight: 1.2,
+                      }}
+                      disabled={isTyping}
+                    >
+                      {providerSelectKeys.map(provider => (
+                        <option key={provider} value={provider} style={{ color: '#111827' }}>
+                          {provider}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={selectedModel}
+                      onChange={e => setSelectedModel(e.target.value)}
+                      style={{
+                        background: 'rgba(255,255,255,0.16)',
+                        border: '1px solid rgba(255,255,255,0.3)',
+                        color: '#fff',
+                        borderRadius: 8,
+                        fontSize: 11,
+                        padding: '6px 8px',
+                        maxHeight: 32,
+                        lineHeight: 1.2,
+                        maxWidth: 160,
+                        minWidth: 0,
+                      }}
+                      disabled={isTyping}
+                    >
+                      {(MODEL_OPTIONS[selectedProvider] || []).map(model => (
+                        <option key={model} value={model} style={{ color: '#111827' }}>
+                          {model}
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                )}
                 <button
+                  type="button"
                   onClick={() => setIsOpen(false)}
-                  style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 20, opacity: 0.8 }}
-                >×</button>
+                  aria-label="Luk"
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#fff',
+                    cursor: 'pointer',
+                    fontSize: 22,
+                    lineHeight: 1,
+                    padding: '4px 6px',
+                    borderRadius: 8,
+                    opacity: 0.9,
+                    flexShrink: 0,
+                  }}
+                >
+                  ×
+                </button>
               </div>
             </div>
 
             {/* Chat Body */}
             <div style={{ flex: 1, overflowY: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 16, background: '#F9FAFB' }}>
               {messages.length === 0 && (
-                <div style={{ textAlign: 'center', color: '#6B7280', fontSize: 14, marginTop: 40 }}>
-                  <p>Hej! Jeg er din design-makker.</p>
-                  <p>Spørg mig om hjælp til dit projekt, eller bed mig om at oprette nye lærred-værktøjer for dig.</p>
+                <div style={{ textAlign: 'center', color: '#6B7280', fontSize: 14, marginTop: 24, padding: '0 8px' }}>
+                  {kimiOnlyMode ? (
+                    <>
+                      <p style={{ margin: '0 0 8px', fontWeight: 600, color: '#374151' }}>Slides-assistent</p>
+                      <p style={{ margin: '0 0 6px' }}>
+                        Beskriv præsentationen. Jeg bruger kun det du giver: vedhæftede filer og det du fluebenmarker
+                        nedenfor (Projekt Docs + board-værktøjer).
+                      </p>
+                      <p style={{ margin: 0, fontSize: 12.5 }}>
+                        Først får du en disposition (outline) du kan rette; derefter opretter du slides med knappen i
+                        panelet.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p>Hej! Jeg er din design-makker.</p>
+                      <p>Spørg mig om hjælp til dit projekt, eller bed mig om at oprette nye lærred-værktøjer for dig.</p>
+                    </>
+                  )}
                 </div>
               )}
               {messages.map((m: any) => (
@@ -710,6 +1100,34 @@ export default function AiChatCompanion({
                         </div>
                       )
                     }
+                    if (toolInvocation.toolName === 'proposeSlideDeckOutline' && 'result' in toolInvocation) {
+                      return (
+                        <div key={toolCallId} style={{ marginTop: 8, padding: '8px 12px', background: '#EEF2FF', borderRadius: 8, fontSize: 12, color: '#3730A3', border: '1px solid #C7D2FE' }}>
+                          ✓ Slide-outline klar — redigér nedenfor og tryk «Opret slides».
+                        </div>
+                      )
+                    }
+                    if (toolInvocation.toolName === 'proposeSlideDeckOutline') {
+                      return (
+                        <div key={toolCallId} style={{ marginTop: 8, fontSize: 12, color: '#6B7280', fontStyle: 'italic' }}>
+                          Udarbejder outline…
+                        </div>
+                      )
+                    }
+                    if (toolInvocation.toolName === 'editProjectSlides' && 'result' in toolInvocation) {
+                      return (
+                        <div key={toolCallId} style={{ marginTop: 8, padding: '8px 12px', background: '#F0FDF4', borderRadius: 8, fontSize: 12, color: '#166534', border: '1px solid #BBF7D0' }}>
+                          ✓ Slide opdateret.
+                        </div>
+                      )
+                    }
+                    if (toolInvocation.toolName === 'editProjectSlides') {
+                      return (
+                        <div key={toolCallId} style={{ marginTop: 8, fontSize: 12, color: '#6B7280', fontStyle: 'italic' }}>
+                          Opdaterer slide…
+                        </div>
+                      )
+                    }
                     return null;
                   })}
                 </div>
@@ -746,6 +1164,205 @@ export default function AiChatCompanion({
 
             {/* Input Form */}
             <form onSubmit={handleManualSubmit} style={{ padding: '16px 20px', borderTop: '1px solid #E5E7EB', display: 'flex', flexDirection: 'column', gap: 10, background: '#fff' }}>
+              {kimiOnlyMode && (
+                <div
+                  style={{
+                    padding: '10px 12px',
+                    borderRadius: 12,
+                    background: '#F3F4F6',
+                    border: '1px solid #E5E7EB',
+                    fontSize: 12,
+                    color: '#374151',
+                  }}
+                >
+                  <div style={{ fontWeight: 600, marginBottom: 8 }}>Medtag kontekst</div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: 6 }}>
+                    <input
+                      type="checkbox"
+                      checked={slidesIncludeDocs}
+                      onChange={e => setSlidesIncludeDocs(e.target.checked)}
+                      disabled={isTyping}
+                    />
+                    <span>Projekt Docs</span>
+                  </label>
+                  {slidesBoardTools.length === 0 ? (
+                    <p style={{ margin: '6px 0 0', fontSize: 11, color: '#6B7280' }}>
+                      Ingen board-værktøjer på projektet endnu.
+                    </p>
+                  ) : (
+                    slidesBoardTools.map(t => (
+                      <label
+                        key={t.slug}
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: 4 }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={!!slidesToolInclude[t.slug]}
+                          onChange={e =>
+                            setSlidesToolInclude(prev => ({ ...prev, [t.slug]: e.target.checked }))
+                          }
+                          disabled={isTyping}
+                        />
+                        <span>{t.tool?.title || t.slug}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              )}
+              {pendingSlideOutline && (
+                <div
+                  style={{
+                    maxHeight: 220,
+                    overflowY: 'auto',
+                    padding: '10px 12px',
+                    borderRadius: 12,
+                    background: '#FAFAFA',
+                    border: '1px solid #E5E7EB',
+                    fontSize: 12,
+                  }}
+                >
+                  <div style={{ fontWeight: 600, marginBottom: 8, color: '#111827' }}>Slide-outline</div>
+                  <label style={{ display: 'block', marginBottom: 8, color: '#4B5563' }}>
+                    Analyse (valgfri)
+                    <textarea
+                      value={pendingSlideOutline.analysisSummary}
+                      onChange={e =>
+                        setPendingSlideOutline(prev =>
+                          prev ? { ...prev, analysisSummary: e.target.value } : prev
+                        )
+                      }
+                      rows={2}
+                      style={{
+                        width: '100%',
+                        marginTop: 4,
+                        padding: 8,
+                        borderRadius: 8,
+                        border: '1px solid #D1D5DB',
+                        fontSize: 11,
+                        resize: 'vertical',
+                        fontFamily: 'inherit',
+                      }}
+                    />
+                  </label>
+                  {pendingSlideOutline.slides.map((row, idx) => (
+                    <div
+                      key={`outline-${idx}`}
+                      style={{
+                        marginBottom: 10,
+                        padding: 8,
+                        borderRadius: 8,
+                        border: '1px solid #E5E7EB',
+                        background: '#fff',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 11, color: '#6B7280', minWidth: 22 }}>{String(idx + 1).padStart(2, '0')}</span>
+                        <input
+                          value={row.title}
+                          onChange={e => updatePendingOutlineSlide(idx, { title: e.target.value })}
+                          placeholder="Titel"
+                          style={{ flex: 1, minWidth: 120, padding: '4px 8px', borderRadius: 6, border: '1px solid #D1D5DB', fontSize: 12 }}
+                        />
+                        <input
+                          value={row.slideType}
+                          onChange={e => updatePendingOutlineSlide(idx, { slideType: e.target.value })}
+                          placeholder="Type"
+                          style={{ width: 72, padding: '4px 8px', borderRadius: 6, border: '1px solid #D1D5DB', fontSize: 11 }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => movePendingOutlineSlide(idx, -1)}
+                          disabled={idx === 0 || isTyping || applyingOutline}
+                          style={{ padding: '2px 6px', fontSize: 11, borderRadius: 6, border: '1px solid #D1D5DB', background: '#fff' }}
+                        >
+                          ↑
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => movePendingOutlineSlide(idx, 1)}
+                          disabled={idx >= pendingSlideOutline.slides.length - 1 || isTyping || applyingOutline}
+                          style={{ padding: '2px 6px', fontSize: 11, borderRadius: 6, border: '1px solid #D1D5DB', background: '#fff' }}
+                        >
+                          ↓
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removePendingOutlineSlide(idx)}
+                          disabled={pendingSlideOutline.slides.length <= 1 || isTyping || applyingOutline}
+                          style={{ padding: '2px 8px', fontSize: 11, borderRadius: 6, border: '1px solid #FECACA', background: '#FEF2F2', color: '#991B1B' }}
+                        >
+                          Slet
+                        </button>
+                      </div>
+                      <textarea
+                        value={row.summary}
+                        onChange={e => updatePendingOutlineSlide(idx, { summary: e.target.value })}
+                        rows={3}
+                        placeholder="Disposition for denne slide…"
+                        style={{
+                          width: '100%',
+                          padding: 8,
+                          borderRadius: 8,
+                          border: '1px solid #D1D5DB',
+                          fontSize: 11,
+                          resize: 'vertical',
+                          fontFamily: 'inherit',
+                        }}
+                      />
+                    </div>
+                  ))}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
+                    <button
+                      type="button"
+                      onClick={addPendingOutlineSlide}
+                      disabled={isTyping || applyingOutline}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: 8,
+                        border: '1px solid #D1D5DB',
+                        background: '#fff',
+                        fontSize: 12,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      + Slide
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPendingSlideOutline(null)}
+                      disabled={applyingOutline}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: 8,
+                        border: '1px solid #E5E7EB',
+                        background: '#F9FAFB',
+                        fontSize: 12,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Kassér outline
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void applyPendingOutlineToSlides()}
+                      disabled={applyingOutline || isTyping}
+                      style={{
+                        padding: '6px 14px',
+                        borderRadius: 8,
+                        border: 'none',
+                        background: '#4F46E5',
+                        color: '#fff',
+                        fontWeight: 600,
+                        fontSize: 12,
+                        cursor: applyingOutline ? 'wait' : 'pointer',
+                        opacity: applyingOutline ? 0.85 : 1,
+                      }}
+                    >
+                      {applyingOutline ? 'Opretter…' : 'Opret slides'}
+                    </button>
+                  </div>
+                </div>
+              )}
               {pendingFiles.length > 0 && (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {pendingFiles.map((file, index) => (

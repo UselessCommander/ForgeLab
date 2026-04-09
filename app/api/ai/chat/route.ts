@@ -6,7 +6,17 @@ import { mistral } from '@ai-sdk/mistral'
 import { z } from 'zod'
 
 export const maxDuration = 30
-const SUPPORTED_AI_PROVIDERS = ['auto', 'max', 'google', 'openai', 'anthropic', 'openrouter', 'mistral'] as const
+const SUPPORTED_AI_PROVIDERS = [
+  'auto',
+  'max',
+  'google',
+  'openai',
+  'anthropic',
+  'openrouter',
+  'mistral',
+  'groq',
+  'kimi',
+] as const
 type SupportedProvider = (typeof SUPPORTED_AI_PROVIDERS)[number]
 
 const PROVIDER_MODELS: Record<SupportedProvider, string[]> = {
@@ -16,13 +26,15 @@ const PROVIDER_MODELS: Record<SupportedProvider, string[]> = {
   openai: ['gpt-4o-mini', 'gpt-4o'],
   anthropic: ['claude-3-5-sonnet-latest', 'claude-3-5-haiku-latest'],
   openrouter: [
-    'google/gemma-4-26b-a4b-it:free',
     'google/gemma-4-31b-it:free',
+    'google/gemma-4-26b-a4b-it:free',
     'openai/gpt-oss-120b:free',
     'nvidia/nemotron-3-super-120b-a12b:free',
     'openai/gpt-4o-mini',
   ],
   mistral: ['mistral-small-latest', 'mistral-medium-latest'],
+  groq: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768'],
+  kimi: ['kimi-k2.5', 'kimi-k2', 'moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k'],
 }
 const ALLOWED_TOOL_SLUGS = [
   'kanban',
@@ -61,8 +73,10 @@ export async function POST(req: Request) {
     const googleModel = process.env.GOOGLE_MODEL || 'gemini-2.5-flash'
     const openaiModel = process.env.OPENAI_MODEL || 'gpt-4o-mini'
     const anthropicModel = process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-latest'
-    const openrouterModel = process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini'
+    const openrouterModel = process.env.OPENROUTER_MODEL || 'google/gemma-4-31b-it:free'
     const mistralModel = process.env.MISTRAL_MODEL || 'mistral-small-latest'
+    const groqModel = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile'
+    const kimiModel = process.env.KIMI_MODEL || 'kimi-k2.5'
     const requestedModelSafe = typeof requestedModel === 'string' ? requestedModel : undefined
 
     if (aiProvider === 'openai') {
@@ -79,6 +93,16 @@ export async function POST(req: Request) {
           { status: 500, headers: { 'Content-Type': 'application/json' } }
         )
       }
+    } else if (aiProvider === 'kimi') {
+      if (!process.env.MOONSHOT_API_KEY && !process.env.KIMI_API_KEY) {
+        return new Response(
+          JSON.stringify({
+            error:
+              'Moonshot API key mangler. Sæt MOONSHOT_API_KEY eller KIMI_API_KEY i .env.local (officielle Kimi API).',
+          }),
+          { status: 500, headers: { 'Content-Type': 'application/json' } }
+        )
+      }
     } else if (aiProvider === 'anthropic') {
       if (!process.env.ANTHROPIC_API_KEY) {
         return new Response(
@@ -90,6 +114,13 @@ export async function POST(req: Request) {
       if (!process.env.MISTRAL_API_KEY) {
         return new Response(
           JSON.stringify({ error: 'Mistral API key mangler. Sæt MISTRAL_API_KEY i .env.local.' }),
+          { status: 500, headers: { 'Content-Type': 'application/json' } }
+        )
+      }
+    } else if (aiProvider === 'groq') {
+      if (!process.env.GROQ_API_KEY) {
+        return new Response(
+          JSON.stringify({ error: 'Groq API key mangler. Sæt GROQ_API_KEY i .env.local.' }),
           { status: 500, headers: { 'Content-Type': 'application/json' } }
         )
       }
@@ -111,6 +142,16 @@ export async function POST(req: Request) {
 
     const contextObject =
       context && typeof context === 'object' ? context : null
+    const workspaceTab =
+      typeof contextObject?.workspaceTab === 'string' ? contextObject.workspaceTab : 'board'
+
+    if (aiProvider === 'kimi' && workspaceTab !== 'slides') {
+      return new Response(
+        JSON.stringify({ error: 'KIMI er kun tilgængelig i Slides-tab.' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
     const activeToolSlugs = Array.isArray(contextObject?.activeToolSlugs)
       ? contextObject.activeToolSlugs.filter((x: unknown): x is string => typeof x === 'string')
       : []
@@ -130,51 +171,74 @@ export async function POST(req: Request) {
         : 'Ingen ekstra board-kontekst modtaget.'
 
     // Provide context about the current ForgeLab projects/board to the model
-    const systemPrompt = [
-      'Du er ForgeLabs dedikerede AI-assistent. Din opgave er at hjælpe brugeren med at tænke kreativt og handlingsorienteret med deres projekt.',
-      'Kontekst fra brugerens nuværende board:',
-      safeContext,
-      '',
-      'Svar altid på dansk.',
-      '',
-      'Skriv svar i dette format:',
-      '1) Hvad jeg forstår (1 kort linje)',
-      '2) Forslag (2-3 konkrete punkter)',
-      '3) Næste skridt (1 konkret handling brugeren kan tage nu)',
-      '',
-      'Vær kort og konkret. Hvis brugerens mål er uklart, så stil præcis ét afklarende spørgsmål.',
-      '',
-      'Du har evnen til at tilføje værktøjer direkte til projekt-boardet via funktionen "addTool".',
-      'Regler for addTool:',
-      '- Brug kun addTool når brugeren udtrykkeligt beder om at oprette et modul.',
-      `- Brug kun én af disse slugs: ${ALLOWED_TOOL_SLUGS.join(', ')}.`,
-      '- Tilføj ikke et modul, der allerede er aktivt i boardet.',
-      '- Hvis anmodningen er tvetydig, spørg først i stedet for at kalde addTool.',
-      '',
-      'Ekstra regler for PDF:',
-      `- Hvis seneste brugerbesked indeholder en PDF (${latestUserMessageHasPdf ? 'ja' : 'nej'}), må du proaktivt tilføje maks ét relevant modul, hvis det giver tydelig værdi.`,
-      `- Prioritér moduler fra denne aktuelle "mulige værktøjer"-liste: ${availableToolSlugs.length > 0 ? availableToolSlugs.join(', ') : 'ingen liste modtaget'}.`,
-      '- Hvis intet relevant modul findes i den mulige liste, så foreslå i stedet et modul uden at kalde addTool.',
-      '',
-      'Nårdu arbejder med Affinity Diagram:',
-      '- Du må bruge værktøjet "populateAffinityDiagram" til at oprette temaer og noter automatisk.',
-      '- Brug det når brugeren beder om at strukturere input, eller når en PDF naturligt kan opsummeres i temaer.',
-      '- Hold det kort og konkret: 3-6 temaer, 2-8 noter per tema.',
-      '- Skriv stadig en kort forklaring til brugeren efter værktøjskaldet.',
-      '',
-      'Du må også bruge værktøjet "updateToolData" til at redigere indhold i alle værktøjer:',
-      '- Brug det når brugeren beder om at udfylde/rette et værktøj.',
-      '- Hvis værktøjet ikke er aktivt endnu, tilføj det først med addTool (hvis muligt).',
-      '- Send komplette felter i data-objektet i samme struktur som værktøjets eksisterende data.',
-      '- Brug aldrig ekstra/ukendte felter eller "gæt"-nøgler.',
-      '- Hvis du mangler input for at udfylde et værktøj meningsfuldt, spørg kort først.',
-      '',
-      'Du må bruge værktøjet "editProjectDocs" når brugeren vil skrive, omskrive eller udvide projektets docs:',
-      '- Brug mode="append" for at tilføje nyt afsnit.',
-      '- Brug mode="replace" kun når brugeren tydeligt beder om at erstatte hele siden.',
-      '- Brug pageTitle hvis en specifik docs-fane nævnes eller skal oprettes.',
-      '- Hold indholdet struktureret og klart i dansk sprog.',
-    ].join('\n')
+    const systemPrompt =
+      workspaceTab === 'slides'
+        ? [
+            'Du er ForgeLabs præsentations-assistent i projektets Slides-fane.',
+            'Nedenfor får du JSON-kontekst (bl.a. slidesIncludeDocs, slidesIncludedToolSlugs, slidesProjectContextDigest med udtræk af Projekt Docs og valgte board-værktøjer, samt board-metadata).',
+            safeContext,
+            '',
+            'Svar altid på dansk.',
+            '',
+            'KRITISK — INGEN NETSØGNING:',
+            '- Du må ALDRIG søge på internettet eller påstå du har fundet data online. Skriv aldrig "søger", "Searching", "på nettet", "website", "Google" som kilde.',
+            '- Brug KUN: (1) brugerens vedhæftede filer i chatbeskeder, (2) slidesProjectContextDigest og øvrig medsendt projektkontekst.',
+            '- Hvis kilder mangler, sig det ærligt og bed brugeren vedhæfte PDF/billeder eller sætte flueben ved Projekt Docs / relevante værktøjer i panelet.',
+            '',
+            'STEP-BY-STEP (outline → godkendelse → slides):',
+            '1) Kort analyse i punktform: sprog, emne, målgruppe, evt. visuel stil og ca. antal slides hvis ikke angivet.',
+            '2) Kald proposeSlideDeckOutline med analysisSummary (kort) og slides: array med order (1,2,3…), title, valgfri slideType (fx Cover, Agenda, Indhold, Afslutning), summary (detaljeret disposition pr. slide baseret på kilderne).',
+            '3) Efter proposeSlideDeckOutline: afslut med én kort besked om at brugeren skal gennemse og redigere outline i UI og trykke "Opret slides".',
+            '4) Kald IKKE editProjectSlides for at oprette et helt nyt deck i samme svar som outline — brugeren bekræfter først i UI.',
+            '5) editProjectSlides må kun bruges til små, konkrete rettelser på ét slide når deck allerede findes og brugeren beder om en præcis ændring.',
+          ].join('\n')
+        : [
+            'Du er ForgeLabs dedikerede AI-assistent. Din opgave er at hjælpe brugeren med at tænke kreativt og handlingsorienteret med deres projekt.',
+            'Kontekst fra brugerens nuværende board:',
+            safeContext,
+            '',
+            'Svar altid på dansk.',
+            '',
+            'Skriv svar i dette format:',
+            '1) Hvad jeg forstår (1 kort linje)',
+            '2) Forslag (2-3 konkrete punkter)',
+            '3) Næste skridt (1 konkret handling brugeren kan tage nu)',
+            '',
+            'Vær kort og konkret. Hvis brugerens mål er uklart, så stil præcis ét afklarende spørgsmål.',
+            '',
+            'Du har evnen til at tilføje værktøjer direkte til projekt-boardet via funktionen "addTool".',
+            'Regler for addTool:',
+            '- Brug kun addTool når brugeren udtrykkeligt beder om at oprette et modul.',
+            `- Brug kun én af disse slugs: ${ALLOWED_TOOL_SLUGS.join(', ')}.`,
+            '- Tilføj ikke et modul, der allerede er aktivt i boardet.',
+            '- Hvis anmodningen er tvetydig, spørg først i stedet for at kalde addTool.',
+            '',
+            'Ekstra regler for PDF:',
+            `- Hvis seneste brugerbesked indeholder en PDF (${latestUserMessageHasPdf ? 'ja' : 'nej'}), må du proaktivt tilføje maks ét relevant modul, hvis det giver tydelig værdi.`,
+            `- Prioritér moduler fra denne aktuelle "mulige værktøjer"-liste: ${availableToolSlugs.length > 0 ? availableToolSlugs.join(', ') : 'ingen liste modtaget'}.`,
+            '- Hvis intet relevant modul findes i den mulige liste, så foreslå i stedet et modul uden at kalde addTool.',
+            '',
+            'Når du arbejder med Affinity Diagram:',
+            '- Du må bruge værktøjet "populateAffinityDiagram" til at oprette temaer og noter automatisk.',
+            '- Brug det når brugeren beder om at strukturere input, eller når en PDF naturligt kan opsummeres i temaer.',
+            '- Hold det kort og konkret: 3-6 temaer, 2-8 noter per tema.',
+            '- Skriv stadig en kort forklaring til brugeren efter værktøjskaldet.',
+            '',
+            'Du må også bruge værktøjet "updateToolData" til at redigere indhold i alle værktøjer:',
+            '- Brug det når brugeren beder om at udfylde/rette et værktøj.',
+            '- Hvis værktøjet ikke er aktivt endnu, tilføj det først med addTool (hvis muligt).',
+            '- Send komplette felter i data-objektet i samme struktur som værktøjets eksisterende data.',
+            '- Brug aldrig ekstra/ukendte felter eller "gæt"-nøgler.',
+            '- Hvis du mangler input for at udfylde et værktøj meningsfuldt, spørg kort først.',
+            '',
+            'Du må bruge værktøjet "editProjectDocs" når brugeren vil skrive, omskrive eller udvide projektets docs:',
+            '- Brug mode="append" for at tilføje nyt afsnit.',
+            '- Brug mode="replace" kun når brugeren tydeligt beder om at erstatte hele siden.',
+            '- Brug pageTitle hvis en specifik docs-fane nævnes eller skal oprettes.',
+            '- Hold indholdet struktureret og klart i dansk sprog.',
+            '',
+            `Aktiv tab lige nu: ${workspaceTab}.`,
+          ].join('\n')
 
     const normalizedMessages: ModelMessage[] = []
     for (const message of messages) {
@@ -245,12 +309,29 @@ export async function POST(req: Request) {
       baseURL: 'https://openrouter.ai/api/v1',
     })
 
+    const moonshotApiKey = process.env.MOONSHOT_API_KEY || process.env.KIMI_API_KEY || ''
+    const moonshotBaseUrl = process.env.MOONSHOT_BASE_URL || 'https://api.moonshot.ai/v1'
+    const moonshot = moonshotApiKey
+      ? createOpenAI({
+          apiKey: moonshotApiKey,
+          baseURL: moonshotBaseUrl,
+        })
+      : null
+
+    const groq = createOpenAI({
+      apiKey: process.env.GROQ_API_KEY,
+      baseURL: 'https://api.groq.com/openai/v1',
+    })
+
     const modelForProvider = (() => {
       if (aiProvider === 'google') return googleModel
       if (aiProvider === 'openai') return openaiModel
       if (aiProvider === 'anthropic') return anthropicModel
       if (aiProvider === 'openrouter') return openrouterModel
-      return mistralModel
+      if (aiProvider === 'kimi') return kimiModel
+      if (aiProvider === 'mistral') return mistralModel
+      if (aiProvider === 'groq') return groqModel
+      return googleModel
     })()
 
     const selectedModel =
@@ -267,7 +348,11 @@ export async function POST(req: Request) {
             ? openrouter(selectedModel)
             : aiProvider === 'mistral'
               ? mistral(selectedModel)
-              : google(selectedModel)
+              : aiProvider === 'kimi'
+                ? moonshot!(selectedModel)
+                : aiProvider === 'groq'
+                  ? groq(selectedModel)
+                  : google(selectedModel)
 
     const tools = {
       addTool: tool({
@@ -348,6 +433,46 @@ export async function POST(req: Request) {
           pageTitle,
         }),
       }),
+      ...(workspaceTab === 'slides'
+        ? {
+            proposeSlideDeckOutline: tool({
+              description:
+                'Foreslår en nummereret slide-outline KUN ud fra vedhæftede filer og medsendt projektkontekst (ingen net-søgning). Bruges før brugeren godkender; app viser outline til redigering.',
+              inputSchema: z.object({
+                analysisSummary: z.string().min(1).max(3000),
+                slides: z
+                  .array(
+                    z.object({
+                      order: z.number().int().min(1).max(99),
+                      title: z.string().min(1).max(200),
+                      slideType: z.string().max(40).optional(),
+                      summary: z.string().min(1).max(4000),
+                    })
+                  )
+                  .min(1)
+                  .max(30),
+              }),
+              execute: async input => ({ ok: true, ...input }),
+            }),
+            editProjectSlides: tool({
+              description:
+                'Små rettelser på ét slide (HTML). Ikke til at oprette hele præsentationer — brug proposeSlideDeckOutline først.',
+              inputSchema: z.object({
+                mode: z.enum(['append', 'replace']).default('replace'),
+                slideTitle: z.string().min(1).max(120).optional(),
+                title: z.string().min(1).max(120).optional(),
+                contentHtml: z.string().min(1).max(30000),
+              }),
+              execute: async ({ mode, slideTitle, title, contentHtml }) => ({
+                ok: true,
+                mode,
+                slideTitle,
+                title,
+                contentHtml,
+              }),
+            }),
+          }
+        : {}),
     }
 
     const streamWithModel = (model: any) =>
@@ -389,6 +514,9 @@ export async function POST(req: Request) {
         }
         if (process.env.MISTRAL_API_KEY) {
           candidates.push({ provider: 'mistral', modelId: mistralModel, model: mistral(mistralModel) })
+        }
+        if (process.env.GROQ_API_KEY) {
+          candidates.push({ provider: 'groq', modelId: groqModel, model: groq(groqModel) })
         }
       }
 
