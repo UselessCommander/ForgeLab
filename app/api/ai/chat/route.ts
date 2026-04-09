@@ -518,10 +518,13 @@ export async function POST(req: Request) {
         : {}),
     }
 
-    const streamWithModel = (model: any) =>
+    const withModelIdentity = (identity: string) =>
+      `${systemPrompt}\n\nAI-identitet (aktiv for dette svar): ${identity}\nHvis brugeren spørger hvilken AI/model de taler med, svar direkte med AI-identitet-linjen ovenfor.`
+
+    const streamWithModel = (model: any, identity: string) =>
       streamText({
         model,
-        system: systemPrompt,
+        system: withModelIdentity(identity),
         messages: normalizedMessages,
         tools,
       })
@@ -567,7 +570,7 @@ export async function POST(req: Request) {
     }
 
     if (aiProvider !== 'auto' && aiProvider !== 'max') {
-      const result = streamWithModel(directModel)
+      const result = streamWithModel(directModel, `${aiProvider}/${selectedModel}`)
       return result.toUIMessageStreamResponse()
     }
 
@@ -621,9 +624,10 @@ export async function POST(req: Request) {
         .join('\n\n')
 
       const fusionModel = selectedCandidates[0].model
+      const fusionIdentity = `${selectedCandidates[0].provider}/${selectedCandidates[0].modelId}`
       const fusionResult = streamText({
         model: fusionModel,
-        system: `${systemPrompt}
+        system: `${withModelIdentity(fusionIdentity)}
 
 Du modtager nu flere modelsvar på samme brugerinput. Din opgave er at fusionere dem til ét bedre svar.
 Regler:
@@ -647,7 +651,7 @@ Regler:
     let lastError: unknown = null
     for (const candidate of autoCandidates) {
       try {
-        const result = streamWithModel(candidate.model)
+        const result = streamWithModel(candidate.model, `${candidate.provider}/${candidate.modelId}`)
         return result.toUIMessageStreamResponse()
       } catch (error) {
         lastError = error

@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
 import Link from 'next/link'
+import html2canvas from 'html2canvas'
+import jsPDF from 'jspdf'
 import {
   getProject,
   addToolToProject,
@@ -71,6 +73,17 @@ type LiveCursorPayload = {
 type LiveCursor = LiveCursorPayload & {
   color: string
   updatedAt: number
+}
+
+type BoardContextMenu =
+  | { type: 'canvas'; x: number; y: number; worldX: number; worldY: number }
+  | { type: 'card'; x: number; y: number; slug: string }
+
+type MarqueeSelection = {
+  startX: number
+  startY: number
+  currentX: number
+  currentY: number
 }
 
 const FLOWCHART_TOOL_SLUG = 'project-board-flowchart'
@@ -155,6 +168,8 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const [isPanningActive, setIsPanningActive] = useState(false)
   const [snapToGrid, setSnapToGrid] = useState(true)
   const [showFlowPanel, setShowFlowPanel] = useState(false)
+  const [contextMenu, setContextMenu] = useState<BoardContextMenu | null>(null)
+  const [marqueeSelection, setMarqueeSelection] = useState<MarqueeSelection | null>(null)
   const canvasRef = useRef<HTMLDivElement>(null)
   const isPointerOverCanvasRef = useRef(false)
   const isPanning = useRef(false)
@@ -164,16 +179,25 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const [cardPositions, setCardPositions] = useState<Record<string, CardPosition>>({})
   const [flowNodes, setFlowNodes] = useState<FlowNode[]>([])
   const [flowEdges, setFlowEdges] = useState<FlowEdge[]>([])
+  const [selectedCardSlugs, setSelectedCardSlugs] = useState<string[]>([])
+  const [selectedFlowNodeIds, setSelectedFlowNodeIds] = useState<string[]>([])
+  const [lockedCardSlugs, setLockedCardSlugs] = useState<string[]>([])
+  const [cardZOrder, setCardZOrder] = useState<Record<string, number>>({})
   const [linkingFromNodeId, setLinkingFromNodeId] = useState<string | null>(null)
   const [selectedFlowNodeId, setSelectedFlowNodeId] = useState<string | null>(null)
+  const [hoveredFlowNodeId, setHoveredFlowNodeId] = useState<string | null>(null)
   const [draggingPaletteShape, setDraggingPaletteShape] = useState<FlowShape | null>(null)
   const [edgeDraft, setEdgeDraft] = useState<FlowEdgeDraft | null>(null)
   const dragging = useRef<string | null>(null)
+  const isMarqueeSelecting = useRef(false)
+  const marqueeIsAdditiveRef = useRef(false)
   const draggingFlowNode = useRef<string | null>(null)
   const dragOffset = useRef({ x: 0, y: 0 })
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const flowSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const reloadToolsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const nextCardZIndexRef = useRef(10)
+  const cardElementRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const GRID_SIZE = 24
   const cursorChannelRef = useRef<any>(null)
   const lastCursorSendAtRef = useRef(0)
@@ -249,6 +273,20 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       if (flowSaveTimer.current) clearTimeout(flowSaveTimer.current)
     }
   }, [])
+
+  useEffect(() => {
+    if (!contextMenu) return
+    const onWindowClick = () => setContextMenu(null)
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setContextMenu(null)
+    }
+    window.addEventListener('click', onWindowClick)
+    window.addEventListener('keydown', onEscape)
+    return () => {
+      window.removeEventListener('click', onWindowClick)
+      window.removeEventListener('keydown', onEscape)
+    }
+  }, [contextMenu])
 
   const broadcastCursor = useCallback(
     async (worldX: number, worldY: number, visible: boolean) => {
@@ -329,9 +367,9 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   }, [activeWorkspaceTab, currentUserId, currentUsername, projectId])
 
   useEffect(() => {
-    const onKeyDownDeleteFlowNode = (event: KeyboardEvent) => {
+    const onKeyDownDeleteSelected = (event: KeyboardEvent) => {
       const isEditable = project?.role === 'owner' || project?.role === 'editor'
-      if (!isEditable || !selectedFlowNodeId) return
+      if (!isEditable) return
       if (event.key !== 'Backspace' && event.key !== 'Delete') return
 
       const target = event.target as HTMLElement | null
@@ -341,15 +379,21 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
         target?.isContentEditable
       if (isTypingTarget) return
 
+      if (selectedFlowNodeIds.length === 0 && selectedCardSlugs.length === 0) return
       event.preventDefault()
-      removeFlowNode(selectedFlowNodeId)
+      if (selectedFlowNodeIds.length > 0) {
+        removeFlowNodesByIds(selectedFlowNodeIds)
+      }
+      if (selectedCardSlugs.length > 0) {
+        void removeToolCardsByIds(selectedCardSlugs)
+      }
     }
 
-    window.addEventListener('keydown', onKeyDownDeleteFlowNode)
+    window.addEventListener('keydown', onKeyDownDeleteSelected)
     return () => {
-      window.removeEventListener('keydown', onKeyDownDeleteFlowNode)
+      window.removeEventListener('keydown', onKeyDownDeleteSelected)
     }
-  }, [project?.role, selectedFlowNodeId])
+  }, [project?.role, selectedFlowNodeIds, selectedCardSlugs])
 
   const handleDdCanvasLayoutSave = useCallback(
     async (layout: NonNullable<Project['ddCanvasLayout']>) => {
@@ -505,7 +549,9 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
 
   // ── Canvas event handlers ──────────────────────────────────────────
   const onCanvasMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    setContextMenu(null)
     setSelectedFlowNodeId(null)
+    setSelectedFlowNodeIds([])
     const target = e.target as HTMLElement
     const middleMousePan = e.button === 1
     const leftMousePan = e.button === 0 && isSpacePressed
@@ -520,6 +566,23 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
 
     // only start panning if clicking the canvas background itself
     if (!target.classList.contains('canvas-bg') && target !== canvasRef.current) return
+    if (canEdit && e.button === 0) {
+      const worldPoint = getCanvasWorldPoint(e.clientX, e.clientY)
+      isMarqueeSelecting.current = true
+      marqueeIsAdditiveRef.current = e.metaKey || e.ctrlKey || e.shiftKey
+      setMarqueeSelection({
+        startX: worldPoint.x,
+        startY: worldPoint.y,
+        currentX: worldPoint.x,
+        currentY: worldPoint.y,
+      })
+      if (!marqueeIsAdditiveRef.current) {
+        setSelectedCardSlugs([])
+        setSelectedFlowNodeIds([])
+      }
+      e.preventDefault()
+      return
+    }
     isPanning.current = true
     setIsPanningActive(true)
     lastPanPos.current = { x: e.clientX, y: e.clientY }
@@ -534,6 +597,13 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       const dy = e.clientY - lastPanPos.current.y
       setPan(p => ({ x: p.x + dx, y: p.y + dy }))
       lastPanPos.current = { x: e.clientX, y: e.clientY }
+    }
+    if (isMarqueeSelecting.current) {
+      setMarqueeSelection(prev =>
+        prev
+          ? { ...prev, currentX: worldPoint.x, currentY: worldPoint.y }
+          : prev
+      )
     }
     if (dragging.current) {
       const rawPos = { x: worldPoint.x - dragOffset.current.x, y: worldPoint.y - dragOffset.current.y }
@@ -566,6 +636,62 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const onCanvasMouseUp = (e?: React.MouseEvent<HTMLDivElement>) => {
     isPanning.current = false
     setIsPanningActive(false)
+    if (isMarqueeSelecting.current && marqueeSelection) {
+      const minX = Math.min(marqueeSelection.startX, marqueeSelection.currentX)
+      const maxX = Math.max(marqueeSelection.startX, marqueeSelection.currentX)
+      const minY = Math.min(marqueeSelection.startY, marqueeSelection.currentY)
+      const maxY = Math.max(marqueeSelection.startY, marqueeSelection.currentY)
+      const epsilon = 2
+      const selectedCardSlugsFromBox = boardTools
+        .map(({ slug }, idx) => ({ slug, idx }))
+        .filter(({ slug, idx }) => {
+          const cardEl = cardElementRefs.current[slug]
+          const pos = cardPositions[slug] || defaultPos(slug, idx)
+          if (!cardEl || !pos) return false
+          const cardMinX = pos.x
+          const cardMinY = pos.y
+          const cardMaxX = pos.x + cardEl.offsetWidth
+          const cardMaxY = pos.y + cardEl.offsetHeight
+          return cardMaxX >= minX && cardMinX <= maxX && cardMaxY >= minY && cardMinY <= maxY
+        })
+        .map(({ slug }) => slug)
+      const selectedFlowNodeIdsFromBox = flowNodes
+        .map(node => {
+          const style = getFlowNodeStyle(node.shape)
+          return {
+            id: node.id,
+            minX: node.x,
+            minY: node.y,
+            maxX: node.x + style.width,
+            maxY: node.y + style.height,
+          }
+        })
+        .filter(nodeBox => (
+          nodeBox.maxX >= minX &&
+          nodeBox.minX <= maxX &&
+          nodeBox.maxY >= minY &&
+          nodeBox.minY <= maxY
+        ))
+        .map(nodeBox => nodeBox.id)
+
+      if (Math.abs(maxX - minX) < epsilon && Math.abs(maxY - minY) < epsilon) {
+        if (!marqueeIsAdditiveRef.current) {
+          setSelectedCardSlugs([])
+          setSelectedFlowNodeIds([])
+          setSelectedFlowNodeId(null)
+        }
+      } else if (marqueeIsAdditiveRef.current) {
+        setSelectedCardSlugs(prev => Array.from(new Set([...prev, ...selectedCardSlugsFromBox])))
+        setSelectedFlowNodeIds(prev => Array.from(new Set([...prev, ...selectedFlowNodeIdsFromBox])))
+      } else {
+        setSelectedCardSlugs(selectedCardSlugsFromBox)
+        setSelectedFlowNodeIds(selectedFlowNodeIdsFromBox)
+        setSelectedFlowNodeId(selectedFlowNodeIdsFromBox[0] || null)
+      }
+    }
+    isMarqueeSelecting.current = false
+    marqueeIsAdditiveRef.current = false
+    setMarqueeSelection(null)
     if (dragging.current) {
       const slug = dragging.current
       dragging.current = null
@@ -631,6 +757,8 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   // ── Card drag ──────────────────────────────────────────────────────
   const onCardMouseDown = (e: React.MouseEvent, slug: string, idx: number) => {
     if (!canEdit) return
+    if (lockedCardSlugs.includes(slug)) return
+    setContextMenu(null)
     e.stopPropagation()
     const rect = canvasRef.current!.getBoundingClientRect()
     const pos = cardPositions[slug] || defaultPos(slug, idx)
@@ -639,7 +767,109 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     dragOffset.current = { x: mx - pos.x, y: my - pos.y }
     dragging.current = slug
     if (!cardPositions[slug]) setCardPositions(p => ({ ...p, [slug]: pos }))
+    setCardZOrder(prev => ({ ...prev, [slug]: ++nextCardZIndexRef.current }))
     e.preventDefault()
+  }
+
+  const bringCardToFront = (slug: string) => {
+    setCardZOrder(prev => ({ ...prev, [slug]: ++nextCardZIndexRef.current }))
+  }
+
+  const toggleCardSelection = (slug: string, additive: boolean) => {
+    setSelectedCardSlugs(prev => {
+      if (!additive) return [slug]
+      if (prev.includes(slug)) return prev.filter(item => item !== slug)
+      return [...prev, slug]
+    })
+  }
+
+  const toggleCardLock = (slug: string) => {
+    setLockedCardSlugs(prev => (
+      prev.includes(slug) ? prev.filter(item => item !== slug) : [...prev, slug]
+    ))
+  }
+
+  const downloadDataUrl = (dataUrl: string, filename: string) => {
+    const link = document.createElement('a')
+    link.href = dataUrl
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+  }
+
+  const exportSelectedCards = async (format: 'png' | 'jpg' | 'pdf') => {
+    const selected = selectedCardSlugs.filter(slug => cardElementRefs.current[slug])
+    if (selected.length === 0) {
+      alert('Vælg mindst ét tool card først.')
+      return
+    }
+
+    try {
+      const captures = await Promise.all(
+        selected.map(async slug => {
+          const el = cardElementRefs.current[slug]
+          if (!el) return null
+          const canvas = await html2canvas(el, {
+            backgroundColor: '#ffffff',
+            scale: Math.min(2, window.devicePixelRatio || 1),
+          })
+          return { slug, canvas }
+        })
+      )
+      const validCaptures = captures.filter(
+        (item): item is { slug: string; canvas: HTMLCanvasElement } => item !== null
+      )
+      if (validCaptures.length === 0) {
+        alert('Kunne ikke eksportere de valgte cards.')
+        return
+      }
+
+      if (format === 'pdf') {
+        const first = validCaptures[0]
+        const firstOrientation = first.canvas.width >= first.canvas.height ? 'landscape' : 'portrait'
+        const pdf = new jsPDF({
+          orientation: firstOrientation,
+          unit: 'px',
+          format: [first.canvas.width, first.canvas.height],
+        })
+        validCaptures.forEach((item, idx) => {
+          const orientation = item.canvas.width >= item.canvas.height ? 'landscape' : 'portrait'
+          if (idx > 0) {
+            pdf.addPage([item.canvas.width, item.canvas.height], orientation)
+          }
+          pdf.addImage(
+            item.canvas.toDataURL('image/png'),
+            'PNG',
+            0,
+            0,
+            item.canvas.width,
+            item.canvas.height
+          )
+        })
+        pdf.save(`board-cards-${Date.now()}.pdf`)
+        return
+      }
+
+      validCaptures.forEach((item, idx) => {
+        const mime = format === 'jpg' ? 'image/jpeg' : 'image/png'
+        const ext = format === 'jpg' ? 'jpg' : 'png'
+        const dataUrl = item.canvas.toDataURL(mime, format === 'jpg' ? 0.92 : undefined)
+        downloadDataUrl(dataUrl, `${item.slug}-${idx + 1}.${ext}`)
+      })
+    } catch (error) {
+      console.error('Eksport af cards fejlede:', error)
+      alert('Eksport fejlede. Prøv igen.')
+    }
+  }
+
+  const centerViewAt = (worldX: number, worldY: number) => {
+    const rect = canvasRef.current?.getBoundingClientRect()
+    if (!rect) return
+    setPan({
+      x: rect.width / 2 - worldX * zoom,
+      y: rect.height / 2 - worldY * zoom,
+    })
   }
 
   const addFlowNode = (shape: FlowShape, at?: { x: number; y: number }) => {
@@ -666,6 +896,12 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const onFlowNodeMouseDown = (e: React.MouseEvent, nodeId: string) => {
     if (!canEdit) return
     e.stopPropagation()
+    const additive = e.metaKey || e.ctrlKey || e.shiftKey
+    setSelectedFlowNodeIds(prev => {
+      if (!additive) return [nodeId]
+      if (prev.includes(nodeId)) return prev.filter(id => id !== nodeId)
+      return [...prev, nodeId]
+    })
     setSelectedFlowNodeId(nodeId)
     const rect = canvasRef.current!.getBoundingClientRect()
     const node = flowNodes.find(n => n.id === nodeId)
@@ -730,6 +966,65 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     })
     if (linkingFromNodeId === nodeId) setLinkingFromNodeId(null)
     if (selectedFlowNodeId === nodeId) setSelectedFlowNodeId(null)
+    setSelectedFlowNodeIds(prev => prev.filter(id => id !== nodeId))
+    if (hoveredFlowNodeId === nodeId) setHoveredFlowNodeId(null)
+  }
+
+  const removeFlowNodesByIds = (nodeIds: string[]) => {
+    if (!canEdit || nodeIds.length === 0) return
+    const nodeSet = new Set(nodeIds)
+    setFlowNodes(prevNodes => {
+      const nextNodes = prevNodes.filter(n => !nodeSet.has(n.id))
+      setFlowEdges(prevEdges => {
+        const nextEdges = prevEdges.filter(e => !nodeSet.has(e.from) && !nodeSet.has(e.to))
+        persistFlowchart(nextNodes, nextEdges)
+        return nextEdges
+      })
+      return nextNodes
+    })
+    setSelectedFlowNodeId(null)
+    setSelectedFlowNodeIds(prev => prev.filter(id => !nodeSet.has(id)))
+    if (linkingFromNodeId && nodeSet.has(linkingFromNodeId)) setLinkingFromNodeId(null)
+    if (hoveredFlowNodeId && nodeSet.has(hoveredFlowNodeId)) setHoveredFlowNodeId(null)
+  }
+
+  const removeToolCardsByIds = async (toolIds: string[]) => {
+    if (toolIds.length === 0) return
+    const uniqueToolIds = Array.from(new Set(toolIds))
+
+    const removeLocal = () => {
+      setProject(prev =>
+        prev ? { ...prev, toolIds: prev.toolIds.filter(id => !uniqueToolIds.includes(id)) } : prev
+      )
+      setCardPositions(prev => {
+        const next = { ...prev }
+        uniqueToolIds.forEach(id => delete next[id])
+        return next
+      })
+      setCardZOrder(prev => {
+        const next = { ...prev }
+        uniqueToolIds.forEach(id => delete next[id])
+        return next
+      })
+      setLockedCardSlugs(prev => prev.filter(slug => !uniqueToolIds.includes(slug)))
+      setSelectedCardSlugs(prev => prev.filter(slug => !uniqueToolIds.includes(slug)))
+    }
+
+    if (project?.role === 'viewer') return
+    if (isOffline) {
+      removeLocal()
+      return
+    }
+
+    try {
+      setModifying(true)
+      await Promise.all(uniqueToolIds.map(async toolId => removeToolFromProject(projectId, toolId)))
+      removeLocal()
+    } catch {
+      alert('Kunne ikke fjerne ét eller flere værktøjer. Prøv igen.')
+    } finally {
+      setModifying(false)
+    }
   }
 
   const getCanvasWorldPoint = (clientX: number, clientY: number) => {
@@ -830,12 +1125,15 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   }
 
   const handleRemoveTool = async (toolId: string) => {
+    setSelectedCardSlugs(prev => prev.filter(slug => slug !== toolId))
     if (project?.role === 'viewer') return alert('Du har kun læseadgang til dette projekt.')
     if (modifying) return
     if (isOffline) {
       // Local demo mode: just remove from local state
       setProject(prev => prev ? { ...prev, toolIds: prev.toolIds.filter(id => id !== toolId) } : prev)
       setCardPositions(prev => { const n = { ...prev }; delete n[toolId]; return n })
+      setCardZOrder(prev => { const n = { ...prev }; delete n[toolId]; return n })
+      setLockedCardSlugs(prev => prev.filter(slug => slug !== toolId))
       return
     }
     try {
@@ -843,6 +1141,8 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       await removeToolFromProject(projectId, toolId)
       setProject(prev => prev ? { ...prev, toolIds: prev.toolIds.filter(id => id !== toolId) } : prev)
       setCardPositions(prev => { const n = { ...prev }; delete n[toolId]; return n })
+      setCardZOrder(prev => { const n = { ...prev }; delete n[toolId]; return n })
+      setLockedCardSlugs(prev => prev.filter(slug => slug !== toolId))
     } catch {
       alert('Kunne ikke fjerne værktøj. Prøv igen.')
     } finally {
@@ -1165,20 +1465,6 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           </button>
           {activeWorkspaceTab === 'board' && (
             <>
-              <button
-                style={{
-                  ...S.zoomBtn,
-                  minWidth: 88,
-                  fontSize: 11,
-                  fontWeight: 700,
-                  background: snapToGrid ? '#111827' : 'transparent',
-                  color: snapToGrid ? '#fff' : '#6B7280',
-                }}
-                onClick={() => setSnapToGrid(v => !v)}
-                title="Grid lock"
-              >
-                Grid lock
-              </button>
               <button
                 style={S.zoomBtn}
                 onClick={() => {
@@ -1519,6 +1805,23 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           onCanvasMouseUp()
         }}
         onMouseDown={onCanvasMouseDown}
+        onContextMenu={e => {
+          const target = e.target as HTMLElement
+          if (!target.classList.contains('canvas-bg') && target !== canvasRef.current) return
+          e.preventDefault()
+          if (!canEdit) return
+          const point = getCanvasWorldPoint(e.clientX, e.clientY)
+          setSelectedCardSlugs([])
+          setSelectedFlowNodeIds([])
+          setSelectedFlowNodeId(null)
+          setContextMenu({
+            type: 'canvas',
+            x: e.clientX,
+            y: e.clientY,
+            worldX: point.x,
+            worldY: point.y,
+          })
+        }}
         onMouseMove={onCanvasMouseMove}
         onMouseUp={onCanvasMouseUp}
         onDragOver={e => {
@@ -1613,7 +1916,8 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
 
               {flowNodes.map(node => {
                 const isLinkSource = linkingFromNodeId === node.id
-                const isSelected = selectedFlowNodeId === node.id
+                const isSelected = selectedFlowNodeIds.includes(node.id)
+                const showConnectors = hoveredFlowNodeId === node.id || isSelected || isLinkSource
                 const style = getFlowNodeStyle(node.shape)
                 return (
                   <div
@@ -1641,6 +1945,8 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                       userSelect: 'none',
                     }}
                     onMouseDown={e => onFlowNodeMouseDown(e, node.id)}
+                    onMouseEnter={() => setHoveredFlowNodeId(node.id)}
+                    onMouseLeave={() => setHoveredFlowNodeId(prev => (prev === node.id ? null : prev))}
                   >
                     <input
                       value={node.label}
@@ -1716,6 +2022,9 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                           background: '#F59E0B',
                           cursor: 'crosshair',
                           boxShadow: '0 2px 7px rgba(0,0,0,0.22)',
+                          opacity: showConnectors ? 1 : 0,
+                          pointerEvents: showConnectors ? 'auto' : 'none',
+                          transition: 'opacity 120ms ease',
                         }}
                       />
                       <button
@@ -1734,6 +2043,9 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                           background: '#F59E0B',
                           cursor: 'crosshair',
                           boxShadow: '0 2px 7px rgba(0,0,0,0.22)',
+                          opacity: showConnectors ? 1 : 0,
+                          pointerEvents: showConnectors ? 'auto' : 'none',
+                          transition: 'opacity 120ms ease',
                         }}
                       />
                       <button
@@ -1752,6 +2064,9 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                           background: '#F59E0B',
                           cursor: 'crosshair',
                           boxShadow: '0 2px 7px rgba(0,0,0,0.22)',
+                          opacity: showConnectors ? 1 : 0,
+                          pointerEvents: showConnectors ? 'auto' : 'none',
+                          transition: 'opacity 120ms ease',
                         }}
                       />
                     </div>
@@ -1827,6 +2142,23 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
               )
             })}
 
+          {marqueeSelection && (
+            <div
+              style={{
+                position: 'absolute',
+                left: Math.min(marqueeSelection.startX, marqueeSelection.currentX),
+                top: Math.min(marqueeSelection.startY, marqueeSelection.currentY),
+                width: Math.max(1, Math.abs(marqueeSelection.currentX - marqueeSelection.startX)),
+                height: Math.max(1, Math.abs(marqueeSelection.currentY - marqueeSelection.startY)),
+                background: 'rgba(37, 99, 235, 0.12)',
+                border: '1.5px solid rgba(37, 99, 235, 0.9)',
+                borderRadius: 8,
+                pointerEvents: 'none',
+                zIndex: 999,
+              }}
+            />
+          )}
+
           {/* ── Tool cards ─────────────────────────────── */}
           {boardTools.map(({ slug, tool }, idx) => {
             if (!tool) return null
@@ -1834,12 +2166,33 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
             const c = getCardColor(slug)
             const pos = cardPositions[slug] || defaultPos(slug, idx)
             const isDragging = dragging.current === slug
+            const isSelected = selectedCardSlugs.includes(slug)
+            const isLocked = lockedCardSlugs.includes(slug)
             const phase = toolPhases[slug] || null
             const phaseLabel = phase ? frameworkPhases.find(p => p.id === phase)?.label : null
 
             return (
               <div
                 key={slug}
+                ref={el => {
+                  cardElementRefs.current[slug] = el
+                }}
+                onClick={e => {
+                  e.stopPropagation()
+                  const additive = e.metaKey || e.ctrlKey || e.shiftKey
+                  toggleCardSelection(slug, additive)
+                  if (!additive) {
+                    setSelectedFlowNodeIds([])
+                    setSelectedFlowNodeId(null)
+                  }
+                }}
+                onContextMenu={e => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  if (!canEdit) return
+                  setSelectedCardSlugs(prev => (prev.includes(slug) ? prev : [slug]))
+                  setContextMenu({ type: 'card', x: e.clientX, y: e.clientY, slug })
+                }}
                 onMouseDownCapture={() => {
                   // Bring card to front logic could go here if we dynamically sorted, 
                   // but currently Z-index is based on 'isDragging'.
@@ -1855,7 +2208,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                   display: 'flex',
                   flexDirection: 'column',
                   background: c.bg,
-                  border: `2px solid ${c.border}`,
+                  border: isSelected ? '2px solid #2563EB' : `2px solid ${c.border}`,
                   borderRadius: 18,
                   boxShadow: isDragging
                     ? '0 24px 48px rgba(0,0,0,0.22), 0 8px 16px rgba(0,0,0,0.1)'
@@ -1865,7 +2218,8 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                   userSelect: 'none',
                   transition: isDragging ? 'box-shadow 0.1s' : 'box-shadow 0.2s, border-color 0.2s',
                   transform: isDragging ? 'rotate(-1.5deg) scale(1.03)' : 'none',
-                  zIndex: isDragging ? 1000 : 1,
+                  opacity: isLocked ? 0.88 : 1,
+                  zIndex: isDragging ? 1000 : (cardZOrder[slug] || 1),
                 }}
               >
                 {/* Drag handle strip */}
@@ -1875,7 +2229,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                     onMouseDown={e => onCardMouseDown(e, slug, idx)}
                     style={{
                     height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    borderBottom: `1px dashed ${c.border}`, cursor: 'grab',
+                    borderBottom: `1px dashed ${c.border}`, cursor: isLocked ? 'not-allowed' : 'grab',
                     opacity: 0.5,
                   }}>
                     <svg width="20" height="8" viewBox="0 0 20 8" fill="none">
@@ -2027,6 +2381,45 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                   <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 5 }}>
                     Vælg framework for automatisk faseinddeling af værktøjer.
                   </p>
+                </Section>
+
+                <Section label="Board">
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 8,
+                      padding: '8px 10px',
+                      borderRadius: 10,
+                      border: '1.5px solid #E5E7EB',
+                      background: '#fff',
+                    }}
+                  >
+                    <div>
+                      <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: '#111827' }}>Grid lock</p>
+                      <p style={{ margin: '2px 0 0', fontSize: 11, color: '#9CA3AF' }}>
+                        Snap kort og flowchart-noder til grid.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSnapToGrid(v => !v)}
+                      style={{
+                        border: 'none',
+                        borderRadius: 999,
+                        background: snapToGrid ? '#111827' : '#E5E7EB',
+                        color: snapToGrid ? '#fff' : '#6B7280',
+                        padding: '6px 10px',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        minWidth: 58,
+                      }}
+                    >
+                      {snapToGrid ? 'ON' : 'OFF'}
+                    </button>
+                  </div>
                 </Section>
 
                 <Section label="Info">
@@ -2315,9 +2708,80 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       <div style={S.hintBar}>
         <span>🖱️ Scroll = zoom</span>
         <span style={{ opacity: 0.35 }}>·</span>
-        <span>🤚 Træk baggrund = pan</span>
+        <span>🤚 Hold Space + træk = pan</span>
+        {canEdit && <><span style={{ opacity: 0.35 }}>·</span><span>▢ Træk på baggrund = markér elementer</span></>}
+        {canEdit && <><span style={{ opacity: 0.35 }}>·</span><span>⌫ Delete/Backspace = slet markerede</span></>}
         {canEdit && <><span style={{ opacity: 0.35 }}>·</span><span>✦ Træk kort for at flytte</span></>}
       </div>
+      {activeWorkspaceTab === 'board' && contextMenu && canEdit && (
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{
+            position: 'fixed',
+            top: contextMenu.y,
+            left: contextMenu.x,
+            zIndex: 2000,
+            minWidth: 228,
+            background: '#fff',
+            border: '1px solid #E5E7EB',
+            borderRadius: 12,
+            boxShadow: '0 14px 32px rgba(0,0,0,0.18)',
+            padding: 6,
+          }}
+        >
+          {contextMenu.type === 'canvas' ? (
+            <>
+              <button type="button" onClick={() => { setShowAddTool(true); setContextMenu(null) }} style={S.ctxItem}>Tilføj værktøj…</button>
+              <button type="button" onClick={() => { addFlowNode('process', { x: contextMenu.worldX, y: contextMenu.worldY }); setContextMenu(null) }} style={S.ctxItem}>Indsæt form: Rektangel</button>
+              <button type="button" onClick={() => { addFlowNode('decision', { x: contextMenu.worldX, y: contextMenu.worldY }); setContextMenu(null) }} style={S.ctxItem}>Indsæt form: Diamant</button>
+              <button type="button" onClick={() => { addFlowNode('terminator', { x: contextMenu.worldX, y: contextMenu.worldY }); setContextMenu(null) }} style={S.ctxItem}>Indsæt form: Oval</button>
+              <div style={S.ctxDivider} />
+              <button type="button" onClick={() => { setZoom(1); setPan({ x: 60, y: 60 }); setContextMenu(null) }} style={S.ctxItem}>Reset zoom (100%)</button>
+              <button type="button" onClick={() => { setSnapToGrid(v => !v); setContextMenu(null) }} style={S.ctxItem}>
+                {snapToGrid ? 'Slå Grid lock fra' : 'Slå Grid lock til'}
+              </button>
+              <button type="button" onClick={() => { centerViewAt(contextMenu.worldX, contextMenu.worldY); setContextMenu(null) }} style={S.ctxItem}>Center view her</button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  window.open(`/vaerktoejer/${contextMenu.slug}`, '_blank', 'noopener,noreferrer')
+                  setContextMenu(null)
+                }}
+                style={S.ctxItem}
+              >
+                Åbn værktøj i fuld visning
+              </button>
+              <button type="button" onClick={() => { bringCardToFront(contextMenu.slug); setContextMenu(null) }} style={S.ctxItem}>Flyt forrest</button>
+              <button
+                type="button"
+                onClick={() => {
+                  bringCardToFront(contextMenu.slug)
+                  const current = cardPositions[contextMenu.slug] || defaultPos(contextMenu.slug, 0)
+                  setCardPositions(prev => ({ ...prev, [contextMenu.slug]: { x: current.x + 28, y: current.y + 28 } }))
+                  setContextMenu(null)
+                }}
+                style={S.ctxItem}
+              >
+                Duplikér kort
+              </button>
+              <button type="button" onClick={() => { toggleCardLock(contextMenu.slug); setContextMenu(null) }} style={S.ctxItem}>
+                {lockedCardSlugs.includes(contextMenu.slug) ? 'Lås op position' : 'Lås position'}
+              </button>
+              <div style={S.ctxDivider} />
+              <button type="button" onClick={() => { void exportSelectedCards('pdf'); setContextMenu(null) }} style={S.ctxItem}>Eksporter valgte som PDF</button>
+              <button type="button" onClick={() => { void exportSelectedCards('jpg'); setContextMenu(null) }} style={S.ctxItem}>Eksporter valgte som JPG</button>
+              <button type="button" onClick={() => { void exportSelectedCards('png'); setContextMenu(null) }} style={S.ctxItem}>Eksporter valgte som PNG</button>
+              <div style={S.ctxDivider} />
+              <button type="button" onClick={() => { void handleRemoveTool(contextMenu.slug); setContextMenu(null) }} style={{ ...S.ctxItem, color: '#B91C1C' }}>
+                Fjern fra projekt
+              </button>
+            </>
+          )}
+        </div>
+      )}
       </ToolEmbedProvider>
       )}
 
@@ -2570,5 +3034,24 @@ const S = {
     borderRadius: 99, padding: '6px 16px', color: 'white', fontSize: 11,
     zIndex: 50, pointerEvents: 'none', display: 'flex', alignItems: 'center',
     gap: 8, whiteSpace: 'nowrap', letterSpacing: '0.01em',
+  } as React.CSSProperties,
+
+  ctxItem: {
+    width: '100%',
+    border: 'none',
+    background: 'transparent',
+    padding: '8px 10px',
+    borderRadius: 8,
+    textAlign: 'left',
+    fontSize: 13,
+    color: '#374151',
+    cursor: 'pointer',
+    display: 'block',
+  } as React.CSSProperties,
+
+  ctxDivider: {
+    height: 1,
+    background: '#F3F4F6',
+    margin: '6px 4px',
   } as React.CSSProperties,
 }
