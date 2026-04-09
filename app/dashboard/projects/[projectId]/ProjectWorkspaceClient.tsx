@@ -153,6 +153,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const [zoom, setZoom] = useState(1)
   const [isSpacePressed, setIsSpacePressed] = useState(false)
   const [isPanningActive, setIsPanningActive] = useState(false)
+  const [snapToGrid, setSnapToGrid] = useState(true)
   const [showFlowPanel, setShowFlowPanel] = useState(false)
   const canvasRef = useRef<HTMLDivElement>(null)
   const isPointerOverCanvasRef = useRef(false)
@@ -172,6 +173,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const dragOffset = useRef({ x: 0, y: 0 })
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const flowSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const GRID_SIZE = 24
   const cursorChannelRef = useRef<any>(null)
   const lastCursorSendAtRef = useRef(0)
 
@@ -512,14 +514,20 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       lastPanPos.current = { x: e.clientX, y: e.clientY }
     }
     if (dragging.current) {
-      const newPos = { x: worldPoint.x - dragOffset.current.x, y: worldPoint.y - dragOffset.current.y }
+      const rawPos = { x: worldPoint.x - dragOffset.current.x, y: worldPoint.y - dragOffset.current.y }
+      const newPos = snapPoint(rawPos.x, rawPos.y)
       setCardPositions(prev => ({ ...prev, [dragging.current!]: newPos }))
     }
     if (draggingFlowNode.current) {
       const nodeId = draggingFlowNode.current
+      const rawPos = {
+        x: worldPoint.x - dragOffset.current.x,
+        y: worldPoint.y - dragOffset.current.y,
+      }
+      const snapped = snapPoint(rawPos.x, rawPos.y)
       setFlowNodes(prev =>
         prev.map(node =>
-          node.id === nodeId ? { ...node, x: worldPoint.x - dragOffset.current.x, y: worldPoint.y - dragOffset.current.y } : node
+          node.id === nodeId ? { ...node, x: snapped.x, y: snapped.y } : node
         )
       )
     }
@@ -618,10 +626,11 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     const centerX = at ? at.x : rect ? (rect.width / 2 - pan.x) / zoom : 160
     const centerY = at ? at.y : rect ? (rect.height / 2 - pan.y) / zoom : 160
     const nodeStyle = getFlowNodeStyle(shape)
+    const snapped = snapPoint(centerX, centerY)
     const newNode: FlowNode = {
       id: `node-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      x: centerX - nodeStyle.width / 2,
-      y: centerY - nodeStyle.height / 2,
+      x: snapped.x - nodeStyle.width / 2,
+      y: snapped.y - nodeStyle.height / 2,
       label: FLOW_SHAPE_LIBRARY.find(s => s.shape === shape)?.label || 'Trin',
       shape,
     }
@@ -707,6 +716,14 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     return {
       x: (clientX - rect.left - pan.x) / zoom,
       y: (clientY - rect.top - pan.y) / zoom,
+    }
+  }
+
+  const snapPoint = (x: number, y: number) => {
+    if (!snapToGrid) return { x, y }
+    return {
+      x: Math.round(x / GRID_SIZE) * GRID_SIZE,
+      y: Math.round(y / GRID_SIZE) * GRID_SIZE,
     }
   }
 
@@ -1112,6 +1129,20 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           {activeWorkspaceTab === 'board' && (
             <>
               <button
+                style={{
+                  ...S.zoomBtn,
+                  minWidth: 88,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  background: snapToGrid ? '#111827' : 'transparent',
+                  color: snapToGrid ? '#fff' : '#6B7280',
+                }}
+                onClick={() => setSnapToGrid(v => !v)}
+                title="Grid lock"
+              >
+                Grid lock
+              </button>
+              <button
                 style={S.zoomBtn}
                 onClick={() => {
                   const rect = canvasRef.current?.getBoundingClientRect()
@@ -1162,7 +1193,10 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           </button>
 
           <button
-            onClick={() => setShowAddTool(true)}
+            onClick={() => {
+              setShowPanel(null)
+              setShowAddTool(true)
+            }}
             disabled={!canEdit}
             style={{
               ...S.iconBtn,
@@ -1341,7 +1375,10 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                       <button
                         type="button"
                         disabled={!canEdit}
-                        onClick={() => setShowAddTool(true)}
+                        onClick={() => {
+                          setShowPanel(null)
+                          setShowAddTool(true)
+                        }}
                         style={{
                           border: '1px solid #D1D5DB',
                           borderRadius: 10,
@@ -1396,7 +1433,10 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                       <button
                         type="button"
                         disabled={!canEdit}
-                        onClick={() => setShowAddTool(true)}
+                        onClick={() => {
+                          setShowPanel(null)
+                          setShowAddTool(true)
+                        }}
                         style={{
                           border: '1px solid #D1D5DB',
                           borderRadius: 10,
@@ -1896,14 +1936,27 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           SIDE PANELS
       ════════════════════════════════════════════════ */}
       {showPanel && (
-        <div style={{
-          position: 'fixed', top: isOffline ? 89 : 56, right: 0, bottom: 0, width: 300,
-          background: 'white', borderLeft: '1px solid #E5E7EB', zIndex: 560,
-          display: 'flex', flexDirection: 'column',
-          boxShadow: '-6px 0 24px rgba(0,0,0,0.07)',
-          animation: 'slideIn 0.2s ease',
-        }}>
-          <style>{`@keyframes slideIn{from{transform:translateX(20px);opacity:0}to{transform:none;opacity:1}}`}</style>
+        <>
+          <div
+            onClick={() => setShowPanel(null)}
+            style={{
+              position: 'fixed',
+              top: isOffline ? 89 : 56,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(15,23,42,0.12)',
+              zIndex: 1990,
+            }}
+          />
+          <div style={{
+            position: 'fixed', top: isOffline ? 89 : 56, right: 0, bottom: 0, width: 300,
+            background: 'white', borderLeft: '1px solid #E5E7EB', zIndex: 2000,
+            display: 'flex', flexDirection: 'column',
+            boxShadow: '-12px 0 36px rgba(0,0,0,0.14)',
+            animation: 'slideIn 0.2s ease',
+          }}>
+            <style>{`@keyframes slideIn{from{transform:translateX(20px);opacity:0}to{transform:none;opacity:1}}`}</style>
 
           {/* Panel header */}
           <div style={{ padding: '14px 16px', borderBottom: '1px solid #F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -2009,7 +2062,8 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
               </>
             )}
           </div>
-        </div>
+          </div>
+        </>
       )}
 
       {/* ════════════════════════════════════════════════
@@ -2017,7 +2071,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       ════════════════════════════════════════════════ */}
       {showAddTool && (
         <div
-          style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+          style={{ position: 'fixed', inset: 0, zIndex: 2100, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
           onClick={() => {
             setShowAddTool(false)
             setAddToolSearch('')
@@ -2125,6 +2179,40 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                   <p style={{ margin: 0, fontSize: 14 }}>Ingen værktøjer matcher din søgning.</p>
                   <p style={{ margin: '6px 0 0', fontSize: 12 }}>Prøv et andet søgeord eller vælg filteret "Alle".</p>
                 </div>
+              ) : frameworkPhases.length === 0 ? (
+                <>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                      gap: 10,
+                    }}
+                  >
+                    {visibleAddTools.map(tool => (
+                      <ToolPickerCard key={tool.slug} tool={tool} onAdd={() => handleAddTool(tool.slug)} />
+                    ))}
+                  </div>
+                  {!showAllAddToolResults && filteredAddTools.length > visibleAddTools.length && (
+                    <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
+                      <button
+                        type="button"
+                        onClick={() => setShowAllAddToolResults(true)}
+                        style={{
+                          border: '1px solid #E5E7EB',
+                          background: '#fff',
+                          color: '#6B7280',
+                          borderRadius: 999,
+                          padding: '6px 12px',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Vis flere ({filteredAddTools.length - visibleAddTools.length})
+                      </button>
+                    </div>
+                  )}
+                </>
               ) : (
                 <>
                   {visibleToolsByPhase.map(({ phase, tools }) => (
