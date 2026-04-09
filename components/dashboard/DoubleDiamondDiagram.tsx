@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import type { DoubleDiamondPhase } from '@/lib/frameworks'
 
 export type DiamondDiagramSelection = DoubleDiamondPhase | 'hmw'
@@ -19,19 +20,108 @@ export default function DoubleDiamondDiagram({
   activeSelection = 'discover',
   onSelect,
 }: Props) {
+  const [theme, setTheme] = useState<'default' | 'emerald' | 'chelsea' | 'arsenal' | 'sunset' | 'lightning-purple' | 'pink-cherry'>('default')
+
+  useEffect(() => {
+    const el = document.documentElement
+    const apply = () => {
+      const value = el.getAttribute('data-theme')
+      if (
+        value === 'emerald' ||
+        value === 'chelsea' ||
+        value === 'arsenal' ||
+        value === 'sunset' ||
+        value === 'lightning-purple' ||
+        value === 'pink-cherry'
+      ) {
+        setTheme(value)
+        return
+      }
+      setTheme('default')
+    }
+    apply()
+    const observer = new MutationObserver(apply)
+    observer.observe(el, { attributes: true, attributeFilter: ['data-theme'] })
+    return () => observer.disconnect()
+  }, [])
+
+  const colors =
+    theme === 'emerald'
+      ? {
+          baseFill: 'rgba(236, 253, 245, 0.86)',
+          activeFill: 'rgba(16, 185, 129, 0.24)',
+          baseStroke: '#059669',
+          activeStroke: '#047857',
+          lineSoft: '#a7f3d0',
+          axis: '#6ee7b7',
+        }
+      : theme === 'chelsea'
+        ? {
+            baseFill: 'rgba(239, 246, 255, 0.86)',
+            activeFill: 'rgba(37, 99, 235, 0.24)',
+            baseStroke: '#2563eb',
+            activeStroke: '#1d4ed8',
+            lineSoft: '#bfdbfe',
+            axis: '#93c5fd',
+          }
+        : theme === 'arsenal'
+          ? {
+              baseFill: 'rgba(254, 242, 242, 0.88)',
+              activeFill: 'rgba(220, 38, 38, 0.24)',
+              baseStroke: '#dc2626',
+              activeStroke: '#b91c1c',
+              lineSoft: '#fecaca',
+              axis: '#fca5a5',
+            }
+          : theme === 'sunset'
+            ? {
+                baseFill: 'rgba(255, 244, 221, 0.9)',
+                activeFill: 'rgba(236, 133, 50, 0.24)',
+                baseStroke: '#D46521',
+                activeStroke: '#b4501b',
+                lineSoft: '#FDCD6A',
+                axis: '#FFC762',
+              }
+            : theme === 'lightning-purple'
+              ? {
+                  baseFill: 'rgba(245, 243, 255, 0.9)',
+                  activeFill: 'rgba(139, 92, 246, 0.24)',
+                  baseStroke: '#7c3aed',
+                  activeStroke: '#6d28d9',
+                  lineSoft: '#ddd6fe',
+                  axis: '#c4b5fd',
+                }
+              : theme === 'pink-cherry'
+                ? {
+                    baseFill: 'rgba(255, 241, 247, 0.9)',
+                    activeFill: 'rgba(236, 72, 153, 0.24)',
+                    baseStroke: '#db2777',
+                    activeStroke: '#be185d',
+                    lineSoft: '#fecce0',
+                    axis: '#f9a8d4',
+                  }
+                : {
+                    baseFill: 'rgba(255, 250, 243, 0.8)',
+                    activeFill: 'rgba(245, 158, 11, 0.28)',
+                    baseStroke: '#d97706',
+                    activeStroke: '#b45309',
+                    lineSoft: '#fcd34d',
+                    axis: '#f59e0b',
+                  }
+
   const quadrantProps = (phase: DoubleDiamondPhase) => {
     if (readOnly) {
       return {
-        fill: 'rgba(255, 250, 243, 0.75)',
-        stroke: '#d97706',
+        fill: colors.baseFill,
+        stroke: colors.baseStroke,
         strokeWidth: 1.4,
         className: 'pointer-events-none',
       }
     }
     const active = activeSelection === phase
     return {
-      fill: active ? 'rgba(245, 158, 11, 0.3)' : 'rgba(255, 250, 243, 0.75)',
-      stroke: active ? '#b45309' : '#d97706',
+      fill: active ? colors.activeFill : colors.baseFill,
+      stroke: active ? colors.activeStroke : colors.baseStroke,
       strokeWidth: active ? 2.4 : 1.4,
       className: 'cursor-pointer transition-all duration-300',
     }
@@ -86,11 +176,11 @@ export default function DoubleDiamondDiagram({
           <text x={350} y={80} className="dd-top">
             Doing the right things
           </text>
-          <line x1={150} y1={85} x2={550} y2={85} stroke="#d6d3d1" strokeWidth={1} />
+          <line x1={150} y1={85} x2={550} y2={85} stroke={colors.lineSoft} strokeWidth={1} />
           <text x={850} y={80} className="dd-top">
             Doing things right
           </text>
-          <line x1={650} y1={85} x2={1050} y2={85} stroke="#d6d3d1" strokeWidth={1} />
+          <line x1={650} y1={85} x2={1050} y2={85} stroke={colors.lineSoft} strokeWidth={1} />
         </g>
 
         {/* Phase Titles */}
@@ -140,7 +230,7 @@ export default function DoubleDiamondDiagram({
         </g>
 
         {/* Center horizontal line */}
-        <line x1={60} y1={350} x2={1140} y2={350} stroke="#e8c9a5" strokeWidth={2} />
+        <line x1={60} y1={350} x2={1140} y2={350} stroke={colors.axis} strokeWidth={2} />
 
         {/* Start / End Texts */}
         <text x={80} y={340} textAnchor="middle" className="dd-axis">
@@ -164,7 +254,7 @@ export default function DoubleDiamondDiagram({
         </text>
 
         {/* DISCOVER SLICES */}
-        <line x1={225} y1={250} x2={225} y2={450} stroke="#d6d3d1" strokeWidth={1} />
+        <line x1={225} y1={250} x2={225} y2={450} stroke={colors.lineSoft} strokeWidth={1} />
         <text x={160} y={355} className="dd-small" textAnchor="middle">
           Rip the brief
         </text>
@@ -194,10 +284,10 @@ export default function DoubleDiamondDiagram({
         </text>
 
         {/* DEFINE SLICES */}
-        <line x1={400} y1={190} x2={400} y2={510} stroke="#d6d3d1" strokeWidth={1} />
-        <line x1={450} y1={230} x2={450} y2={470} stroke="#d6d3d1" strokeWidth={1} />
-        <line x1={500} y1={270} x2={500} y2={430} stroke="#d6d3d1" strokeWidth={1} />
-        <line x1={550} y1={310} x2={550} y2={390} stroke="#d6d3d1" strokeWidth={1} />
+        <line x1={400} y1={190} x2={400} y2={510} stroke={colors.lineSoft} strokeWidth={1} />
+        <line x1={450} y1={230} x2={450} y2={470} stroke={colors.lineSoft} strokeWidth={1} />
+        <line x1={500} y1={270} x2={500} y2={430} stroke={colors.lineSoft} strokeWidth={1} />
+        <line x1={550} y1={310} x2={550} y2={390} stroke={colors.lineSoft} strokeWidth={1} />
         <text x={375} y={350} transform="rotate(-90, 375, 350)" className="dd-rot" textAnchor="middle" style={{ fontSize: 9 }}>
           Build Themes &amp; Clusters
         </text>
@@ -212,7 +302,7 @@ export default function DoubleDiamondDiagram({
         </text>
 
         {/* DEVELOP SLICES */}
-        <line x1={725} y1={250} x2={725} y2={450} stroke="#d6d3d1" strokeWidth={1} />
+        <line x1={725} y1={250} x2={725} y2={450} stroke={colors.lineSoft} strokeWidth={1} />
         <text x={660} y={355} className="dd-small" textAnchor="middle">
           Ideate
         </text>
@@ -239,10 +329,10 @@ export default function DoubleDiamondDiagram({
         </text>
 
         {/* DELIVER SLICES */}
-        <line x1={900} y1={190} x2={900} y2={510} stroke="#d6d3d1" strokeWidth={1} />
-        <line x1={950} y1={230} x2={950} y2={470} stroke="#d6d3d1" strokeWidth={1} />
-        <line x1={1000} y1={270} x2={1000} y2={430} stroke="#d6d3d1" strokeWidth={1} />
-        <line x1={1050} y1={310} x2={1050} y2={390} stroke="#d6d3d1" strokeWidth={1} />
+        <line x1={900} y1={190} x2={900} y2={510} stroke={colors.lineSoft} strokeWidth={1} />
+        <line x1={950} y1={230} x2={950} y2={470} stroke={colors.lineSoft} strokeWidth={1} />
+        <line x1={1000} y1={270} x2={1000} y2={430} stroke={colors.lineSoft} strokeWidth={1} />
+        <line x1={1050} y1={310} x2={1050} y2={390} stroke={colors.lineSoft} strokeWidth={1} />
         <text x={875} y={350} transform="rotate(-90, 875, 350)" className="dd-rot" textAnchor="middle" style={{ fontSize: 9 }}>
           Prototype, Test &amp; Analyse
         </text>
@@ -319,8 +409,8 @@ export default function DoubleDiamondDiagram({
           cx={HMW_CX}
           cy={HMW_CY}
           r={32}
-          fill={readOnly ? '#ffffff' : activeSelection === 'hmw' ? '#f59e0b' : '#ffffff'}
-          stroke="#d97706"
+          fill={readOnly ? '#ffffff' : activeSelection === 'hmw' ? colors.activeStroke : '#ffffff'}
+          stroke={colors.baseStroke}
           strokeWidth={readOnly ? 2 : activeSelection === 'hmw' ? 3 : 2}
         />
         <text
