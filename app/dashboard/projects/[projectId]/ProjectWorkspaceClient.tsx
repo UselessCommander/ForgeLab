@@ -30,6 +30,7 @@ import {
 import { VAERKTOEJER, getVaerktoejBySlug, getVaerktoejerGroupedByKategori } from '@/lib/vaerktoejer-data'
 import { getToolIcon } from '@/lib/vaerktoejer-icons'
 import { TOOL_SLUGS } from '@/lib/tool-slugs'
+import { supabase } from '@/lib/supabase'
 
 import { ToolEmbedProvider } from '@/components/ToolEmbedContext'
 import { getToolComponent } from '@/components/ToolRegistry'
@@ -58,7 +59,24 @@ type FlowEdgeDraft = {
   currentY: number
 }
 
+type LiveCursorPayload = {
+  userId: string
+  username: string
+  x: number
+  y: number
+  visible: boolean
+  ts: number
+}
+
+type LiveCursor = LiveCursorPayload & {
+  color: string
+  updatedAt: number
+}
+
 const FLOWCHART_TOOL_SLUG = 'project-board-flowchart'
+const CURSOR_STALE_MS = 12000
+const CURSOR_SEND_INTERVAL_MS = 50
+const CURSOR_COLORS = ['#2563EB', '#7C3AED', '#DB2777', '#059669', '#D97706', '#0891B2', '#4F46E5']
 
 const CARD_COLORS = [
   { bg: '#FFF9C4', border: '#F9E83A', accent: '#CA9E00' },
@@ -86,6 +104,16 @@ function getCardColor(slug: string) {
   let hash = 0
   for (let i = 0; i < slug.length; i++) hash = slug.charCodeAt(i) + ((hash << 5) - hash)
   return CARD_COLORS[Math.abs(hash) % CARD_COLORS.length]
+}
+
+function getStableCursorColor(userId: string) {
+  if (!userId) return CURSOR_COLORS[0]
+  let hash = 0
+  for (let i = 0; i < userId.length; i++) {
+    hash = (hash << 5) - hash + userId.charCodeAt(i)
+    hash |= 0
+  }
+  return CURSOR_COLORS[Math.abs(hash) % CURSOR_COLORS.length]
 }
 
 // ── Mock data for local dev (no database) ────────────────────────
@@ -116,6 +144,9 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const [members, setMembers] = useState<ProjectMember[]>([])
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState<'editor' | 'viewer'>('editor')
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [currentUsername, setCurrentUsername] = useState<string>('Dig')
+  const [liveCursors, setLiveCursors] = useState<Record<string, LiveCursor>>({})
 
   // ── Canvas state ──────────────────────────────────────────────────
   const [pan, setPan] = useState({ x: 60, y: 60 })
@@ -141,11 +172,33 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const dragOffset = useRef({ x: 0, y: 0 })
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const flowSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const cursorChannelRef = useRef<any>(null)
+  const lastCursorSendAtRef = useRef(0)
 
   useEffect(() => {
     loadProject()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId])
+
+  useEffect(() => {
+    const loadCurrentUser = async () => {
+      try {
+        const res = await fetch('/api/auth/me', { credentials: 'include' })
+        if (!res.ok) return
+        const data = await res.json().catch(() => null)
+        if (!data?.authenticated) return
+        if (typeof data.userId === 'string' && data.userId.trim()) {
+          setCurrentUserId(data.userId)
+        }
+        if (typeof data.username === 'string' && data.username.trim()) {
+          setCurrentUsername(data.username.trim())
+        }
+      } catch (error) {
+        console.warn('Kunne ikke hente current user til live cursor:', error)
+      }
+    }
+    void loadCurrentUser()
+  }, [])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -193,6 +246,84 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       if (flowSaveTimer.current) clearTimeout(flowSaveTimer.current)
     }
   }, [])
+
+  const broadcastCursor = useCallback(
+    async (worldX: number, worldY: number, visible: boolean) => {
+      const channel = cursorChannelRef.current
+      if (!channel || !currentUserId || activeWorkspaceTab !== 'board') return
+      const now = Date.now()
+      if (visible && now - lastCursorSendAtRef.current < CURSOR_SEND_INTERVAL_MS) return
+      lastCursorSendAtRef.current = now
+      const payload: LiveCursorPayload = {
+        userId: currentUserId,
+        username: currentUsername,
+        x: worldX,
+        y: worldY,
+        visible,
+        ts: now,
+      }
+      await channel.send({ type: 'broadcast', event: 'cursor_move', payload })
+    },
+    [activeWorkspaceTab, currentUserId, currentUsername]
+  )
+
+  useEffect(() => {
+    if (activeWorkspaceTab !== 'board' || !projectId || !currentUserId) return
+
+    const channel: any = supabase.channel(`project-live-cursors:${projectId}`, {
+      config: { broadcast: { self: false } },
+    })
+    channel
+      .on('broadcast', { event: 'cursor_move' }, (message: { payload?: LiveCursorPayload }) => {
+        const payload = message?.payload
+        if (!payload || !payload.userId || payload.userId === currentUserId) return
+        const now = Date.now()
+        const color = getStableCursorColor(payload.userId)
+        setLiveCursors(prev => ({
+          ...prev,
+          [payload.userId]: {
+            ...payload,
+            color,
+            updatedAt: now,
+          },
+        }))
+      })
+      .subscribe()
+
+    cursorChannelRef.current = channel
+    setLiveCursors({})
+
+    const staleCleanup = window.setInterval(() => {
+      const now = Date.now()
+      setLiveCursors(prev => {
+        const next: Record<string, LiveCursor> = {}
+        for (const [userId, cursor] of Object.entries(prev)) {
+          if (now - cursor.updatedAt <= CURSOR_STALE_MS) {
+            next[userId] = cursor
+          }
+        }
+        return next
+      })
+    }, 2000)
+
+    return () => {
+      window.clearInterval(staleCleanup)
+      void channel.send({
+        type: 'broadcast',
+        event: 'cursor_move',
+        payload: {
+          userId: currentUserId,
+          username: currentUsername,
+          x: 0,
+          y: 0,
+          visible: false,
+          ts: Date.now(),
+        } satisfies LiveCursorPayload,
+      })
+      cursorChannelRef.current = null
+      void channel.unsubscribe()
+    }
+  }, [activeWorkspaceTab, currentUserId, currentUsername, projectId])
 
   useEffect(() => {
     const onKeyDownDeleteFlowNode = (event: KeyboardEvent) => {
@@ -258,6 +389,17 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    const onReloadProjectTools = () => {
+      void loadProject()
+    }
+    window.addEventListener('forgelab-reload-project-tools', onReloadProjectTools)
+    return () => {
+      window.removeEventListener('forgelab-reload-project-tools', onReloadProjectTools)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId])
 
   const defaultPos = useCallback(
     (slug: string, idx: number): CardPosition => {
@@ -362,6 +504,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
 
   const onCanvasMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const worldPoint = getCanvasWorldPoint(e.clientX, e.clientY)
+    void broadcastCursor(worldPoint.x, worldPoint.y, true)
     if (isPanning.current) {
       const dx = e.clientX - lastPanPos.current.x
       const dy = e.clientY - lastPanPos.current.y
@@ -1215,6 +1358,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
         }}
         onMouseLeave={() => {
           isPointerOverCanvasRef.current = false
+          void broadcastCursor(0, 0, false)
           onCanvasMouseUp()
         }}
         onMouseDown={onCanvasMouseDown}
@@ -1459,6 +1603,72 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
               })}
             </>
           )}
+
+          {Object.values(liveCursors)
+            .filter(cursor => cursor.visible)
+            .map(cursor => {
+              const initial = (cursor.username || 'U').trim().charAt(0).toUpperCase()
+              return (
+                <div
+                  key={cursor.userId}
+                  style={{
+                    position: 'absolute',
+                    left: cursor.x,
+                    top: cursor.y,
+                    transform: 'translate(-1px, -1px)',
+                    pointerEvents: 'none',
+                    zIndex: 20,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 0,
+                      height: 0,
+                      borderLeft: '8px solid transparent',
+                      borderRight: '8px solid transparent',
+                      borderBottom: `14px solid ${cursor.color}`,
+                      transform: 'rotate(-35deg)',
+                      transformOrigin: '50% 80%',
+                      filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.22))',
+                    }}
+                  />
+                  <div
+                    style={{
+                      marginTop: 2,
+                      marginLeft: 8,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      background: cursor.color,
+                      color: 'white',
+                      borderRadius: 999,
+                      padding: '2px 8px 2px 6px',
+                      boxShadow: '0 6px 18px rgba(0,0,0,0.16)',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      lineHeight: 1.3,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 16,
+                        height: 16,
+                        borderRadius: 999,
+                        background: 'rgba(255,255,255,0.22)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 10,
+                      }}
+                    >
+                      {initial}
+                    </span>
+                    {cursor.username || 'Bruger'}
+                  </div>
+                </div>
+              )
+            })}
 
           {/* ── Tool cards ─────────────────────────────── */}
           {boardTools.map(({ slug, tool }, idx) => {

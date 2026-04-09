@@ -139,24 +139,33 @@ export async function deleteProject(id: string): Promise<boolean> {
 
 // POST /api/projects/[projectId]/tools - Add a tool to a project
 export async function addToolToProject(projectId: string, toolId: string): Promise<boolean> {
-  const response = await fetch(`/api/projects/${projectId}/tools`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    credentials: 'include',
-    body: JSON.stringify({ toolSlug: toolId }),
-  })
+  try {
+    const response = await fetch(`/api/projects/${projectId}/tools`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({ toolSlug: toolId }),
+    })
 
-  if (!response.ok) {
-    if (response.status === 400) {
-      // Tool already exists or invalid request
-      return false
+    if (!response.ok) {
+      if (response.status === 400) {
+        // Tool already exists or invalid request
+        return false
+      }
+      if (response.status === 404 || response.status === 503 || response.status >= 500) {
+        // Demo/offline mode or backend temporarily unavailable
+        return false
+      }
+      throw new Error('Failed to add tool to project')
     }
-    throw new Error('Failed to add tool to project')
-  }
 
-  return true
+    return true
+  } catch (error) {
+    console.warn('Kunne ikke tilføje værktøj (offline eller netværksfejl):', error)
+    return false
+  }
 }
 
 // DELETE /api/projects/[projectId]/tools/[toolSlug] - Remove a tool from a project

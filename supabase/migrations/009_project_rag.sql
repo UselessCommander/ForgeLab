@@ -41,6 +41,8 @@ CREATE POLICY "Allow UPDATE for project_knowledge_chunks" ON project_knowledge_c
 CREATE POLICY "Allow DELETE for project_knowledge_chunks" ON project_knowledge_chunks
   FOR DELETE USING (true);
 
+DROP TRIGGER IF EXISTS update_project_knowledge_chunks_updated_at ON project_knowledge_chunks;
+
 CREATE TRIGGER update_project_knowledge_chunks_updated_at
   BEFORE UPDATE ON project_knowledge_chunks
   FOR EACH ROW

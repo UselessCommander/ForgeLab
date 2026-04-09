@@ -1,8 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import ToolLayout from '@/components/ToolLayout'
 import { useProjectToolData } from '@/lib/useProjectToolData'
+import { addToolToProject, getProjectMembers, type ProjectMember } from '@/lib/projects'
+import { VAERKTOEJER } from '@/lib/vaerktoejer-data'
 
 type KanbanColumnId = 'todo' | 'in-progress' | 'done'
 
@@ -10,6 +12,9 @@ type KanbanTask = {
   id: string
   title: string
   description: string
+  assigneeUserId?: string
+  assigneeName?: string
+  toolSlug?: string
 }
 
 type KanbanColumn = {
@@ -46,10 +51,51 @@ const DEFAULT_DATA: KanbanData = {
 
 export default function KanbanPage() {
   const [data, setData] = useState<KanbanData>(DEFAULT_DATA)
+  const [members, setMembers] = useState<ProjectMember[]>([])
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null)
   const [dragPayload, setDragPayload] = useState<{ fromId: KanbanColumnId; taskId: string } | null>(null)
   const [dropTarget, setDropTarget] = useState<{ toId: KanbanColumnId; index?: number } | null>(null)
-  useProjectToolData<KanbanData>('kanban', data, setData)
+  const { projectId, isInProject } = useProjectToolData<KanbanData>('kanban', data, setData)
+
+  useEffect(() => {
+    let cancelled = false
+    const loadMembers = async () => {
+      if (!projectId) {
+        setMembers([])
+        return
+      }
+      try {
+        const nextMembers = await getProjectMembers(projectId)
+        if (!cancelled) setMembers(nextMembers)
+      } catch {
+        if (!cancelled) setMembers([])
+      }
+    }
+    loadMembers()
+    return () => {
+      cancelled = true
+    }
+  }, [projectId])
+
+  const memberOptions = useMemo(
+    () =>
+      members.map((m) => ({
+        id: m.user_id,
+        label:
+          (typeof m.username === 'string' && m.username.trim()) ||
+          (typeof m.email === 'string' && m.email.trim()) ||
+          m.user_id,
+      })),
+    [members]
+  )
+
+  const toolOptions = useMemo(
+    () =>
+      [...VAERKTOEJER]
+        .sort((a, b) => a.title.localeCompare(b.title, 'da'))
+        .map((tool) => ({ slug: tool.slug, title: tool.title })),
+    []
+  )
 
   const addTask = (columnId: KanbanColumnId) => {
     setData((prev) => ({
@@ -67,7 +113,7 @@ export default function KanbanPage() {
   const updateTask = (
     columnId: KanbanColumnId,
     taskId: string,
-    patch: Partial<Pick<KanbanTask, 'title' | 'description'>>
+    patch: Partial<Pick<KanbanTask, 'title' | 'description' | 'assigneeUserId' | 'assigneeName' | 'toolSlug'>>
   ) => {
     setData((prev) => ({
       columns: prev.columns.map((col) =>
@@ -153,6 +199,21 @@ export default function KanbanPage() {
 
   const getActivePayload = (raw: string): { fromId: KanbanColumnId; taskId: string } | null => {
     return parseDragPayload(raw) ?? dragPayload
+  }
+
+  const assignToolToTask = async (
+    columnId: KanbanColumnId,
+    taskId: string,
+    toolSlug: string
+  ) => {
+    updateTask(columnId, taskId, { toolSlug: toolSlug || undefined })
+    if (!projectId || !toolSlug) return
+    try {
+      await addToolToProject(projectId, toolSlug)
+      window.dispatchEvent(new CustomEvent('forgelab-reload-project-tools'))
+    } catch (error) {
+      console.error('Kunne ikke tilføje værktøj fra Kanban:', error)
+    }
   }
 
   return (
@@ -290,6 +351,75 @@ export default function KanbanPage() {
                     rows={3}
                     className="mb-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300"
                   />
+
+                  <div className="mb-2">
+                    <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                      Værktøj
+                    </label>
+                    <select
+                      value={task.toolSlug || ''}
+                      onChange={(e) => {
+                        void assignToolToTask(column.id, task.id, e.target.value)
+                      }}
+                      className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300"
+                    >
+                      <option value="">Ikke valgt</option>
+                      {toolOptions.map((tool) => (
+                        <option key={tool.slug} value={tool.slug}>
+                          {tool.title}
+                        </option>
+                      ))}
+                    </select>
+                    {isInProject ? (
+                      <p className="mt-1 text-[11px] text-gray-500">
+                        Når du vælger et værktøj, bliver det automatisk tilføjet til projektets Board.
+                      </p>
+                    ) : null}
+                  </div>
+
+                  {isInProject ? (
+                    <div className="mb-2">
+                      <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                        Ansvarlig
+                      </label>
+                      <select
+                        value={task.assigneeUserId || ''}
+                        onChange={(e) => {
+                          const userId = e.target.value
+                          const selected = memberOptions.find((m) => m.id === userId)
+                          updateTask(column.id, task.id, {
+                            assigneeUserId: userId || undefined,
+                            assigneeName: userId ? selected?.label || '' : undefined,
+                          })
+                        }}
+                        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300"
+                      >
+                        <option value="">Ikke tildelt</option>
+                        {memberOptions.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : (
+                    <div className="mb-2">
+                      <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                        Ansvarlig
+                      </label>
+                      <input
+                        value={task.assigneeName || ''}
+                        onChange={(e) =>
+                          updateTask(column.id, task.id, {
+                            assigneeUserId: undefined,
+                            assigneeName: e.target.value,
+                          })
+                        }
+                        placeholder="Navn på ansvarlig"
+                        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300"
+                      />
+                    </div>
+                  )}
 
                   <div className="flex items-center justify-end gap-2">
                     <button
