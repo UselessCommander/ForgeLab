@@ -173,6 +173,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const dragOffset = useRef({ x: 0, y: 0 })
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const flowSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const reloadToolsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const GRID_SIZE = 24
   const cursorChannelRef = useRef<any>(null)
   const lastCursorSendAtRef = useRef(0)
@@ -408,11 +409,18 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
 
   useEffect(() => {
     const onReloadProjectTools = () => {
-      void syncProjectLight()
+      if (reloadToolsTimerRef.current) clearTimeout(reloadToolsTimerRef.current)
+      reloadToolsTimerRef.current = setTimeout(() => {
+        void syncProjectLight()
+      }, 180)
     }
     window.addEventListener('forgelab-reload-project-tools', onReloadProjectTools)
     return () => {
       window.removeEventListener('forgelab-reload-project-tools', onReloadProjectTools)
+      if (reloadToolsTimerRef.current) {
+        clearTimeout(reloadToolsTimerRef.current)
+        reloadToolsTimerRef.current = null
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, syncProjectLight])
@@ -795,16 +803,26 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       setShowAddTool(false)
       return
     }
+    let shouldRollback = false
     try {
       setModifying(true)
-      await addToolToProject(projectId, toolId)
       setProject(prev => {
         if (!prev) return prev
         if (prev.toolIds.includes(toolId)) return prev
+        shouldRollback = true
         return { ...prev, toolIds: [...prev.toolIds, toolId] }
       })
+      const added = await addToolToProject(projectId, toolId)
+      if (!added && shouldRollback) {
+        setProject(prev => prev ? { ...prev, toolIds: prev.toolIds.filter(id => id !== toolId) } : prev)
+        alert('Kunne ikke tilføje værktøj. Prøv igen.')
+        return
+      }
       setShowAddTool(false)
     } catch {
+      if (shouldRollback) {
+        setProject(prev => prev ? { ...prev, toolIds: prev.toolIds.filter(id => id !== toolId) } : prev)
+      }
       alert('Kunne ikke tilføje værktøj. Prøv igen.')
     } finally {
       setModifying(false)
@@ -935,13 +953,14 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   })
   const phaseMetaBySlug = new Map<string, { id: string; label: string }>()
   const framework = project?.framework || 'none'
-  const frameworkPhases = getFrameworkPhases(framework)
+  const pickerFramework: FrameworkId = framework === 'none' ? 'double-diamond' : framework
+  const frameworkPhases = getFrameworkPhases(pickerFramework)
   const activeAddToolCategory =
     selectedAddToolCategory === 'all' || frameworkPhases.some(phase => phase.id === selectedAddToolCategory)
       ? selectedAddToolCategory
       : 'all'
   toAdd.forEach(tool => {
-    const phaseId = getDefaultPhaseForTool(framework, tool.slug)
+    const phaseId = getDefaultPhaseForTool(pickerFramework, tool.slug)
     const phase = frameworkPhases.find(p => p.id === phaseId)
     if (phase) phaseMetaBySlug.set(tool.slug, { id: phase.id, label: phase.label })
   })
@@ -974,22 +993,22 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     ...frameworkPhases.map(phase => ({
       id: phase.id,
       label: phase.label,
-      count: toAdd.filter(tool => getDefaultPhaseForTool(framework, tool.slug) === phase.id).length,
+      count: toAdd.filter(tool => getDefaultPhaseForTool(pickerFramework, tool.slug) === phase.id).length,
     })).filter(filter => filter.count > 0),
   ]
   const visibleAddTools = showAllAddToolResults ? filteredAddTools : filteredAddTools.slice(0, 9)
   const visibleToolsByPhase = frameworkPhases.map(phase => ({
     phase,
     tools: visibleAddTools.filter(
-      tool => getDefaultPhaseForTool(framework, tool.slug) === phase.id
+      tool => getDefaultPhaseForTool(pickerFramework, tool.slug) === phase.id
     ),
   })).filter(group => group.tools.length > 0)
   const selectedPhaseForDiagram =
-    framework === 'google-design-sprint'
+    pickerFramework === 'google-design-sprint'
       ? (GOOGLE_DESIGN_SPRINT_PHASES.some(phase => phase.id === activeAddToolCategory)
           ? (activeAddToolCategory as GoogleDesignSprintPhase)
           : 'understand')
-      : framework === 'design-thinking'
+      : pickerFramework === 'design-thinking'
         ? (DESIGN_THINKING_PHASES.some(phase => phase.id === activeAddToolCategory)
             ? (activeAddToolCategory as DesignThinkingPhase)
             : 'empathize')
@@ -2110,7 +2129,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
 
             <div style={{ padding: '12px 16px 0', borderBottom: '1px solid #F9FAFB' }}>
               <div style={{ border: '1px solid #E5E7EB', borderRadius: 12, background: '#fff', padding: 8, overflow: 'hidden', marginBottom: 10 }}>
-                {framework === 'google-design-sprint' ? (
+                {pickerFramework === 'google-design-sprint' ? (
                   <GoogleDesignSprintDiagram
                     activeSelection={selectedPhaseForDiagram as GoogleDesignSprintPhase}
                     onSelect={selection => {
@@ -2118,7 +2137,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                       setShowAllAddToolResults(false)
                     }}
                   />
-                ) : framework === 'design-thinking' ? (
+                ) : pickerFramework === 'design-thinking' ? (
                   <DesignThinkingDiagram
                     activeSelection={selectedPhaseForDiagram as DesignThinkingPhase}
                     onSelect={selection => {
