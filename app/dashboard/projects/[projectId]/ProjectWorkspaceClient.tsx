@@ -7,6 +7,8 @@ import {
   addToolToProject,
   removeToolFromProject,
   updateProject,
+  getProjectToolData,
+  saveProjectToolData,
   updateProjectToolPhases,
   getProjectMembers,
   inviteProjectMember,
@@ -16,8 +18,13 @@ import {
 } from '@/lib/projects'
 import {
   DOUBLE_DIAMOND_PHASES,
+  DESIGN_THINKING_PHASES,
+  GOOGLE_DESIGN_SPRINT_PHASES,
+  getFrameworkPhases,
   getDefaultPhaseForTool,
   type DoubleDiamondPhase,
+  type DesignThinkingPhase,
+  type GoogleDesignSprintPhase,
   type FrameworkId,
 } from '@/lib/frameworks'
 import { VAERKTOEJER, getVaerktoejBySlug, getVaerktoejerGroupedByKategori } from '@/lib/vaerktoejer-data'
@@ -28,6 +35,8 @@ import { ToolEmbedProvider } from '@/components/ToolEmbedContext'
 import { getToolComponent } from '@/components/ToolRegistry'
 import AiChatCompanion from '@/components/AiChatCompanion'
 import DoubleDiamondDiagram from '@/components/dashboard/DoubleDiamondDiagram'
+import DesignThinkingDiagram from '@/components/dashboard/DesignThinkingDiagram'
+import GoogleDesignSprintDiagram from '@/components/dashboard/GoogleDesignSprintDiagram'
 import ProjectDocsTab from '@/components/ProjectDocsTab'
 import ProjectSlidesTab from '@/components/ProjectSlidesTab'
 
@@ -36,6 +45,20 @@ interface ProjectWorkspaceClientProps {
 }
 
 type CardPosition = { x: number; y: number }
+type FlowShape = 'terminator' | 'process' | 'decision' | 'data' | 'document' | 'database'
+type FlowNode = { id: string; x: number; y: number; label: string; shape: FlowShape }
+type FlowConnectorSide = 'left' | 'top' | 'bottom'
+type FlowEdge = { id: string; from: string; to: string; fromSide?: FlowConnectorSide; toSide?: FlowConnectorSide }
+type FlowEdgeDraft = {
+  fromNodeId: string
+  fromSide: FlowConnectorSide
+  startX: number
+  startY: number
+  currentX: number
+  currentY: number
+}
+
+const FLOWCHART_TOOL_SLUG = 'project-board-flowchart'
 
 const CARD_COLORS = [
   { bg: '#FFF9C4', border: '#F9E83A', accent: '#CA9E00' },
@@ -46,6 +69,15 @@ const CARD_COLORS = [
   { bg: '#FFF3E0', border: '#FFCC80', accent: '#E65100' },
   { bg: '#E3F2FD', border: '#90CAF9', accent: '#0D47A1' },
   { bg: '#F1F8E9', border: '#AED581', accent: '#33691E' },
+]
+
+const FLOW_SHAPE_LIBRARY: Array<{ shape: FlowShape; label: string }> = [
+  { shape: 'terminator', label: 'Start / Slut' },
+  { shape: 'process', label: 'Proces' },
+  { shape: 'decision', label: 'Beslutning' },
+  { shape: 'data', label: 'Input / Output' },
+  { shape: 'document', label: 'Dokument' },
+  { shape: 'database', label: 'Database' },
 ]
 
 function getCardColor(slug: string) {
@@ -88,6 +120,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const [zoom, setZoom] = useState(1)
   const [isSpacePressed, setIsSpacePressed] = useState(false)
   const [isPanningActive, setIsPanningActive] = useState(false)
+  const [showFlowPanel, setShowFlowPanel] = useState(false)
   const canvasRef = useRef<HTMLDivElement>(null)
   const isPointerOverCanvasRef = useRef(false)
   const isPanning = useRef(false)
@@ -95,9 +128,17 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
 
   // ── Card positions ─────────────────────────────────────────────────
   const [cardPositions, setCardPositions] = useState<Record<string, CardPosition>>({})
+  const [flowNodes, setFlowNodes] = useState<FlowNode[]>([])
+  const [flowEdges, setFlowEdges] = useState<FlowEdge[]>([])
+  const [linkingFromNodeId, setLinkingFromNodeId] = useState<string | null>(null)
+  const [selectedFlowNodeId, setSelectedFlowNodeId] = useState<string | null>(null)
+  const [draggingPaletteShape, setDraggingPaletteShape] = useState<FlowShape | null>(null)
+  const [edgeDraft, setEdgeDraft] = useState<FlowEdgeDraft | null>(null)
   const dragging = useRef<string | null>(null)
+  const draggingFlowNode = useRef<string | null>(null)
   const dragOffset = useRef({ x: 0, y: 0 })
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const flowSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     loadProject()
@@ -144,6 +185,35 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       window.removeEventListener('wheel', blockBrowserZoomWhileOnCanvas)
     }
   }, [])
+
+  useEffect(() => {
+    return () => {
+      if (flowSaveTimer.current) clearTimeout(flowSaveTimer.current)
+    }
+  }, [])
+
+  useEffect(() => {
+    const onKeyDownDeleteFlowNode = (event: KeyboardEvent) => {
+      const isEditable = project?.role === 'owner' || project?.role === 'editor'
+      if (!isEditable || !selectedFlowNodeId) return
+      if (event.key !== 'Backspace' && event.key !== 'Delete') return
+
+      const target = event.target as HTMLElement | null
+      const isTypingTarget =
+        target?.tagName === 'INPUT' ||
+        target?.tagName === 'TEXTAREA' ||
+        target?.isContentEditable
+      if (isTypingTarget) return
+
+      event.preventDefault()
+      removeFlowNode(selectedFlowNodeId)
+    }
+
+    window.addEventListener('keydown', onKeyDownDeleteFlowNode)
+    return () => {
+      window.removeEventListener('keydown', onKeyDownDeleteFlowNode)
+    }
+  }, [project?.role, selectedFlowNodeId])
 
   const handleDdCanvasLayoutSave = useCallback(
     async (layout: NonNullable<Project['ddCanvasLayout']>) => {
@@ -197,6 +267,62 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     [cardPositions]
   )
 
+  useEffect(() => {
+    let mounted = true
+    const loadFlowchart = async () => {
+      try {
+        const raw = await getProjectToolData(projectId, FLOWCHART_TOOL_SLUG)
+        if (!mounted) return
+        const nodes = Array.isArray(raw?.nodes) ? raw.nodes : []
+        const edges = Array.isArray(raw?.edges) ? raw.edges : []
+        setFlowNodes(
+          nodes
+            .filter((n: any) => n && typeof n.id === 'string')
+            .map((n: any) => ({
+              id: n.id,
+              x: typeof n.x === 'number' ? n.x : 100,
+              y: typeof n.y === 'number' ? n.y : 100,
+              label: typeof n.label === 'string' && n.label.trim() ? n.label : 'Trin',
+              shape: (['terminator', 'process', 'decision', 'data', 'document', 'database'] as const).includes(n.shape)
+                ? n.shape
+                : 'process',
+            }))
+        )
+        setFlowEdges(
+          edges
+            .filter((e: any) => e && typeof e.id === 'string' && typeof e.from === 'string' && typeof e.to === 'string')
+            .map((e: any) => ({
+              id: e.id,
+              from: e.from,
+              to: e.to,
+              fromSide: (e.fromSide === 'left' || e.fromSide === 'top' || e.fromSide === 'bottom') ? e.fromSide : undefined,
+              toSide: (e.toSide === 'left' || e.toSide === 'top' || e.toSide === 'bottom') ? e.toSide : undefined,
+            }))
+        )
+      } catch {
+        // ignore load errors and start with empty flowchart
+      }
+    }
+    loadFlowchart()
+    return () => {
+      mounted = false
+    }
+  }, [projectId])
+
+  const persistFlowchart = useCallback(
+    (nextNodes: FlowNode[], nextEdges: FlowEdge[]) => {
+      if (flowSaveTimer.current) clearTimeout(flowSaveTimer.current)
+      flowSaveTimer.current = setTimeout(() => {
+        saveProjectToolData(projectId, FLOWCHART_TOOL_SLUG, {
+          nodes: nextNodes,
+          edges: nextEdges,
+          updatedAt: Date.now(),
+        }).catch(console.error)
+      }, 400)
+    },
+    [projectId]
+  )
+
   const persistLayout = useCallback(
     (positions: Record<string, CardPosition>) => {
       if (!project) return
@@ -211,6 +337,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
 
   // ── Canvas event handlers ──────────────────────────────────────────
   const onCanvasMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    setSelectedFlowNodeId(null)
     const target = e.target as HTMLElement
     const middleMousePan = e.button === 1
     const leftMousePan = e.button === 0 && isSpacePressed
@@ -232,6 +359,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   }
 
   const onCanvasMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const worldPoint = getCanvasWorldPoint(e.clientX, e.clientY)
     if (isPanning.current) {
       const dx = e.clientX - lastPanPos.current.x
       const dy = e.clientY - lastPanPos.current.y
@@ -239,15 +367,28 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       lastPanPos.current = { x: e.clientX, y: e.clientY }
     }
     if (dragging.current) {
-      const rect = canvasRef.current!.getBoundingClientRect()
-      const mx = (e.clientX - rect.left - pan.x) / zoom
-      const my = (e.clientY - rect.top - pan.y) / zoom
-      const newPos = { x: mx - dragOffset.current.x, y: my - dragOffset.current.y }
+      const newPos = { x: worldPoint.x - dragOffset.current.x, y: worldPoint.y - dragOffset.current.y }
       setCardPositions(prev => ({ ...prev, [dragging.current!]: newPos }))
+    }
+    if (draggingFlowNode.current) {
+      const nodeId = draggingFlowNode.current
+      setFlowNodes(prev =>
+        prev.map(node =>
+          node.id === nodeId ? { ...node, x: worldPoint.x - dragOffset.current.x, y: worldPoint.y - dragOffset.current.y } : node
+        )
+      )
+    }
+    if (edgeDraft) {
+      const hit = getConnectorHitAtWorldPoint(worldPoint.x, worldPoint.y, edgeDraft.fromNodeId)
+      const nextPoint =
+        hit
+          ? { x: hit.anchor.x, y: hit.anchor.y }
+          : { x: worldPoint.x, y: worldPoint.y }
+      setEdgeDraft(prev => (prev ? { ...prev, currentX: nextPoint.x, currentY: nextPoint.y } : prev))
     }
   }
 
-  const onCanvasMouseUp = () => {
+  const onCanvasMouseUp = (e?: React.MouseEvent<HTMLDivElement>) => {
     isPanning.current = false
     setIsPanningActive(false)
     if (dragging.current) {
@@ -258,6 +399,30 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
         saveTimer.current = setTimeout(() => persistLayout(prev), 800)
         return { ...prev }
       })
+    }
+    if (draggingFlowNode.current) {
+      draggingFlowNode.current = null
+      persistFlowchart(flowNodes, flowEdges)
+    }
+    if (edgeDraft) {
+      const worldPoint = e ? getCanvasWorldPoint(e.clientX, e.clientY) : { x: edgeDraft.currentX, y: edgeDraft.currentY }
+      const hit = getConnectorHitAtWorldPoint(worldPoint.x, worldPoint.y, edgeDraft.fromNodeId)
+      if (hit) {
+        const edge: FlowEdge = {
+          id: `edge-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          from: edgeDraft.fromNodeId,
+          to: hit.node.id,
+          fromSide: edgeDraft.fromSide,
+          toSide: hit.side,
+        }
+        setFlowEdges(prev => {
+          const exists = prev.some(item => item.from === edge.from && item.to === edge.to)
+          const next = exists ? prev : [...prev, edge]
+          persistFlowchart(flowNodes, next)
+          return next
+        })
+      }
+      setEdgeDraft(null)
     }
   }
 
@@ -300,6 +465,148 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     dragging.current = slug
     if (!cardPositions[slug]) setCardPositions(p => ({ ...p, [slug]: pos }))
     e.preventDefault()
+  }
+
+  const addFlowNode = (shape: FlowShape, at?: { x: number; y: number }) => {
+    if (!canEdit) return
+    const rect = canvasRef.current?.getBoundingClientRect()
+    const centerX = at ? at.x : rect ? (rect.width / 2 - pan.x) / zoom : 160
+    const centerY = at ? at.y : rect ? (rect.height / 2 - pan.y) / zoom : 160
+    const nodeStyle = getFlowNodeStyle(shape)
+    const newNode: FlowNode = {
+      id: `node-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      x: centerX - nodeStyle.width / 2,
+      y: centerY - nodeStyle.height / 2,
+      label: FLOW_SHAPE_LIBRARY.find(s => s.shape === shape)?.label || 'Trin',
+      shape,
+    }
+    setFlowNodes(prev => {
+      const next = [...prev, newNode]
+      persistFlowchart(next, flowEdges)
+      return next
+    })
+  }
+
+  const onFlowNodeMouseDown = (e: React.MouseEvent, nodeId: string) => {
+    if (!canEdit) return
+    e.stopPropagation()
+    setSelectedFlowNodeId(nodeId)
+    const rect = canvasRef.current!.getBoundingClientRect()
+    const node = flowNodes.find(n => n.id === nodeId)
+    if (!node) return
+    const mx = (e.clientX - rect.left - pan.x) / zoom
+    const my = (e.clientY - rect.top - pan.y) / zoom
+    dragOffset.current = { x: mx - node.x, y: my - node.y }
+    draggingFlowNode.current = nodeId
+    e.preventDefault()
+  }
+
+  const startEdgeDrag = (e: React.MouseEvent, nodeId: string, fromSide: FlowConnectorSide) => {
+    if (!canEdit) return
+    e.stopPropagation()
+    const node = flowNodes.find(n => n.id === nodeId)
+    if (!node) return
+    const from = getFlowNodeAnchor(node, fromSide)
+    setEdgeDraft({
+      fromNodeId: nodeId,
+      fromSide,
+      startX: from.x,
+      startY: from.y,
+      currentX: from.x,
+      currentY: from.y,
+    })
+  }
+
+  const connectFlowNode = (nodeId: string) => {
+    if (!canEdit) return
+    if (!linkingFromNodeId) {
+      setLinkingFromNodeId(nodeId)
+      return
+    }
+    if (linkingFromNodeId === nodeId) {
+      setLinkingFromNodeId(null)
+      return
+    }
+    const edge: FlowEdge = {
+      id: `edge-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      from: linkingFromNodeId,
+      to: nodeId,
+    }
+    setFlowEdges(prev => {
+      const exists = prev.some(e => e.from === edge.from && e.to === edge.to)
+      const next = exists ? prev : [...prev, edge]
+      persistFlowchart(flowNodes, next)
+      return next
+    })
+    setLinkingFromNodeId(null)
+  }
+
+  const removeFlowNode = (nodeId: string) => {
+    if (!canEdit) return
+    setFlowNodes(prevNodes => {
+      const nextNodes = prevNodes.filter(n => n.id !== nodeId)
+      setFlowEdges(prevEdges => {
+        const nextEdges = prevEdges.filter(e => e.from !== nodeId && e.to !== nodeId)
+        persistFlowchart(nextNodes, nextEdges)
+        return nextEdges
+      })
+      return nextNodes
+    })
+    if (linkingFromNodeId === nodeId) setLinkingFromNodeId(null)
+    if (selectedFlowNodeId === nodeId) setSelectedFlowNodeId(null)
+  }
+
+  const getCanvasWorldPoint = (clientX: number, clientY: number) => {
+    const rect = canvasRef.current?.getBoundingClientRect()
+    if (!rect) return { x: 0, y: 0 }
+    return {
+      x: (clientX - rect.left - pan.x) / zoom,
+      y: (clientY - rect.top - pan.y) / zoom,
+    }
+  }
+
+  const getNodeAtWorldPoint = (x: number, y: number, excludeNodeId?: string) => {
+    for (let i = flowNodes.length - 1; i >= 0; i--) {
+      const node = flowNodes[i]
+      if (excludeNodeId && node.id === excludeNodeId) continue
+      const style = getFlowNodeStyle(node.shape)
+      if (x >= node.x && x <= node.x + style.width && y >= node.y && y <= node.y + style.height) {
+        return node
+      }
+    }
+    return null
+  }
+
+  const getClosestConnectorAtWorldPoint = (
+    x: number,
+    y: number,
+    excludeNodeId?: string
+  ): { node: FlowNode; side: FlowConnectorSide; anchor: { x: number; y: number }; distance: number } | null => {
+    let best: { node: FlowNode; side: FlowConnectorSide; anchor: { x: number; y: number }; distance: number } | null = null
+    for (let i = flowNodes.length - 1; i >= 0; i--) {
+      const node = flowNodes[i]
+      if (excludeNodeId && node.id === excludeNodeId) continue
+      const sides: FlowConnectorSide[] = ['left', 'top', 'bottom']
+      for (const side of sides) {
+        const anchor = getFlowNodeAnchor(node, side)
+        const distance = Math.hypot(anchor.x - x, anchor.y - y)
+        if (!best || distance < best.distance) {
+          best = { node, side, anchor, distance }
+        }
+      }
+    }
+    return best
+  }
+
+  const getConnectorHitAtWorldPoint = (
+    x: number,
+    y: number,
+    excludeNodeId?: string
+  ): { node: FlowNode; side: FlowConnectorSide; anchor: { x: number; y: number }; distance: number } | null => {
+    const hit = getClosestConnectorAtWorldPoint(x, y, excludeNodeId)
+    const connectorHitRadius = 10
+    if (!hit || hit.distance > connectorHitRadius) return null
+    return hit
   }
 
   // ── Tool actions ───────────────────────────────────────────────────
@@ -445,9 +752,15 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     tools.forEach(tool => categoryMetaBySlug.set(tool.slug, { id: kategori.id, label: kategori.label }))
   })
   const phaseMetaBySlug = new Map<string, { id: string; label: string }>()
+  const framework = project?.framework || 'none'
+  const frameworkPhases = getFrameworkPhases(framework)
+  const activeAddToolCategory =
+    selectedAddToolCategory === 'all' || frameworkPhases.some(phase => phase.id === selectedAddToolCategory)
+      ? selectedAddToolCategory
+      : 'all'
   toAdd.forEach(tool => {
-    const phaseId = getDefaultPhaseForTool('double-diamond', tool.slug)
-    const phase = DOUBLE_DIAMOND_PHASES.find(p => p.id === phaseId)
+    const phaseId = getDefaultPhaseForTool(framework, tool.slug)
+    const phase = frameworkPhases.find(p => p.id === phaseId)
     if (phase) phaseMetaBySlug.set(tool.slug, { id: phase.id, label: phase.label })
   })
   const searchQuery = addToolSearch.trim().toLowerCase()
@@ -456,9 +769,9 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       const categoryMeta = categoryMetaBySlug.get(tool.slug)
       const phaseMeta = phaseMetaBySlug.get(tool.slug)
       const categoryMatch =
-        selectedAddToolCategory === 'all' ||
-        categoryMeta?.id === selectedAddToolCategory ||
-        phaseMeta?.id === selectedAddToolCategory
+        activeAddToolCategory === 'all' ||
+        categoryMeta?.id === activeAddToolCategory ||
+        phaseMeta?.id === activeAddToolCategory
 
       if (!categoryMatch) return false
       if (!searchQuery) return true
@@ -476,29 +789,39 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     })
   const quickCategoryFilters = [
     { id: 'all', label: 'Alle', count: toAdd.length },
-    ...DOUBLE_DIAMOND_PHASES.map(phase => ({
+    ...frameworkPhases.map(phase => ({
       id: phase.id,
       label: phase.label,
-      count: toAdd.filter(tool => getDefaultPhaseForTool('double-diamond', tool.slug) === phase.id).length,
+      count: toAdd.filter(tool => getDefaultPhaseForTool(framework, tool.slug) === phase.id).length,
     })).filter(filter => filter.count > 0),
   ]
   const visibleAddTools = showAllAddToolResults ? filteredAddTools : filteredAddTools.slice(0, 9)
-  const visibleToolsByPhase = DOUBLE_DIAMOND_PHASES.map(phase => ({
+  const visibleToolsByPhase = frameworkPhases.map(phase => ({
     phase,
     tools: visibleAddTools.filter(
-      tool => getDefaultPhaseForTool('double-diamond', tool.slug) === phase.id
+      tool => getDefaultPhaseForTool(framework, tool.slug) === phase.id
     ),
   })).filter(group => group.tools.length > 0)
-  const selectedPhaseForDiagram = DOUBLE_DIAMOND_PHASES.some(phase => phase.id === selectedAddToolCategory)
-    ? (selectedAddToolCategory as DoubleDiamondPhase)
-    : 'discover'
+  const selectedPhaseForDiagram =
+    framework === 'google-design-sprint'
+      ? (GOOGLE_DESIGN_SPRINT_PHASES.some(phase => phase.id === activeAddToolCategory)
+          ? (activeAddToolCategory as GoogleDesignSprintPhase)
+          : 'understand')
+      : framework === 'design-thinking'
+        ? (DESIGN_THINKING_PHASES.some(phase => phase.id === activeAddToolCategory)
+            ? (activeAddToolCategory as DesignThinkingPhase)
+            : 'empathize')
+      : (DOUBLE_DIAMOND_PHASES.some(phase => phase.id === activeAddToolCategory)
+          ? (activeAddToolCategory as DoubleDiamondPhase)
+          : 'discover')
 
   const toolCount = projectTools.length
-  const framework = project.framework || 'none'
   const canEdit = project.role === 'owner' || project.role === 'editor'
   const isOwner = project.role === 'owner'
   const toolPhases = project.toolPhases || {}
   const lastUpdated = project.updatedAt ? new Date(project.updatedAt).toLocaleString('da-DK') : '–'
+  const flowNodeMap = new Map(flowNodes.map(node => [node.id, node]))
+  const visibleFlowEdges = flowEdges.filter(edge => flowNodeMap.has(edge.from) && flowNodeMap.has(edge.to))
 
   // ── Render ─────────────────────────────────────────────────────────
   return (
@@ -685,6 +1008,104 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       {/* ════════════════════════════════════════════════
           INFINITE CANVAS
       ════════════════════════════════════════════════ */}
+      {activeWorkspaceTab === 'board' && (
+        <>
+          <button
+            type="button"
+            onClick={() => setShowFlowPanel(v => !v)}
+            style={{
+              position: 'fixed',
+              top: isOffline ? 104 : 70,
+              left: 14,
+              zIndex: 140,
+              border: '1.5px solid #D1D5DB',
+              background: showFlowPanel ? '#111827' : '#fff',
+              color: showFlowPanel ? '#fff' : '#374151',
+              borderRadius: 10,
+              padding: '7px 10px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              fontSize: 12,
+              fontWeight: 700,
+              boxShadow: '0 10px 24px rgba(15,23,42,0.10)',
+              cursor: 'pointer',
+            }}
+          >
+            <span style={{ fontSize: 14 }}>🧩</span>
+            Flowchart
+          </button>
+
+          {showFlowPanel && (
+            <div
+              style={{
+                position: 'fixed',
+                top: isOffline ? 142 : 108,
+                left: 14,
+                width: 248,
+                maxHeight: 'calc(100vh - 170px)',
+                overflowY: 'auto',
+                background: '#fff',
+                border: '1px solid #E5E7EB',
+                borderRadius: 14,
+                padding: 10,
+                zIndex: 130,
+                boxShadow: '0 14px 36px rgba(0,0,0,0.12)',
+              }}
+            >
+              <p style={{ margin: '0 0 8px', fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                Standard former
+              </p>
+              <div style={{ display: 'grid', gap: 7 }}>
+                {FLOW_SHAPE_LIBRARY.map(item => (
+                  <div
+                    key={item.shape}
+                    draggable={canEdit}
+                    onDragStart={e => {
+                      if (!canEdit) return
+                      e.dataTransfer.setData('text/forgelab-flow-shape', item.shape)
+                      e.dataTransfer.effectAllowed = 'copy'
+                      setDraggingPaletteShape(item.shape)
+                    }}
+                    onDragEnd={() => setDraggingPaletteShape(null)}
+                    style={{
+                      border: '1.5px solid #E5E7EB',
+                      borderRadius: 10,
+                      padding: '8px 10px',
+                      color: '#374151',
+                      background: '#fff',
+                      cursor: canEdit ? 'grab' : 'not-allowed',
+                      opacity: canEdit ? 1 : 0.6,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 34,
+                        height: 20,
+                        border: '2px solid #9CA3AF',
+                        borderRadius: getFlowNodeStyle(item.shape).borderRadius > 20 ? 999 : 6,
+                        clipPath: getFlowNodeStyle(item.shape).clipPath,
+                        background: draggingPaletteShape === item.shape ? '#FEF3C7' : '#F9FAFB',
+                        flexShrink: 0,
+                      }}
+                    />
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700 }}>{item.label}</div>
+                      <div style={{ fontSize: 10, color: '#9CA3AF' }}>Træk ud på boardet</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p style={{ margin: '10px 0 0', fontSize: 11, color: '#9CA3AF', lineHeight: 1.45 }}>
+                Træk fra den lille cirkel på højre side af en form for at lave en pil direkte til en anden form.
+              </p>
+            </div>
+          )}
+        </>
+      )}
       {activeWorkspaceTab === 'docs' ? (
         <ProjectDocsTab projectId={projectId} canEdit={canEdit} />
       ) : activeWorkspaceTab === 'slides' ? (
@@ -714,6 +1135,23 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
         onMouseDown={onCanvasMouseDown}
         onMouseMove={onCanvasMouseMove}
         onMouseUp={onCanvasMouseUp}
+        onDragOver={e => {
+          if (!canEdit) return
+          const shape = e.dataTransfer.getData('text/forgelab-flow-shape')
+          if (shape) {
+            e.preventDefault()
+            e.dataTransfer.dropEffect = 'copy'
+          }
+        }}
+        onDrop={e => {
+          if (!canEdit) return
+          const shape = e.dataTransfer.getData('text/forgelab-flow-shape') as FlowShape
+          if (!shape) return
+          e.preventDefault()
+          const point = getCanvasWorldPoint(e.clientX, e.clientY)
+          addFlowNode(shape, point)
+          setDraggingPaletteShape(null)
+        }}
         onWheel={onWheel}
       >
         {/* Transform layer */}
@@ -739,6 +1177,204 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
             </div>
           )}
 
+          {/* ── Flowchart edges + noder ─────────────────── */}
+          {flowNodes.length > 0 && (
+            <>
+              <svg
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  overflow: 'visible',
+                  pointerEvents: 'none',
+                  zIndex: 2,
+                }}
+              >
+                <defs>
+                  <marker id="flow-arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L10,4 L0,8 z" fill="#4B5563" />
+                  </marker>
+                </defs>
+                {visibleFlowEdges.map(edge => {
+                  const fromNode = flowNodeMap.get(edge.from)!
+                  const toNode = flowNodeMap.get(edge.to)!
+                  const from = getFlowNodeAnchor(fromNode, edge.fromSide || 'left')
+                  const to = getFlowNodeAnchor(toNode, edge.toSide || 'left')
+                  return (
+                    <path
+                      key={edge.id}
+                      d={buildOrthogonalPath(from, to)}
+                      fill="none"
+                      stroke="#4B5563"
+                      strokeWidth="2.2"
+                      markerEnd="url(#flow-arrow)"
+                    />
+                  )
+                })}
+                {edgeDraft && (
+                  <path
+                    d={buildOrthogonalPath(
+                      { x: edgeDraft.startX, y: edgeDraft.startY },
+                      { x: edgeDraft.currentX, y: edgeDraft.currentY }
+                    )}
+                    fill="none"
+                    stroke="#F59E0B"
+                    strokeWidth="2.2"
+                    strokeDasharray="6 4"
+                    markerEnd="url(#flow-arrow)"
+                  />
+                )}
+              </svg>
+
+              {flowNodes.map(node => {
+                const isLinkSource = linkingFromNodeId === node.id
+                const isSelected = selectedFlowNodeId === node.id
+                const style = getFlowNodeStyle(node.shape)
+                return (
+                  <div
+                    key={node.id}
+                    style={{
+                      position: 'absolute',
+                      left: node.x,
+                      top: node.y,
+                      width: style.width,
+                      height: style.height,
+                      background: '#fff',
+                      border: isLinkSource ? '2px solid #F59E0B' : isSelected ? '2px solid #2563EB' : '2px solid #9CA3AF',
+                      borderRadius: style.borderRadius,
+                      clipPath: style.clipPath,
+                      transform: 'translateZ(0)',
+                      boxShadow: isLinkSource
+                        ? '0 0 0 3px rgba(245,158,11,0.22), 0 8px 20px rgba(0,0,0,0.12)'
+                        : isSelected
+                          ? '0 0 0 3px rgba(37,99,235,0.2), 0 8px 20px rgba(0,0,0,0.12)'
+                          : '0 8px 20px rgba(0,0,0,0.09)',
+                      padding: 10,
+                      zIndex: 3,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      userSelect: 'none',
+                    }}
+                    onMouseDown={e => onFlowNodeMouseDown(e, node.id)}
+                  >
+                    <input
+                      value={node.label}
+                      onMouseDown={e => e.stopPropagation()}
+                      onChange={e => {
+                        const nextLabel = e.target.value
+                        setFlowNodes(prev => {
+                          const next = prev.map(n => (n.id === node.id ? { ...n, label: nextLabel } : n))
+                          persistFlowchart(next, flowEdges)
+                          return next
+                        })
+                      }}
+                      disabled={!canEdit}
+                      style={{
+                        border: 'none',
+                        background: 'transparent',
+                        width: '100%',
+                        textAlign: 'center',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: '#1F2937',
+                        outline: 'none',
+                        marginTop: 'auto',
+                        marginBottom: 'auto',
+                      }}
+                    />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6 }}>
+                      {canEdit && (
+                        <button
+                          type="button"
+                          onMouseDown={e => e.stopPropagation()}
+                          onClick={e => {
+                            e.stopPropagation()
+                            removeFlowNode(node.id)
+                          }}
+                          title="Slet"
+                          style={{
+                            position: 'absolute',
+                            top: -8,
+                            right: -8,
+                            width: 18,
+                            height: 18,
+                            borderRadius: '50%',
+                            border: '1px solid #FECACA',
+                            background: '#FEF2F2',
+                            color: '#B91C1C',
+                            fontSize: 12,
+                            fontWeight: 800,
+                            lineHeight: 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                          }}
+                        >
+                          ×
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onMouseDown={e => startEdgeDrag(e, node.id, 'left')}
+                        title="Træk pil fra venstre"
+                        style={{
+                          position: 'absolute',
+                          left: -7,
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          width: 14,
+                          height: 14,
+                          borderRadius: '50%',
+                          border: '2px solid #fff',
+                          background: '#F59E0B',
+                          cursor: 'crosshair',
+                          boxShadow: '0 2px 7px rgba(0,0,0,0.22)',
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onMouseDown={e => startEdgeDrag(e, node.id, 'top')}
+                        title="Træk pil fra top"
+                        style={{
+                          position: 'absolute',
+                          top: -7,
+                          left: '50%',
+                          transform: 'translateX(-50%)',
+                          width: 14,
+                          height: 14,
+                          borderRadius: '50%',
+                          border: '2px solid #fff',
+                          background: '#F59E0B',
+                          cursor: 'crosshair',
+                          boxShadow: '0 2px 7px rgba(0,0,0,0.22)',
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onMouseDown={e => startEdgeDrag(e, node.id, 'bottom')}
+                        title="Træk pil fra bund"
+                        style={{
+                          position: 'absolute',
+                          bottom: -7,
+                          left: '50%',
+                          transform: 'translateX(-50%)',
+                          width: 14,
+                          height: 14,
+                          borderRadius: '50%',
+                          border: '2px solid #fff',
+                          background: '#F59E0B',
+                          cursor: 'crosshair',
+                          boxShadow: '0 2px 7px rgba(0,0,0,0.22)',
+                        }}
+                      />
+                    </div>
+                  </div>
+                )
+              })}
+            </>
+          )}
+
           {/* ── Tool cards ─────────────────────────────── */}
           {projectTools.map(({ slug, tool }, idx) => {
             if (!tool) return null
@@ -746,8 +1382,8 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
             const c = getCardColor(slug)
             const pos = cardPositions[slug] || defaultPos(slug, idx)
             const isDragging = dragging.current === slug
-            const phase = framework === 'double-diamond' ? ((toolPhases[slug] as DoubleDiamondPhase) || null) : null
-            const phaseLabel = phase ? DOUBLE_DIAMOND_PHASES.find(p => p.id === phase)?.label : null
+            const phase = toolPhases[slug] || null
+            const phaseLabel = phase ? frameworkPhases.find(p => p.id === phase)?.label : null
 
             return (
               <div
@@ -920,9 +1556,11 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                   >
                     <option value="none">Ingen framework</option>
                     <option value="double-diamond">Double Diamond</option>
+                    <option value="google-design-sprint">Google Design Sprint</option>
+                    <option value="design-thinking">Design Thinking</option>
                   </select>
                   <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 5 }}>
-                    Med Double Diamond kan du tildele faser til hvert værktøj.
+                    Vælg framework for automatisk faseinddeling af værktøjer.
                   </p>
                 </Section>
 
@@ -1018,23 +1656,43 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           >
             <div style={{ padding: '18px 20px 14px', borderBottom: '1px solid #F3F4F6' }}>
               <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#111827' }}>+ Tilføj værktøj</h3>
-              <p style={{ margin: '3px 0 0', fontSize: 13, color: '#9CA3AF' }}>Find hurtigt det rigtige værktøj med søgning og Double Diamond-faser.</p>
+              <p style={{ margin: '3px 0 0', fontSize: 13, color: '#9CA3AF' }}>
+                Find hurtigt det rigtige værktøj med søgning og faser fra valgt framework.
+              </p>
             </div>
 
             <div style={{ padding: '12px 16px 0', borderBottom: '1px solid #F9FAFB' }}>
               <div style={{ border: '1px solid #E5E7EB', borderRadius: 12, background: '#fff', padding: 8, overflow: 'hidden', marginBottom: 10 }}>
-                <div style={{ width: 504, height: 292, overflow: 'hidden' }}>
-                  <div style={{ transform: 'scale(0.39)', transformOrigin: 'top left', width: 1200, height: 650 }}>
-                  <DoubleDiamondDiagram
-                    activeSelection={selectedPhaseForDiagram}
+                {framework === 'google-design-sprint' ? (
+                  <GoogleDesignSprintDiagram
+                    activeSelection={selectedPhaseForDiagram as GoogleDesignSprintPhase}
                     onSelect={selection => {
-                      if (selection === 'hmw') return
                       setSelectedAddToolCategory(selection)
                       setShowAllAddToolResults(false)
                     }}
                   />
+                ) : framework === 'design-thinking' ? (
+                  <DesignThinkingDiagram
+                    activeSelection={selectedPhaseForDiagram as DesignThinkingPhase}
+                    onSelect={selection => {
+                      setSelectedAddToolCategory(selection)
+                      setShowAllAddToolResults(false)
+                    }}
+                  />
+                ) : (
+                  <div style={{ width: 504, height: 292, overflow: 'hidden' }}>
+                    <div style={{ transform: 'scale(0.39)', transformOrigin: 'top left', width: 1200, height: 650 }}>
+                      <DoubleDiamondDiagram
+                        activeSelection={selectedPhaseForDiagram as DoubleDiamondPhase}
+                        onSelect={selection => {
+                          if (selection === 'hmw') return
+                          setSelectedAddToolCategory(selection)
+                          setShowAllAddToolResults(false)
+                        }}
+                      />
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
               <div style={{ position: 'relative' }}>
                 <input
@@ -1057,7 +1715,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
               </div>
               <div style={{ display: 'flex', gap: 8, overflowX: 'auto', padding: '10px 0 12px' }}>
                 {quickCategoryFilters.map(filter => {
-                  const isActive = selectedAddToolCategory === filter.id
+                  const isActive = activeAddToolCategory === filter.id
                   return (
                     <button
                       key={filter.id}
@@ -1181,6 +1839,62 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
 }
 
 // ── Helper components ──────────────────────────────────────────────
+function getFlowNodeStyle(shape: FlowShape): { width: number; height: number; borderRadius: number; clipPath?: string } {
+  switch (shape) {
+    case 'terminator':
+      return { width: 176, height: 76, borderRadius: 999 }
+    case 'decision':
+      return { width: 170, height: 90, borderRadius: 10, clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)' }
+    case 'data':
+      return { width: 180, height: 78, borderRadius: 10, clipPath: 'polygon(10% 0%, 100% 0%, 90% 100%, 0% 100%)' }
+    case 'document':
+      return { width: 176, height: 82, borderRadius: 10, clipPath: 'polygon(0% 0%, 100% 0%, 100% 82%, 84% 100%, 0% 86%)' }
+    case 'database':
+      return { width: 170, height: 94, borderRadius: 34 }
+    default:
+      return { width: 176, height: 78, borderRadius: 10 }
+  }
+}
+
+function getFlowNodeAnchor(node: FlowNode, side: 'left' | 'top' | 'bottom' | 'right') {
+  const style = getFlowNodeStyle(node.shape)
+  if (side === 'top') {
+    return { x: node.x + style.width / 2, y: node.y }
+  }
+  if (side === 'bottom') {
+    return { x: node.x + style.width / 2, y: node.y + style.height }
+  }
+  return {
+    x: side === 'left' ? node.x : node.x + style.width,
+    y: node.y + style.height / 2,
+  }
+}
+
+function getClosestTargetSide(node: FlowNode, point: { x: number; y: number }): FlowConnectorSide {
+  const left = getFlowNodeAnchor(node, 'left')
+  const top = getFlowNodeAnchor(node, 'top')
+  const bottom = getFlowNodeAnchor(node, 'bottom')
+
+  const distances = [
+    { side: 'left' as FlowConnectorSide, d: Math.hypot(point.x - left.x, point.y - left.y) },
+    { side: 'top' as FlowConnectorSide, d: Math.hypot(point.x - top.x, point.y - top.y) },
+    { side: 'bottom' as FlowConnectorSide, d: Math.hypot(point.x - bottom.x, point.y - bottom.y) },
+  ]
+  distances.sort((a, b) => a.d - b.d)
+  return distances[0].side
+}
+
+function buildOrthogonalPath(from: { x: number; y: number }, to: { x: number; y: number }) {
+  const sameX = Math.abs(from.x - to.x) < 0.5
+  const sameY = Math.abs(from.y - to.y) < 0.5
+  if (sameX || sameY) {
+    return `M ${from.x} ${from.y} L ${to.x} ${to.y}`
+  }
+
+  // One clean 90-degree turn (horizontal first).
+  return `M ${from.x} ${from.y} L ${to.x} ${from.y} L ${to.x} ${to.y}`
+}
+
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 22 }}>

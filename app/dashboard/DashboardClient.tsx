@@ -8,6 +8,8 @@ import SiteNav from '@/components/SiteNav'
 import ProjectCard from '@/components/dashboard/ProjectCard'
 import AvailableToolCard from '@/components/dashboard/AvailableToolCard'
 import DoubleDiamondDiagram from '@/components/dashboard/DoubleDiamondDiagram'
+import DesignThinkingDiagram from '@/components/dashboard/DesignThinkingDiagram'
+import GoogleDesignSprintDiagram from '@/components/dashboard/GoogleDesignSprintDiagram'
 import {
   getProjects,
   createProject,
@@ -15,11 +17,20 @@ import {
   type Project,
 } from '@/lib/projects'
 import { VAERKTOEJER } from '@/lib/vaerktoejer-data'
-import { DOUBLE_DIAMOND_PHASES, getDefaultPhaseForTool, type DoubleDiamondPhase } from '@/lib/frameworks'
+import {
+  DOUBLE_DIAMOND_PHASES,
+  GOOGLE_DESIGN_SPRINT_PHASES,
+  getDefaultPhaseForTool,
+  getFrameworkPhases,
+  type DoubleDiamondPhase,
+  type FrameworkId,
+  type DesignThinkingPhase,
+  type GoogleDesignSprintPhase,
+} from '@/lib/frameworks'
 import { getToolIcon } from '@/lib/vaerktoejer-icons'
 import { Bell, AlertTriangle } from 'lucide-react'
 
-type DiamondSelection = DoubleDiamondPhase | 'hmw'
+type FrameworkSelection = DoubleDiamondPhase | GoogleDesignSprintPhase | DesignThinkingPhase | 'hmw'
 type ProjectInviteNotification = {
   id: string
   projectId: string
@@ -227,14 +238,25 @@ export default function DashboardClient() {
     })
   }
 
-  const [activeSelection, setActiveSelection] = useState<DiamondSelection>('discover')
+  const [activeFrameworkView, setActiveFrameworkView] = useState<FrameworkId>('double-diamond')
+  const [activeSelection, setActiveSelection] = useState<FrameworkSelection>('discover')
+  useEffect(() => {
+    if (activeFrameworkView === 'google-design-sprint') {
+      setActiveSelection('understand')
+    } else if (activeFrameworkView === 'design-thinking') {
+      setActiveSelection('empathize')
+    } else {
+      setActiveSelection('discover')
+    }
+  }, [activeFrameworkView])
+
+  const frameworkPhases = getFrameworkPhases(activeFrameworkView)
   const phaseTools = VAERKTOEJER.filter((tool) => {
     // QR should be shown as standalone outside the Double Diamond list.
     if (tool.slug === 'qr-generator') return false
-    if (activeSelection === 'hmw') return tool.slug === 'hmw'
-    const defaultPhase = getDefaultPhaseForTool('double-diamond', tool.slug)
-    // HMW should be visible both as a dedicated node and in Develop.
-    if (activeSelection === 'develop' && tool.slug === 'hmw') return true
+    if (activeFrameworkView === 'double-diamond' && activeSelection === 'hmw') return tool.slug === 'hmw'
+    const defaultPhase = getDefaultPhaseForTool(activeFrameworkView, tool.slug)
+    if (activeFrameworkView === 'double-diamond' && activeSelection === 'develop' && tool.slug === 'hmw') return true
     return defaultPhase === activeSelection
   })
   const standaloneTools = VAERKTOEJER.filter((tool) => tool.slug === 'qr-generator')
@@ -304,6 +326,20 @@ export default function DashboardClient() {
   const deliverMethods = [
     'See-Think-Do-Care',
   ]
+  const sprintMethods: Record<GoogleDesignSprintPhase, string[]> = {
+    understand: ['Desk research', 'Interviews', 'Empathy mapping', 'Problem framing'],
+    sketch: ['Crazy Eights', 'Brainwriting', 'Lightning demos', 'Storyboarding'],
+    decide: ['Dot voting', 'Impact vs effort', 'HMW prioritering', 'Solution hypothesis'],
+    prototype: ['Low-fi prototype', 'Landing page mock', 'Click prototype', 'Service blueprint'],
+    test: ['Brugertest', 'A/B test', 'Feedback survey', 'Iteration plan'],
+  }
+  const designThinkingMethods: Record<DesignThinkingPhase, string[]> = {
+    empathize: ['Interviews', 'Observation', 'Empathy map', 'User journey mapping'],
+    define: ['Problem framing', 'Affinity mapping', 'How Might We', 'Root cause analysis'],
+    ideate: ['Brainstorming', 'Crazy Eights', 'SCAMPER', 'Mindmapping'],
+    prototype: ['Papirprototype', 'Click prototype', 'Service blueprint', 'Landing page mock'],
+    test: ['Brugertest', 'A/B test', 'Survey', 'Iteration retrospective'],
+  }
   const renderMethodChip = (method: string) => {
     const description = methodDescriptions[method]
     const isHighlightedMethod = method === 'Henrik Vejlgaards Trend-diamant'
@@ -557,7 +593,49 @@ export default function DashboardClient() {
         {/* Tilgængelige værktøjer */}
         <section className="mb-4">
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-lg md:text-xl font-semibold text-gray-900">Værktøjer i Double Diamond</h2>
+            <h2 className="text-lg md:text-xl font-semibold text-gray-900">
+              Værktøjer i{' '}
+              {activeFrameworkView === 'google-design-sprint'
+                ? 'Google Design Sprint'
+                : activeFrameworkView === 'design-thinking'
+                  ? 'Design Thinking'
+                  : 'Double Diamond'}
+            </h2>
+            <div className="inline-flex rounded-xl border border-neutral-200 bg-white p-1">
+              <button
+                type="button"
+                onClick={() => setActiveFrameworkView('double-diamond')}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
+                  activeFrameworkView === 'double-diamond'
+                    ? 'bg-neutral-900 text-white'
+                    : 'text-neutral-600 hover:bg-neutral-100'
+                }`}
+              >
+                Double Diamond
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveFrameworkView('google-design-sprint')}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
+                  activeFrameworkView === 'google-design-sprint'
+                    ? 'bg-neutral-900 text-white'
+                    : 'text-neutral-600 hover:bg-neutral-100'
+                }`}
+              >
+                Google Design Sprint
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveFrameworkView('design-thinking')}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
+                  activeFrameworkView === 'design-thinking'
+                    ? 'bg-neutral-900 text-white'
+                    : 'text-neutral-600 hover:bg-neutral-100'
+                }`}
+              >
+                Design Thinking
+              </button>
+            </div>
           </div>
           <p className="text-xs md:text-sm text-gray-500 mb-5 max-w-4xl">
             Vælg en fase i modellen og se relevante værktøjer i stedet for en lang liste.
@@ -565,60 +643,64 @@ export default function DashboardClient() {
 
           <div className="swiss-panel p-4 md:p-6 mb-5">
             <div className="rounded-xl border border-neutral-200 bg-white p-3 md:p-4 mb-5 overflow-x-auto">
-              <DoubleDiamondDiagram activeSelection={activeSelection} onSelect={setActiveSelection} />
+              {activeFrameworkView === 'google-design-sprint' ? (
+                <GoogleDesignSprintDiagram
+                  activeSelection={activeSelection as GoogleDesignSprintPhase}
+                  onSelect={(selection) => setActiveSelection(selection)}
+                />
+              ) : activeFrameworkView === 'design-thinking' ? (
+                <DesignThinkingDiagram
+                  activeSelection={activeSelection as DesignThinkingPhase}
+                  onSelect={(selection) => setActiveSelection(selection)}
+                />
+              ) : (
+                <DoubleDiamondDiagram
+                  activeSelection={activeSelection as DoubleDiamondPhase | 'hmw'}
+                  onSelect={(selection) => setActiveSelection(selection)}
+                />
+              )}
             </div>
 
             <div className="mt-5">
               <div className="inline-flex items-center gap-2 text-xs uppercase tracking-widest text-neutral-500 mb-3">
                 <span className="w-2 h-2 rounded-full bg-black" />
-                {activeSelection === 'hmw'
+                {activeFrameworkView === 'double-diamond' && activeSelection === 'hmw'
                   ? 'HMW'
-                  : DOUBLE_DIAMOND_PHASES.find((p) => p.id === activeSelection)?.label}
+                  : frameworkPhases.find((p) => p.id === activeSelection)?.label}
               </div>
 
-              {activeSelection === 'discover' && (
-                <div className="mb-4 border border-amber-200 bg-amber-50/60 p-3">
-                  <p className="text-xs uppercase tracking-widest text-amber-800 mb-2">
-                    Discover metoder (ikke nødvendigvis tools)
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {discoverMethods.map((method) => renderMethodChip(method))}
-                  </div>
-                </div>
-              )}
+              {(() => {
+                let methods: string[] = []
+                let sectionLabel = ''
 
-              {activeSelection === 'define' && (
-                <div className="mb-4 border border-amber-200 bg-amber-50/60 p-3">
-                  <p className="text-xs uppercase tracking-widest text-amber-800 mb-2">
-                    Define metoder (ikke nødvendigvis tools)
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {defineMethods.map((method) => renderMethodChip(method))}
-                  </div>
-                </div>
-              )}
+                if (activeFrameworkView === 'double-diamond') {
+                  if (activeSelection === 'discover') methods = discoverMethods
+                  if (activeSelection === 'define') methods = defineMethods
+                  if (activeSelection === 'develop') methods = developMethods
+                  if (activeSelection === 'deliver') methods = deliverMethods
+                  sectionLabel = `${frameworkPhases.find((p) => p.id === activeSelection)?.label || ''} metoder`
+                } else if (activeFrameworkView === 'google-design-sprint') {
+                  const sprintSelection = activeSelection as GoogleDesignSprintPhase
+                  methods = sprintMethods[sprintSelection] || []
+                  sectionLabel = `${frameworkPhases.find((p) => p.id === activeSelection)?.label || ''} sprint-metoder`
+                } else {
+                  const dtSelection = activeSelection as DesignThinkingPhase
+                  methods = designThinkingMethods[dtSelection] || []
+                  sectionLabel = `${frameworkPhases.find((p) => p.id === activeSelection)?.label || ''} metoder`
+                }
 
-              {activeSelection === 'develop' && (
-                <div className="mb-4 border border-amber-200 bg-amber-50/60 p-3">
-                  <p className="text-xs uppercase tracking-widest text-amber-800 mb-2">
-                    Develop metoder (ikke nødvendigvis tools)
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {developMethods.map((method) => renderMethodChip(method))}
+                if (methods.length === 0) return null
+                return (
+                  <div className="mb-4 border border-amber-200 bg-amber-50/60 p-3">
+                    <p className="text-xs uppercase tracking-widest text-amber-800 mb-2">
+                      {sectionLabel} (ikke nødvendigvis tools)
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {methods.map((method) => renderMethodChip(method))}
+                    </div>
                   </div>
-                </div>
-              )}
-
-              {activeSelection === 'deliver' && (
-                <div className="mb-4 border border-amber-200 bg-amber-50/60 p-3">
-                  <p className="text-xs uppercase tracking-widest text-amber-800 mb-2">
-                    Deliver metoder (ikke nødvendigvis tools)
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {deliverMethods.map((method) => renderMethodChip(method))}
-                  </div>
-                </div>
-              )}
+                )
+              })()}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
                 {phaseTools.map((tool) => {
