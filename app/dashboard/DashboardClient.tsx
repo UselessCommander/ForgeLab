@@ -17,6 +17,7 @@ import {
 import { VAERKTOEJER } from '@/lib/vaerktoejer-data'
 import { DOUBLE_DIAMOND_PHASES, getDefaultPhaseForTool, type DoubleDiamondPhase } from '@/lib/frameworks'
 import { getToolIcon } from '@/lib/vaerktoejer-icons'
+import { Bell, AlertTriangle } from 'lucide-react'
 
 type DiamondSelection = DoubleDiamondPhase | 'hmw'
 type ProjectInviteNotification = {
@@ -319,7 +320,7 @@ export default function DashboardClient() {
                 title="Invitationer"
                 aria-label="Invitationer"
               >
-                <span style={{ fontSize: 17, lineHeight: 1 }}>🔔</span>
+                <Bell size={17} strokeWidth={2.2} />
                 {unreadInviteCount > 0 && (
                   <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold leading-[18px] text-center">
                     {unreadInviteCount > 9 ? '9+' : unreadInviteCount}
@@ -385,7 +386,7 @@ export default function DashboardClient() {
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           fontSize: 12, color: '#92400E', fontWeight: 500,
         }}>
-          <span>⚠️</span>
+          <AlertTriangle size={14} strokeWidth={2.2} />
           <span>Demo-tilstand aktiv — ingen database. Projekter gemmes kun i denne browser-session.</span>
         </div>
       )}
