@@ -264,6 +264,21 @@ export default function ProjectSlidesTab({ projectId, canEdit }: ProjectSlidesTa
           <div style={{ borderBottom: '1px solid #E5E7EB', padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <strong style={{ fontSize: 13 }}>Slides Editor</strong>
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 800,
+                  letterSpacing: '0.04em',
+                  textTransform: 'uppercase',
+                  color: '#92400E',
+                  background: '#FEF3C7',
+                  border: '1px solid #FCD34D',
+                  borderRadius: 999,
+                  padding: '2px 8px',
+                }}
+              >
+                Beta / WIP
+              </span>
               <span style={{ fontSize: 11, color: '#64748B' }}>Kimi (Moonshot API) til slide-generering</span>
             </div>
             <div style={{ fontSize: 12, color: '#64748B' }}>{saving ? 'Gemmer…' : 'Gemt'}</div>

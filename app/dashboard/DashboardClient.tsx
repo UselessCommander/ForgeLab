@@ -19,6 +19,15 @@ import { DOUBLE_DIAMOND_PHASES, getDefaultPhaseForTool, type DoubleDiamondPhase 
 import { getToolIcon } from '@/lib/vaerktoejer-icons'
 
 type DiamondSelection = DoubleDiamondPhase | 'hmw'
+type ProjectInviteNotification = {
+  id: string
+  projectId: string
+  projectName: string
+  role: 'editor' | 'viewer'
+  invitedAt: string
+  readAt: string | null
+  invitedByName: string
+}
 
 export default function DashboardClient() {
   const [projects, setProjects] = useState<Project[]>([])
@@ -29,9 +38,12 @@ export default function DashboardClient() {
   const [creating, setCreating] = useState(false)
   const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null)
   const [isOffline, setIsOffline] = useState(false)
+  const [showNotifications, setShowNotifications] = useState(false)
+  const [inviteNotifications, setInviteNotifications] = useState<ProjectInviteNotification[]>([])
 
   useEffect(() => {
     loadProjects()
+    loadInviteNotifications()
   }, [])
 
   const loadProjects = async () => {
@@ -55,6 +67,18 @@ export default function DashboardClient() {
       setIsOffline(true)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadInviteNotifications = async () => {
+    try {
+      const res = await fetch('/api/notifications/project-invites', { credentials: 'include' })
+      if (!res.ok) return
+      const payload = await res.json()
+      const items = Array.isArray(payload?.items) ? payload.items : []
+      setInviteNotifications(items)
+    } catch (error) {
+      console.warn('Kunne ikke indlæse invitation-notifikationer:', error)
     }
   }
 
@@ -146,6 +170,42 @@ export default function DashboardClient() {
     projectCount > 0
       ? [...projects].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0]
       : null
+  const inviteProjects = [...inviteNotifications].sort(
+    (a, b) => new Date(b.invitedAt).getTime() - new Date(a.invitedAt).getTime()
+  )
+  const unreadInvites = inviteProjects.filter((p) => !p.readAt)
+  const unreadInviteCount = unreadInvites.length
+
+  const markInvitesAsSeen = async (ids?: string[]) => {
+    if (unreadInviteCount === 0) return
+    try {
+      await fetch('/api/notifications/project-invites', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(ids && ids.length > 0 ? { ids } : { markAll: true }),
+      })
+      setInviteNotifications((prev) =>
+        prev.map((invite) =>
+          !invite.readAt && (!ids || ids.length === 0 || ids.includes(invite.id))
+            ? { ...invite, readAt: new Date().toISOString() }
+            : invite
+        )
+      )
+    } catch (error) {
+      console.warn('Kunne ikke markere invitationer som læst:', error)
+    }
+  }
+
+  const openNotifications = () => {
+    setShowNotifications((prev) => {
+      const next = !prev
+      if (!prev && next && unreadInviteCount > 0) {
+        void markInvitesAsSeen()
+      }
+      return next
+    })
+  }
 
   const [activeSelection, setActiveSelection] = useState<DiamondSelection>('discover')
   const phaseTools = VAERKTOEJER.filter((tool) => {
@@ -251,6 +311,64 @@ export default function DashboardClient() {
       <SiteNav
         rightSlot={
           <div className="flex items-center gap-3">
+            <div className="relative">
+              <button
+                type="button"
+                onClick={openNotifications}
+                className="relative inline-flex items-center justify-center w-10 h-10 rounded-xl border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition-colors"
+                title="Invitationer"
+                aria-label="Invitationer"
+              >
+                <span style={{ fontSize: 17, lineHeight: 1 }}>🔔</span>
+                {unreadInviteCount > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold leading-[18px] text-center">
+                    {unreadInviteCount > 9 ? '9+' : unreadInviteCount}
+                  </span>
+                )}
+              </button>
+              {showNotifications && (
+                <div className="absolute right-0 mt-2 w-80 rounded-2xl border border-gray-200 bg-white shadow-xl z-50 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                    <p className="text-sm font-semibold text-gray-900">Invitationer</p>
+                    <span className="text-xs text-gray-500">{inviteProjects.length}</span>
+                  </div>
+                  <div className="max-h-80 overflow-y-auto">
+                    {inviteProjects.length === 0 ? (
+                      <div className="px-4 py-6 text-sm text-gray-500">Ingen invitationer endnu.</div>
+                    ) : (
+                      inviteProjects.map((project) => {
+                        const isUnread = !project.readAt
+                        return (
+                          <Link
+                            key={project.id}
+                            href={`/dashboard/projects/${project.projectId}`}
+                            onClick={() => {
+                              void markInvitesAsSeen([project.id])
+                              setShowNotifications(false)
+                            }}
+                            className={`block px-4 py-3 border-b last:border-b-0 transition-colors ${
+                              isUnread ? 'bg-amber-50/60 hover:bg-amber-50' : 'bg-white hover:bg-gray-50'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                              <p className="text-sm font-medium text-gray-900 truncate">{project.projectName}</p>
+                                <p className="text-xs text-gray-600 mt-0.5">
+                                  {project.invitedByName} inviterede dig som {project.role === 'viewer' ? 'viewer' : 'editor'}.
+                                </p>
+                              </div>
+                              {isUnread && (
+                                <span className="mt-1 inline-block w-2.5 h-2.5 rounded-full bg-amber-500" />
+                              )}
+                            </div>
+                          </Link>
+                        )
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
             <Link href="/admin" className="text-sm text-gray-600 hover:text-gray-900 font-medium transition-colors">
               Analytics
             </Link>

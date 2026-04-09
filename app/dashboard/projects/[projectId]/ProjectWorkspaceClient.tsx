@@ -568,6 +568,21 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
             onClick={() => setActiveWorkspaceTab('docs')}
           >
             Docs
+            <span
+              style={{
+                marginLeft: 6,
+                padding: '1px 6px',
+                borderRadius: 999,
+                fontSize: 10,
+                fontWeight: 800,
+                letterSpacing: '0.02em',
+                background: activeWorkspaceTab === 'docs' ? 'rgba(255,255,255,0.2)' : '#FEF3C7',
+                color: activeWorkspaceTab === 'docs' ? '#FDE68A' : '#92400E',
+                border: activeWorkspaceTab === 'docs' ? '1px solid rgba(255,255,255,0.28)' : '1px solid #FCD34D',
+              }}
+            >
+              WIP
+            </span>
           </button>
           <button
             style={{
@@ -581,6 +596,21 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
             onClick={() => setActiveWorkspaceTab('slides')}
           >
             Slides
+            <span
+              style={{
+                marginLeft: 6,
+                padding: '1px 6px',
+                borderRadius: 999,
+                fontSize: 10,
+                fontWeight: 800,
+                letterSpacing: '0.02em',
+                background: activeWorkspaceTab === 'slides' ? 'rgba(255,255,255,0.2)' : '#FEF3C7',
+                color: activeWorkspaceTab === 'slides' ? '#FDE68A' : '#92400E',
+                border: activeWorkspaceTab === 'slides' ? '1px solid rgba(255,255,255,0.28)' : '1px solid #FCD34D',
+              }}
+            >
+              WIP
+            </span>
           </button>
           {activeWorkspaceTab === 'board' && (
             <>

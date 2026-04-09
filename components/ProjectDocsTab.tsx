@@ -1042,6 +1042,21 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>Projekt Docs</div>
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 800,
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase',
+                color: '#92400E',
+                background: '#FEF3C7',
+                border: '1px solid #FCD34D',
+                borderRadius: 999,
+                padding: '2px 8px',
+              }}
+            >
+              Beta / WIP
+            </span>
             <div style={{ position: 'relative' }}>
               <button
                 type="button"

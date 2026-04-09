@@ -132,3 +132,49 @@ export function renderUsernameRecoveryEmail(params: { username: string }) {
     `,
   })
 }
+
+export function renderProjectInvitationEmail(params: {
+  invitedByName: string
+  projectName: string
+  role: 'editor' | 'viewer'
+  projectUrl: string
+}) {
+  const safeUrl = escapeHtml(params.projectUrl)
+  const roleLabel = params.role === 'viewer' ? 'Viewer (læseadgang)' : 'Editor (kan redigere)'
+
+  return renderForgeLabEmail({
+    preheader: `Invitation til projektet ${params.projectName}`,
+    accentLabel: 'Projektsamarbejde',
+    title: 'Du er inviteret',
+    intro: `${params.invitedByName} har inviteret dig til et projekt i ForgeLab.`,
+    contentHtml: `
+      <div style="border:1px solid #d1d5db;background:#f9fafb;padding:12px 14px;margin:0 0 14px;">
+        <p style="margin:0;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:#6b7280;">
+          Projekt
+        </p>
+        <p style="margin:6px 0 0;font-size:24px;line-height:1.2;color:#111827;font-weight:800;letter-spacing:-0.01em;">
+          ${escapeHtml(params.projectName)}
+        </p>
+        <p style="margin:10px 0 0;font-size:13px;line-height:1.5;color:#374151;">
+          Rolle: <strong>${escapeHtml(roleLabel)}</strong>
+        </p>
+      </div>
+      <table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 0 18px;">
+        <tr>
+          <td style="background:linear-gradient(180deg,#1f2937 0%,#0f172a 100%);border-radius:14px;box-shadow:0 7px 16px rgba(15,23,42,0.18);">
+            <a href="${safeUrl}" style="display:inline-block;padding:12px 20px;color:#ffffff;text-decoration:none;font-size:14px;font-weight:800;letter-spacing:0.01em;">
+              Åbn projekt
+            </a>
+          </td>
+        </tr>
+      </table>
+      <p style="margin:0 0 10px;font-size:13px;line-height:1.55;color:#6b7280;">
+        Hvis knappen ikke virker, kopier dette link:
+      </p>
+      <p style="margin:0 0 16px;font-size:12px;line-height:1.6;color:#374151;word-break:break-all;">
+        ${safeUrl}
+      </p>
+    `,
+    outro: 'Hvis du ikke forventede invitationen, kan du ignorere mailen.',
+  })
+}

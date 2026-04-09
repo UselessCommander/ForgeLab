@@ -2,8 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUserId } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import { canViewProject, isProjectOwner } from '@/lib/project-access'
+import { sendEmail } from '@/lib/email'
+import { renderProjectInvitationEmail } from '@/lib/email-templates'
 
 type Role = 'owner' | 'editor' | 'viewer'
+
+function getBaseUrlFromRequest(request: NextRequest): string {
+  const fromEnv = process.env.BASE_URL?.trim()
+  if (fromEnv) return fromEnv
+  return request.nextUrl.origin
+}
 
 // GET /api/projects/[projectId]/members
 export async function GET(
@@ -105,12 +113,67 @@ export async function POST(
       return NextResponse.json({ error: 'Failed to add member' }, { status: 500 })
     }
 
+    const { error: inviteUpsertError } = await supabase
+      .from('project_invitations')
+      .upsert(
+        {
+          project_id: projectId,
+          invited_user_id: invitedUser.id,
+          invited_by_user_id: userId,
+          role,
+          invited_at: new Date().toISOString(),
+          read_at: null,
+          accepted_at: null,
+        },
+        { onConflict: 'project_id,invited_user_id' }
+      )
+
+    if (inviteUpsertError) {
+      console.error('Error creating/updating project invitation:', inviteUpsertError)
+    }
+
+    const [{ data: projectRow }, { data: inviterRow }] = await Promise.all([
+      supabase.from('projects').select('name').eq('id', projectId).single(),
+      supabase.from('users').select('username, email').eq('id', userId).single(),
+    ])
+
+    const projectName =
+      typeof projectRow?.name === 'string' && projectRow.name.trim() ? projectRow.name.trim() : 'Projekt'
+    const inviterName =
+      typeof inviterRow?.username === 'string' && inviterRow.username.trim()
+        ? inviterRow.username.trim()
+        : typeof inviterRow?.email === 'string' && inviterRow.email.trim()
+          ? inviterRow.email.trim()
+          : 'En kollega'
+
+    const projectUrl = `${getBaseUrlFromRequest(request)}/dashboard/projects/${projectId}`
+    let inviteEmailSent = false
+
+    if (invitedUser.email) {
+      try {
+        await sendEmail({
+          to: invitedUser.email,
+          subject: `Du er inviteret til projektet "${projectName}" i ForgeLab`,
+          html: renderProjectInvitationEmail({
+            invitedByName: inviterName,
+            projectName,
+            role: role === 'viewer' ? 'viewer' : 'editor',
+            projectUrl,
+          }),
+        })
+        inviteEmailSent = true
+      } catch (emailError) {
+        console.error('Failed to send project invite email:', emailError)
+      }
+    }
+
     return NextResponse.json({
       success: true,
       userId: invitedUser.id,
       username: invitedUser.username,
       email: invitedUser.email,
       role,
+      inviteEmailSent,
     })
   } catch (error) {
     console.error('Error in POST /api/projects/[projectId]/members:', error)
