@@ -392,16 +392,30 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     }
   }
 
+  const syncProjectLight = useCallback(async () => {
+    const p = await getProject(projectId).catch(() => null)
+    if (!p) return
+    setProject(p)
+    setIsOffline(false)
+    if (p.ddCanvasLayout) {
+      const pos: Record<string, CardPosition> = {}
+      Object.entries(p.ddCanvasLayout).forEach(([slug, { x, y }]) => {
+        pos[slug] = { x: x * 1600, y: y * 900 }
+      })
+      setCardPositions(pos)
+    }
+  }, [projectId])
+
   useEffect(() => {
     const onReloadProjectTools = () => {
-      void loadProject()
+      void syncProjectLight()
     }
     window.addEventListener('forgelab-reload-project-tools', onReloadProjectTools)
     return () => {
       window.removeEventListener('forgelab-reload-project-tools', onReloadProjectTools)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId])
+  }, [projectId, syncProjectLight])
 
   const defaultPos = useCallback(
     (slug: string, idx: number): CardPosition => {
@@ -784,7 +798,11 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     try {
       setModifying(true)
       await addToolToProject(projectId, toolId)
-      await loadProject()
+      setProject(prev => {
+        if (!prev) return prev
+        if (prev.toolIds.includes(toolId)) return prev
+        return { ...prev, toolIds: [...prev.toolIds, toolId] }
+      })
       setShowAddTool(false)
     } catch {
       alert('Kunne ikke tilføje værktøj. Prøv igen.')
@@ -805,8 +823,8 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     try {
       setModifying(true)
       await removeToolFromProject(projectId, toolId)
+      setProject(prev => prev ? { ...prev, toolIds: prev.toolIds.filter(id => id !== toolId) } : prev)
       setCardPositions(prev => { const n = { ...prev }; delete n[toolId]; return n })
-      await loadProject()
     } catch {
       alert('Kunne ikke fjerne værktøj. Prøv igen.')
     } finally {
@@ -823,7 +841,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     try {
       setModifying(true)
       await updateProject(projectId, { framework })
-      await loadProject()
+      setProject(prev => prev ? { ...prev, framework } : prev)
     } catch {
       alert('Kunne ikke opdatere framework. Prøv igen.')
     } finally {
