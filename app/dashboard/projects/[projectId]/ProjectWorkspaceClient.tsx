@@ -1314,9 +1314,49 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                 {hasKanbanTool && KanbanComponent ? (
                   <KanbanComponent />
                 ) : (
-                  <p style={{ margin: 12, fontSize: 13, color: '#6B7280' }}>
-                    Tilføj værktøjet <strong>Kanban</strong> for at arbejde her.
-                  </p>
+                  <div style={{ margin: 12, display: 'grid', gap: 10 }}>
+                    <p style={{ margin: 0, fontSize: 13, color: '#6B7280' }}>
+                      Tilføj værktøjet <strong>Kanban</strong> for at arbejde her.
+                    </p>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        disabled={!canEdit || modifying}
+                        onClick={() => {
+                          void handleAddTool('kanban')
+                        }}
+                        style={{
+                          border: 'none',
+                          borderRadius: 10,
+                          background: canEdit ? '#111827' : '#E5E7EB',
+                          color: canEdit ? '#FFFFFF' : '#9CA3AF',
+                          padding: '8px 11px',
+                          fontSize: 12,
+                          fontWeight: 700,
+                          cursor: canEdit ? 'pointer' : 'not-allowed',
+                        }}
+                      >
+                        + Tilføj Kanban
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!canEdit}
+                        onClick={() => setShowAddTool(true)}
+                        style={{
+                          border: '1px solid #D1D5DB',
+                          borderRadius: 10,
+                          background: '#FFFFFF',
+                          color: canEdit ? '#374151' : '#9CA3AF',
+                          padding: '8px 11px',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: canEdit ? 'pointer' : 'not-allowed',
+                        }}
+                      >
+                        Åbn værktøjsvælger
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
@@ -1329,9 +1369,49 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                 {hasGanttTool && GanttComponent ? (
                   <GanttComponent />
                 ) : (
-                  <p style={{ margin: 12, fontSize: 13, color: '#6B7280' }}>
-                    Tilføj værktøjet <strong>Gantt</strong> for at arbejde her.
-                  </p>
+                  <div style={{ margin: 12, display: 'grid', gap: 10 }}>
+                    <p style={{ margin: 0, fontSize: 13, color: '#6B7280' }}>
+                      Tilføj værktøjet <strong>Gantt</strong> for at arbejde her.
+                    </p>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        disabled={!canEdit || modifying}
+                        onClick={() => {
+                          void handleAddTool('gantt-chart')
+                        }}
+                        style={{
+                          border: 'none',
+                          borderRadius: 10,
+                          background: canEdit ? '#111827' : '#E5E7EB',
+                          color: canEdit ? '#FFFFFF' : '#9CA3AF',
+                          padding: '8px 11px',
+                          fontSize: 12,
+                          fontWeight: 700,
+                          cursor: canEdit ? 'pointer' : 'not-allowed',
+                        }}
+                      >
+                        + Tilføj Gantt
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!canEdit}
+                        onClick={() => setShowAddTool(true)}
+                        style={{
+                          border: '1px solid #D1D5DB',
+                          borderRadius: 10,
+                          background: '#FFFFFF',
+                          color: canEdit ? '#374151' : '#9CA3AF',
+                          padding: '8px 11px',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: canEdit ? 'pointer' : 'not-allowed',
+                        }}
+                      >
+                        Åbn værktøjsvælger
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
