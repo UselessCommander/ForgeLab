@@ -5,6 +5,7 @@ import { GripVertical } from 'lucide-react'
 import ToolLayout from '@/components/ToolLayout'
 import { useProjectToolData } from '@/lib/useProjectToolData'
 import { getProjectToolData } from '@/lib/projects'
+import { deleteEmptyFieldRow } from '@/lib/deleteRowKeyboard'
 
 type JourneyCardType = 'actions' | 'pains' | 'gains' | 'needs'
 
@@ -741,6 +742,11 @@ export default function BrugerrejsePage() {
                       <input
                         value={phase.label}
                         onChange={(e) => updatePhaseLabel(phase.id, e.target.value)}
+                        onKeyDown={(e) =>
+                          deleteEmptyFieldRow(e, phase.label, data.phases.length > 1, () =>
+                            removePhase(phase.id)
+                          )
+                        }
                         placeholder="Fasenavn"
                         className={`min-w-0 flex-1 rounded-lg border border-white/60 bg-white/85 px-2 py-1.5 text-xs font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-300 ${surface.text}`}
                       />
@@ -750,15 +756,6 @@ export default function BrugerrejsePage() {
                         className="shrink-0 rounded-md border border-white/70 bg-white/90 px-2 py-1 text-[10px] font-semibold text-gray-800 hover:bg-white"
                       >
                         + Trin
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => removePhase(phase.id)}
-                        disabled={data.phases.length <= 1}
-                        className="shrink-0 rounded-md px-1.5 py-0.5 text-xs text-gray-500 hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
-                        title={data.phases.length <= 1 ? 'Mindst én fase kræves' : 'Slet fase'}
-                      >
-                        ×
                       </button>
                     </div>
                   </div>
@@ -842,17 +839,12 @@ export default function BrugerrejsePage() {
                               <input
                                 value={step.stepName}
                                 onChange={(e) => updateStepName(step.id, e.target.value)}
+                                onKeyDown={(e) =>
+                                  deleteEmptyFieldRow(e, step.stepName, true, () => removeStep(step.id))
+                                }
                                 placeholder={`Trin ${globalIdx + 1}`}
                                 className="min-w-0 flex-1 rounded-xl border border-gray-200 bg-white px-2 py-1.5 text-sm font-medium text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-300"
                               />
-                              <button
-                                type="button"
-                                onClick={() => removeStep(step.id)}
-                                className="rounded-md border border-red-100 px-1.5 py-0.5 text-[10px] text-red-600 hover:bg-red-50"
-                                title="Slet trin"
-                              >
-                                ×
-                              </button>
                             </div>
                           </div>
                         </div>
@@ -1034,21 +1026,21 @@ export default function BrugerrejsePage() {
                                 key={card.id}
                                 className="relative rounded-lg border border-white bg-white p-2 shadow-sm"
                               >
-                                <button
-                                  type="button"
-                                  onClick={() => removeCard(step.id, section.key, card.id)}
-                                  className="absolute right-1.5 top-1.5 rounded-md px-1 text-xs text-gray-400 hover:bg-red-50 hover:text-red-600"
-                                  aria-label="Slet kort"
-                                >
-                                  ×
-                                </button>
                                 <input
                                   value={card.text}
                                   onChange={(e) =>
                                     updateCard(step.id, section.key, card.id, { text: e.target.value })
                                   }
+                                  onKeyDown={(e) =>
+                                    deleteEmptyFieldRow(
+                                      e,
+                                      card.text,
+                                      step.cards[section.key].length > 1,
+                                      () => removeCard(step.id, section.key, card.id)
+                                    )
+                                  }
                                   placeholder="Skriv note..."
-                                  className={`mb-2 w-full rounded-md border border-gray-100 bg-white px-2 py-1.5 pr-6 text-xs leading-snug text-gray-800 focus:outline-none focus:ring-2 ${section.ring}`}
+                                  className={`mb-2 w-full rounded-md border border-gray-100 bg-white px-2 py-1.5 text-xs leading-snug text-gray-800 focus:outline-none focus:ring-2 ${section.ring}`}
                                 />
                                 <div className="flex flex-col gap-1">
                                   <div className="flex items-center gap-2">

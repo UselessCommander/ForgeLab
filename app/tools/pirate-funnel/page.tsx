@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState, type SetStateAction } from 'react'
 import ToolLayout from '@/components/ToolLayout'
 import { useProjectToolData } from '@/lib/useProjectToolData'
+import { deleteEmptyFieldRow } from '@/lib/deleteRowKeyboard'
 
 type StageId = 'acquisition' | 'activation' | 'retention' | 'revenue' | 'referral'
 
@@ -387,17 +388,14 @@ export default function PirateFunnelPage() {
                               <input
                                 value={a.text}
                                 onChange={(e) => updateAction(stage.id, a.id, { text: e.target.value })}
+                                onKeyDown={(e) =>
+                                  deleteEmptyFieldRow(e, a.text, stage.actions.length > 1, () =>
+                                    removeAction(stage.id, a.id)
+                                  )
+                                }
                                 className="min-w-0 flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300"
                                 placeholder="Fx: Opdater onboarding-flow for at øge Activation rate"
                               />
-                              <button
-                                type="button"
-                                onClick={() => removeAction(stage.id, a.id)}
-                                className="shrink-0 rounded-md border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
-                                title="Slet action"
-                              >
-                                Slet
-                              </button>
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import ToolLayout from '@/components/ToolLayout'
 import { useProjectToolData } from '@/lib/useProjectToolData'
+import { deleteEmptyFieldRow } from '@/lib/deleteRowKeyboard'
 
 type ScamperData = {
   substitute: string[]
@@ -154,16 +155,6 @@ export default function ScamperPage() {
                         key={`${section.key}-${index}`}
                         className="relative rounded-xl border border-gray-200 bg-gray-50/70 p-3.5"
                       >
-                        {data[section.key].length > 1 ? (
-                          <button
-                            type="button"
-                            onClick={() => removeItem(section.key, index)}
-                            className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-md text-sm font-semibold text-gray-400 hover:bg-red-50 hover:text-red-600"
-                            aria-label={`Slet idé ${index + 1}`}
-                          >
-                            ×
-                          </button>
-                        ) : null}
                         <div className="mb-2.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
                           Idé {index + 1}
                         </div>
@@ -171,6 +162,11 @@ export default function ScamperPage() {
                           <input
                             value={item}
                             onChange={(e) => updateItem(section.key, index, e.target.value)}
+                            onKeyDown={(e) =>
+                              deleteEmptyFieldRow(e, item, data[section.key].length > 1, () =>
+                                removeItem(section.key, index)
+                              )
+                            }
                             placeholder="Skriv idé..."
                             className="w-full rounded-md border border-gray-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300"
                           />

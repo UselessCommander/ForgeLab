@@ -2,6 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { getProjectToolData, saveProjectToolData } from '@/lib/projects'
+import {
+  buildRemoteTextPresenceLayers,
+  getSelectionOffsetsInContentEditable,
+  type RemoteTextPresenceLayer,
+} from '@/lib/projectEditorPresence'
 import { supabase } from '@/lib/supabase'
 import * as Y from 'yjs'
 
@@ -63,7 +68,7 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
   const [loaded, setLoaded] = useState(false)
   const [saving, setSaving] = useState(false)
   const [onlineCount, setOnlineCount] = useState(1)
-  const [remoteCursors, setRemoteCursors] = useState<Array<{ id: string; label: string; color: string; left: number; top: number }>>([])
+  const [remotePresenceLayers, setRemotePresenceLayers] = useState<RemoteTextPresenceLayer[]>([])
   const [syncInfo, setSyncInfo] = useState<string>('Forbinder…')
   const [fontName, setFontName] = useState('Georgia')
   const [fontSize, setFontSize] = useState('4')
@@ -105,6 +110,7 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
   const clientPresenceIdRef = useRef(`docs-${Math.random().toString(36).slice(2, 8)}`)
   const presenceThrottleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastPresencePayloadRef = useRef<string>('')
+  const schedulePresencePublishRef = useRef<() => void>(() => {})
 
   const normalizeDoc = (input: any): ProjectDocData => {
     const pages = Array.isArray(input?.pages)
@@ -163,52 +169,8 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
 
   const getSelectionOffsetsInEditor = () => {
     const editor = editorRef.current
-    const selection = window.getSelection()
-    if (!editor || !selection || selection.rangeCount === 0) return null
-    const range = selection.getRangeAt(0)
-    if (!editor.contains(range.startContainer) || !editor.contains(range.endContainer)) return null
-
-    const preStart = document.createRange()
-    preStart.setStart(editor, 0)
-    preStart.setEnd(range.startContainer, range.startOffset)
-
-    const preEnd = document.createRange()
-    preEnd.setStart(editor, 0)
-    preEnd.setEnd(range.endContainer, range.endOffset)
-
-    return {
-      selectionStart: preStart.toString().length,
-      selectionEnd: preEnd.toString().length,
-    }
-  }
-
-  const createRangeFromOffsets = (root: Node, start: number, end: number) => {
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
-    let currentOffset = 0
-    let startNode: Node | null = null
-    let endNode: Node | null = null
-    let startOffsetInNode = 0
-    let endOffsetInNode = 0
-    while (walker.nextNode()) {
-      const node = walker.currentNode
-      const len = node.textContent?.length || 0
-      const nextOffset = currentOffset + len
-      if (!startNode && start <= nextOffset) {
-        startNode = node
-        startOffsetInNode = Math.max(0, start - currentOffset)
-      }
-      if (!endNode && end <= nextOffset) {
-        endNode = node
-        endOffsetInNode = Math.max(0, end - currentOffset)
-      }
-      currentOffset = nextOffset
-      if (startNode && endNode) break
-    }
-    if (!startNode || !endNode) return null
-    const range = document.createRange()
-    range.setStart(startNode, startOffsetInNode)
-    range.setEnd(endNode, endOffsetInNode)
-    return range
+    if (!editor) return null
+    return getSelectionOffsetsInContentEditable(editor)
   }
 
   const publishPresence = () => {
@@ -232,39 +194,22 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
     if (presenceThrottleTimerRef.current) clearTimeout(presenceThrottleTimerRef.current)
     presenceThrottleTimerRef.current = setTimeout(() => {
       publishPresence()
-    }, 60)
+    }, 48)
   }
+
+  schedulePresencePublishRef.current = schedulePresencePublish
 
   const updateRenderedRemoteCursors = (presenceState?: Record<string, any[]>) => {
     const editor = editorRef.current
     if (!editor || !doc.activePageId) return
     const state = presenceState || (channelRef.current?.presenceState?.() as Record<string, any[]>) || {}
-    const editorRect = editor.getBoundingClientRect()
-    const next: Array<{ id: string; label: string; color: string; left: number; top: number }> = []
-
-    for (const [key, entries] of Object.entries(state)) {
-      const data = Array.isArray(entries) && entries.length > 0 ? entries[entries.length - 1] : null
-      if (!data) continue
-      if (data.userId === clientPresenceIdRef.current || key === clientPresenceIdRef.current) continue
-      if (data.pageId !== doc.activePageId) continue
-      if (typeof data.selectionStart !== 'number' || typeof data.selectionEnd !== 'number') continue
-
-      const end = Math.max(data.selectionStart, data.selectionEnd)
-      const range = createRangeFromOffsets(editor, end, end)
-      if (!range) continue
-      const rect = range.getClientRects()[0] || range.getBoundingClientRect()
-      if (!rect || (!rect.left && !rect.top && !rect.width && !rect.height)) continue
-
-      next.push({
-        id: data.userId || key,
-        label: String(data.userId || key).slice(-6),
-        color: data.color || colorForUserId(String(data.userId || key)),
-        left: rect.left - editorRect.left,
-        top: rect.top - editorRect.top,
-      })
-    }
-
-    setRemoteCursors(next)
+    const next = buildRemoteTextPresenceLayers(editor, state, {
+      selfUserId: clientPresenceIdRef.current,
+      docId: doc.activePageId,
+      docKey: 'pageId',
+      colorForUser: colorForUserId,
+    })
+    setRemotePresenceLayers(next)
   }
 
   const calculateOnlineCount = (presenceState?: Record<string, any[]>) => {
@@ -1075,6 +1020,22 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doc.activePageId, activePage?.html])
 
+  // Broadcast caret position while typing / selecting so remote users see live cursors.
+  useEffect(() => {
+    if (!canEdit) return
+    const onSelectionChange = () => {
+      if (isUnmountedRef.current) return
+      const editor = editorRef.current
+      const sel = window.getSelection()
+      if (!editor || !sel || sel.rangeCount === 0) return
+      const node = sel.anchorNode
+      if (!node || !editor.contains(node)) return
+      schedulePresencePublishRef.current()
+    }
+    document.addEventListener('selectionchange', onSelectionChange)
+    return () => document.removeEventListener('selectionchange', onSelectionChange)
+  }, [canEdit])
+
   const toolbarButtonStyle: React.CSSProperties = {
     border: '1px solid #D1D5DB',
     background: '#fff',
@@ -1527,6 +1488,17 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
                     <button
                       type="button"
                       onClick={() => setActivePage(page.id)}
+                      onKeyDown={e => {
+                        if (!canEdit || doc.pages.length <= 1) return
+                        if (e.key !== 'Delete' && e.key !== 'Backspace') return
+                        e.preventDefault()
+                        removePage(page.id)
+                      }}
+                      title={
+                        canEdit && doc.pages.length > 1
+                          ? 'Vælg fane · Delete eller Backspace sletter fanen'
+                          : undefined
+                      }
                       style={{
                         border: 'none',
                         background: 'transparent',
@@ -1542,23 +1514,6 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
                     >
                       {page.title}
                     </button>
-                    {canEdit && doc.pages.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removePage(page.id)}
-                        style={{
-                          border: 'none',
-                          background: 'transparent',
-                          color: '#EF4444',
-                          cursor: 'pointer',
-                          fontSize: 14,
-                          lineHeight: 1,
-                        }}
-                        title="Slet fane"
-                      >
-                        ×
-                      </button>
-                    )}
                   </div>
                 )
               })}
@@ -1719,7 +1674,10 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
                     ref={editorRef}
                     contentEditable={canEdit}
                     suppressContentEditableWarning
-                    onInput={e => handleContentChange((e.target as HTMLDivElement).innerHTML)}
+                    onInput={e => {
+                      handleContentChange((e.target as HTMLDivElement).innerHTML)
+                      schedulePresencePublish()
+                    }}
                     onMouseUp={rememberSelection}
                     onKeyUp={rememberSelection}
                     onBlur={rememberSelection}
@@ -1766,31 +1724,56 @@ export default function ProjectDocsTab({ projectId, canEdit }: ProjectDocsTabPro
                       </div>
                     </div>
                   )}
-                  {remoteCursors.map(cursor => (
+                  {remotePresenceLayers.map(layer => (
                     <div
-                      key={cursor.id}
+                      key={layer.id}
                       style={{
                         position: 'absolute',
-                        left: cursor.left,
-                        top: cursor.top,
+                        left: 0,
+                        top: 0,
+                        right: 0,
+                        bottom: 0,
                         pointerEvents: 'none',
                         zIndex: 30,
                       }}
                     >
-                      <div style={{ width: 2, height: 18, background: cursor.color, borderRadius: 2 }} />
+                      {layer.highlights.map((h, i) => (
+                        <div
+                          key={`${layer.id}-sel-${i}`}
+                          style={{
+                            position: 'absolute',
+                            left: h.left,
+                            top: h.top,
+                            width: h.width,
+                            height: h.height,
+                            background: `${layer.color}44`,
+                            borderRadius: 3,
+                            boxShadow: `inset 0 0 0 1px ${layer.color}66`,
+                          }}
+                        />
+                      ))}
                       <div
                         style={{
-                          marginTop: 2,
-                          background: cursor.color,
-                          color: '#fff',
-                          fontSize: 10,
-                          fontWeight: 700,
-                          borderRadius: 6,
-                          padding: '2px 6px',
-                          whiteSpace: 'nowrap',
+                          position: 'absolute',
+                          left: layer.caretLeft,
+                          top: layer.caretTop,
                         }}
                       >
-                        {cursor.label}
+                        <div style={{ width: 2, height: 18, background: layer.color, borderRadius: 2 }} />
+                        <div
+                          style={{
+                            marginTop: 2,
+                            background: layer.color,
+                            color: '#fff',
+                            fontSize: 10,
+                            fontWeight: 700,
+                            borderRadius: 6,
+                            padding: '2px 6px',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {layer.label}
+                        </div>
                       </div>
                     </div>
                   ))}

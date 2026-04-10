@@ -3,6 +3,7 @@
 import { useState, Suspense } from 'react'
 import ToolLayout from '@/components/ToolLayout'
 import { useProjectToolData } from '@/lib/useProjectToolData'
+import { deleteEmptyFieldRow } from '@/lib/deleteRowKeyboard'
 
 function SWOTContent() {
   const [swot, setSwot] = useState({
@@ -53,18 +54,15 @@ function SWOTContent() {
                     <textarea
                       value={item}
                       onChange={(e) => updateField('strengths', index, e.target.value)}
+                      onKeyDown={(e) =>
+                        deleteEmptyFieldRow(e, item, swot.strengths.length > 1, () =>
+                          removeItem('strengths', index)
+                        )
+                      }
                       placeholder="Tilføj styrke..."
                       rows={2}
                       className="flex-1 px-3 py-2 rounded border border-gray-300 bg-white text-sm resize-none focus:outline-none focus:border-green-600"
                     />
-                    {swot.strengths.length > 1 && (
-                      <button
-                        onClick={() => removeItem('strengths', index)}
-                        className="px-2 py-1 bg-red-100 text-red-700 rounded text-sm hover:bg-red-200"
-                      >
-                        ×
-                      </button>
-                    )}
                   </div>
                 ))}
                 <button
@@ -87,18 +85,15 @@ function SWOTContent() {
                     <textarea
                       value={item}
                       onChange={(e) => updateField('weaknesses', index, e.target.value)}
+                      onKeyDown={(e) =>
+                        deleteEmptyFieldRow(e, item, swot.weaknesses.length > 1, () =>
+                          removeItem('weaknesses', index)
+                        )
+                      }
                       placeholder="Tilføj svaghed..."
                       rows={2}
                       className="flex-1 px-3 py-2 rounded border border-gray-300 bg-white text-sm resize-none focus:outline-none focus:border-red-600"
                     />
-                    {swot.weaknesses.length > 1 && (
-                      <button
-                        onClick={() => removeItem('weaknesses', index)}
-                        className="px-2 py-1 bg-red-100 text-red-700 rounded text-sm hover:bg-red-200"
-                      >
-                        ×
-                      </button>
-                    )}
                   </div>
                 ))}
                 <button
@@ -121,18 +116,15 @@ function SWOTContent() {
                     <textarea
                       value={item}
                       onChange={(e) => updateField('opportunities', index, e.target.value)}
+                      onKeyDown={(e) =>
+                        deleteEmptyFieldRow(e, item, swot.opportunities.length > 1, () =>
+                          removeItem('opportunities', index)
+                        )
+                      }
                       placeholder="Tilføj mulighed..."
                       rows={2}
                       className="flex-1 px-3 py-2 rounded border border-gray-300 bg-white text-sm resize-none focus:outline-none focus:border-blue-600"
                     />
-                    {swot.opportunities.length > 1 && (
-                      <button
-                        onClick={() => removeItem('opportunities', index)}
-                        className="px-2 py-1 bg-red-100 text-red-700 rounded text-sm hover:bg-red-200"
-                      >
-                        ×
-                      </button>
-                    )}
                   </div>
                 ))}
                 <button
@@ -155,18 +147,15 @@ function SWOTContent() {
                     <textarea
                       value={item}
                       onChange={(e) => updateField('threats', index, e.target.value)}
+                      onKeyDown={(e) =>
+                        deleteEmptyFieldRow(e, item, swot.threats.length > 1, () =>
+                          removeItem('threats', index)
+                        )
+                      }
                       placeholder="Tilføj trussel..."
                       rows={2}
                       className="flex-1 px-3 py-2 rounded border border-gray-300 bg-white text-sm resize-none focus:outline-none focus:border-orange-600"
                     />
-                    {swot.threats.length > 1 && (
-                      <button
-                        onClick={() => removeItem('threats', index)}
-                        className="px-2 py-1 bg-red-100 text-red-700 rounded text-sm hover:bg-red-200"
-                      >
-                        ×
-                      </button>
-                    )}
                   </div>
                 ))}
                 <button

@@ -99,11 +99,13 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { name, description = '' } = body
+    const { name, description = '', framework: frameworkRaw } = body
 
     if (!name || typeof name !== 'string' || !name.trim()) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 })
     }
+
+    const framework = normalizeFramework(frameworkRaw)
 
     const { data: project, error } = await supabase
       .from('projects')
@@ -111,7 +113,7 @@ export async function POST(request: NextRequest) {
         user_id: userId,
         name: name.trim(),
         description: description.trim() || '',
-        framework: 'none',
+        framework,
       })
       .select()
       .single()

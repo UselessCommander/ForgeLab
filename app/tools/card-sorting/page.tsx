@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import ForgeLabLogo from '@/components/ForgeLabLogo'
 import { useProjectToolData } from '@/lib/useProjectToolData'
+import { deleteEmptyFieldRow } from '@/lib/deleteRowKeyboard'
 
 type SortingMode = 'open' | 'closed' | 'hybrid'
 
@@ -221,18 +222,13 @@ export default function CardSorting() {
                         type="text"
                         value={card.text}
                         onChange={(e) => updateCard(card.id, e.target.value)}
+                        onKeyDown={(e) =>
+                          deleteEmptyFieldRow(e, card.text, cards.length > 1, () => deleteCard(card.id))
+                        }
                         placeholder="Kort tekst..."
                         className="flex-1 px-2 py-1 text-sm rounded border border-gray-300 bg-white focus:outline-none focus:border-gray-900"
                         onClick={(e) => e.stopPropagation()}
                       />
-                      {cards.length > 1 && (
-                        <button
-                          onClick={() => deleteCard(card.id)}
-                          className="px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 text-sm"
-                        >
-                          ×
-                        </button>
-                      )}
                     </div>
                     <div className="text-xs text-gray-500 mt-1">
                       Træk til kategori
@@ -286,17 +282,14 @@ export default function CardSorting() {
                             type="text"
                             value={category.name}
                             onChange={(e) => updateCategoryName(category.id, e.target.value)}
+                            onKeyDown={(e) =>
+                              deleteEmptyFieldRow(e, category.name, categories.length > 1, () =>
+                                deleteCategory(category.id)
+                              )
+                            }
                             placeholder="Kategori navn..."
                             className="w-full px-3 py-2 text-sm font-semibold rounded border border-gray-300 bg-white focus:outline-none focus:border-gray-900"
                           />
-                        )}
-                        {(mode === 'open' || mode === 'hybrid') && categories.length > 1 && (
-                          <button
-                            onClick={() => deleteCategory(category.id)}
-                            className="mt-1 text-xs text-red-600 hover:text-red-800"
-                          >
-                            Slet kategori
-                          </button>
                         )}
                       </div>
                       
@@ -309,15 +302,15 @@ export default function CardSorting() {
                           categoryCards.map((card) => (
                             <div
                               key={card.id}
-                              className="p-2 bg-white border border-gray-300 rounded flex justify-between items-center"
+                              tabIndex={0}
+                              onKeyDown={(e) => {
+                                if (e.key !== 'Delete' && e.key !== 'Backspace') return
+                                e.preventDefault()
+                                removeCardFromCategory(category.id, card.id)
+                              }}
+                              className="p-2 bg-white border border-gray-300 rounded flex items-center outline-none focus:ring-2 focus:ring-gray-400"
                             >
                               <span className="text-sm text-gray-900">{card.text || 'Unavngiven kort'}</span>
-                              <button
-                                onClick={() => removeCardFromCategory(category.id, card.id)}
-                                className="text-red-500 hover:text-red-700 text-sm"
-                              >
-                                ×
-                              </button>
                             </div>
                           ))
                         )}

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import ToolLayout from '@/components/ToolLayout'
 import { useProjectToolData } from '@/lib/useProjectToolData'
+import { deleteEmptyFieldRow } from '@/lib/deleteRowKeyboard'
 
 type AffinityNote = {
   id: string
@@ -165,6 +166,11 @@ function AffinityDiagramContent() {
               <textarea
                 value={note.text}
                 onChange={(e) => updateUngroupedNote(note.id, e.target.value)}
+                onKeyDown={(e) =>
+                  deleteEmptyFieldRow(e, note.text, data.ungrouped.length > 1, () =>
+                    removeUngroupedNote(note.id)
+                  )
+                }
                 placeholder="Skriv note..."
                 className="w-full min-h-[90px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-300"
               />
@@ -179,13 +185,6 @@ function AffinityDiagramContent() {
                     + {group.title || 'Tema'}
                   </button>
                 ))}
-                <button
-                  type="button"
-                  onClick={() => removeUngroupedNote(note.id)}
-                  className="ml-auto text-xs px-2 py-1 rounded-md border border-red-200 text-red-600 hover:bg-red-50"
-                >
-                  Slet
-                </button>
               </div>
             </div>
           ))}
@@ -210,16 +209,12 @@ function AffinityDiagramContent() {
                 <input
                   value={group.title}
                   onChange={(e) => updateGroupTitle(group.id, e.target.value)}
+                  onKeyDown={(e) =>
+                    deleteEmptyFieldRow(e, group.title, data.groups.length > 1, () => removeGroup(group.id))
+                  }
                   placeholder="Tema-navn"
                   className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-300"
                 />
-                <button
-                  type="button"
-                  onClick={() => removeGroup(group.id)}
-                  className="px-2 py-1.5 text-xs rounded-md border border-red-200 text-red-600 hover:bg-red-50"
-                >
-                  Slet
-                </button>
               </div>
               <div className="space-y-2">
                 {group.notes.map((note) => (
@@ -227,6 +222,11 @@ function AffinityDiagramContent() {
                     <textarea
                       value={note.text}
                       onChange={(e) => updateGroupNote(group.id, note.id, e.target.value)}
+                      onKeyDown={(e) =>
+                        deleteEmptyFieldRow(e, note.text, group.notes.length > 1, () =>
+                          removeGroupNote(group.id, note.id)
+                        )
+                      }
                       placeholder="Skriv note..."
                       className="w-full min-h-[80px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-300"
                     />
@@ -237,13 +237,6 @@ function AffinityDiagramContent() {
                         className="text-xs px-2 py-1 rounded-md border border-gray-200 text-gray-600 hover:bg-white"
                       >
                         Til rå noter
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => removeGroupNote(group.id, note.id)}
-                        className="text-xs px-2 py-1 rounded-md border border-red-200 text-red-600 hover:bg-red-50"
-                      >
-                        Slet
                       </button>
                     </div>
                   </div>

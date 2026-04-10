@@ -53,14 +53,22 @@ export async function getProjects(): Promise<Project[]> {
 }
 
 // POST /api/projects - Create a new project
-export async function createProject(name: string, description: string = ''): Promise<Project> {
+export async function createProject(
+  name: string,
+  description: string = '',
+  options?: { framework?: FrameworkId }
+): Promise<Project> {
   const response = await fetch('/api/projects', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
     credentials: 'include',
-    body: JSON.stringify({ name, description }),
+    body: JSON.stringify({
+      name,
+      description,
+      ...(options?.framework !== undefined ? { framework: options.framework } : {}),
+    }),
   })
 
   if (!response.ok) {

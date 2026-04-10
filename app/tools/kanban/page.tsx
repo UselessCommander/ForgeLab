@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import ToolLayout from '@/components/ToolLayout'
 import { useProjectToolData } from '@/lib/useProjectToolData'
+import { deleteEmptyFieldRow } from '@/lib/deleteRowKeyboard'
 import { addToolToProject, getProjectMembers, type ProjectMember } from '@/lib/projects'
 import { VAERKTOEJER } from '@/lib/vaerktoejer-data'
 
@@ -342,6 +343,9 @@ export default function KanbanPage() {
                     suppressHydrationWarning
                     value={task.title}
                     onChange={(e) => updateTask(column.id, task.id, { title: e.target.value })}
+                    onKeyDown={(e) =>
+                      deleteEmptyFieldRow(e, task.title, true, () => removeTask(column.id, task.id))
+                    }
                     placeholder="Opgavetitel"
                     className="mb-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300"
                   />
@@ -423,15 +427,6 @@ export default function KanbanPage() {
                     </div>
                   )}
 
-                  <div className="flex items-center justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => removeTask(column.id, task.id)}
-                      className="rounded-lg border border-red-200 px-2 py-2 text-xs text-red-600 hover:bg-red-50"
-                    >
-                      Slet
-                    </button>
-                  </div>
                   {dropTarget?.toId === column.id && dropTarget.index === taskIndex + 1 ? (
                     <div className="mt-2 h-1 w-full rounded-full bg-amber-400/90" />
                   ) : null}

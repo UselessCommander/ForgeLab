@@ -3,6 +3,7 @@
 import { type ChangeEvent, useEffect, useState } from 'react'
 import ToolLayout from '@/components/ToolLayout'
 import { useProjectToolData } from '@/lib/useProjectToolData'
+import { deleteEmptyFieldRow } from '@/lib/deleteRowKeyboard'
 
 type PersonaSection = {
   id: string
@@ -260,16 +261,14 @@ export default function PersonaCanvasPage() {
                 <input
                   value={section.title}
                   onChange={(e) => updateSectionTitle(section.id, e.target.value)}
+                  onKeyDown={(e) =>
+                    deleteEmptyFieldRow(e, section.title, data.sections.length > 1, () =>
+                      removeSection(section.id)
+                    )
+                  }
                   className="flex-1 text-base font-semibold text-gray-900 bg-transparent border-b border-transparent focus:border-amber-300 focus:outline-none"
                   placeholder="Sektionstitel"
                 />
-                <button
-                  type="button"
-                  onClick={() => removeSection(section.id)}
-                  className="px-2 py-1 text-xs rounded-md border border-red-200 text-red-600 hover:bg-red-50"
-                >
-                  Slet
-                </button>
               </div>
               <div className="space-y-2">
                 {section.items.map((item, index) => (
@@ -277,19 +276,15 @@ export default function PersonaCanvasPage() {
                     <textarea
                       value={item}
                       onChange={(e) => updateListItem(section.id, index, e.target.value)}
+                      onKeyDown={(e) =>
+                        deleteEmptyFieldRow(e, item, section.items.length > 1, () =>
+                          removeListItem(section.id, index)
+                        )
+                      }
                       placeholder="Skriv indhold..."
                       rows={2}
                       className="flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300"
                     />
-                    {section.items.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removeListItem(section.id, index)}
-                        className="px-2 py-1 text-xs rounded-md border border-red-200 text-red-600 hover:bg-red-50"
-                      >
-                        Slet
-                      </button>
-                    )}
                   </div>
                 ))}
               </div>

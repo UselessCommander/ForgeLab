@@ -2,6 +2,7 @@
 
 // @ts-nocheck
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
+import { Sparkles, ChevronDown } from 'lucide-react'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
 import { getProjectToolData } from '@/lib/projects'
@@ -50,6 +51,7 @@ export default function AiChatCompanion({
   const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
 
   const [isOpen, setIsOpen] = useState(false)
+  const [fabPressed, setFabPressed] = useState(false)
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [selectedProvider, setSelectedProvider] = useState<string>('auto')
@@ -831,6 +833,89 @@ export default function AiChatCompanion({
 
   return (
     <>
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
+@keyframes forgeAiFabRing {
+  0%, 100% { opacity: 0.35; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(1.1); }
+}
+@keyframes forgeAiFabPress {
+  0% { transform: scale(1) rotate(0deg); }
+  35% { transform: scale(0.86) rotate(-14deg); }
+  65% { transform: scale(1.08) rotate(8deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+.forge-ai-fab-wrap { position: relative; width: 62px; height: 62px; flex-shrink: 0; }
+.forge-ai-fab-ring {
+  position: absolute; inset: -5px; border-radius: 9999px;
+  border: 2px solid rgba(196, 181, 253, 0.65);
+  animation: forgeAiFabRing 2.4s ease-in-out infinite;
+  pointer-events: none;
+}
+.forge-ai-fab-wrap.is-open .forge-ai-fab-ring { animation: none; opacity: 0.25; transform: scale(1); }
+.forge-ai-fab-btn {
+  position: relative; z-index: 1;
+  width: 58px; height: 58px; border-radius: 18px;
+  background: linear-gradient(145deg, #ddd6fe 0%, #7c3aed 45%, #4c1d95 100%);
+  color: #fff; border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow:
+    0 12px 32px rgba(76, 29, 149, 0.42),
+    0 0 0 1px rgba(255,255,255,0.22) inset,
+    0 -2px 12px rgba(255,255,255,0.12) inset;
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
+}
+.forge-ai-fab-btn:hover {
+  transform: scale(1.06);
+  box-shadow:
+    0 14px 36px rgba(76, 29, 149, 0.48),
+    0 0 0 1px rgba(255,255,255,0.3) inset,
+    0 -2px 14px rgba(255,255,255,0.16) inset;
+}
+.forge-ai-fab-btn.pressing { animation: forgeAiFabPress 0.48s cubic-bezier(0.34, 1.45, 0.64, 1) both; }
+.forge-ai-fab-icons {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+}
+.forge-ai-fab-icon-layer {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    opacity 0.42s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.48s cubic-bezier(0.34, 1.35, 0.52, 1);
+  will-change: transform, opacity;
+}
+.forge-ai-fab-sparkle-layer {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1) rotate(0deg);
+}
+.forge-ai-fab-chevron-layer {
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.5) rotate(-108deg);
+  pointer-events: none;
+}
+.forge-ai-fab-wrap.is-open .forge-ai-fab-sparkle-layer {
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.42) rotate(32deg);
+  pointer-events: none;
+  transition-delay: 0ms, 0ms;
+}
+.forge-ai-fab-wrap.is-open .forge-ai-fab-chevron-layer {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1) rotate(0deg);
+  pointer-events: auto;
+  transition-delay: 0.12s, 0.1s;
+}
+`,
+        }}
+      />
       <div
         onMouseDown={e => e.stopPropagation()}
         style={{
@@ -859,7 +944,9 @@ export default function AiChatCompanion({
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, minWidth: 0 }}>
-                <span style={{ fontSize: 22, lineHeight: 1, flexShrink: 0 }}>✨</span>
+                <span style={{ display: 'flex', flexShrink: 0, opacity: 0.95 }}>
+                  <Sparkles size={22} strokeWidth={2.2} aria-hidden />
+                </span>
                 <h3
                   style={{
                     margin: 0,
@@ -1270,12 +1357,38 @@ export default function AiChatCompanion({
                         <input
                           value={row.title}
                           onChange={e => updatePendingOutlineSlide(idx, { title: e.target.value })}
+                          onKeyDown={e => {
+                            if (e.key !== 'Backspace' && e.key !== 'Delete') return
+                            if (e.metaKey || e.ctrlKey || e.altKey) return
+                            if (
+                              row.title.trim() !== '' ||
+                              row.slideType.trim() !== '' ||
+                              row.summary.trim() !== ''
+                            )
+                              return
+                            if (pendingSlideOutline.slides.length <= 1) return
+                            e.preventDefault()
+                            removePendingOutlineSlide(idx)
+                          }}
                           placeholder="Titel"
                           style={{ flex: 1, minWidth: 120, padding: '4px 8px', borderRadius: 6, border: '1px solid #D1D5DB', fontSize: 12 }}
                         />
                         <input
                           value={row.slideType}
                           onChange={e => updatePendingOutlineSlide(idx, { slideType: e.target.value })}
+                          onKeyDown={e => {
+                            if (e.key !== 'Backspace' && e.key !== 'Delete') return
+                            if (e.metaKey || e.ctrlKey || e.altKey) return
+                            if (
+                              row.title.trim() !== '' ||
+                              row.slideType.trim() !== '' ||
+                              row.summary.trim() !== ''
+                            )
+                              return
+                            if (pendingSlideOutline.slides.length <= 1) return
+                            e.preventDefault()
+                            removePendingOutlineSlide(idx)
+                          }}
                           placeholder="Type"
                           style={{ width: 72, padding: '4px 8px', borderRadius: 6, border: '1px solid #D1D5DB', fontSize: 11 }}
                         />
@@ -1295,18 +1408,23 @@ export default function AiChatCompanion({
                         >
                           ↓
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => removePendingOutlineSlide(idx)}
-                          disabled={pendingSlideOutline.slides.length <= 1 || isTyping || applyingOutline}
-                          style={{ padding: '2px 8px', fontSize: 11, borderRadius: 6, border: '1px solid #FECACA', background: '#FEF2F2', color: '#991B1B' }}
-                        >
-                          Slet
-                        </button>
                       </div>
                       <textarea
                         value={row.summary}
                         onChange={e => updatePendingOutlineSlide(idx, { summary: e.target.value })}
+                        onKeyDown={e => {
+                          if (e.key !== 'Backspace' && e.key !== 'Delete') return
+                          if (e.metaKey || e.ctrlKey || e.altKey) return
+                          if (
+                            row.title.trim() !== '' ||
+                            row.slideType.trim() !== '' ||
+                            row.summary.trim() !== ''
+                          )
+                            return
+                          if (pendingSlideOutline.slides.length <= 1) return
+                          e.preventDefault()
+                          removePendingOutlineSlide(idx)
+                        }}
                         rows={3}
                         placeholder="Disposition for denne slide…"
                         style={{
@@ -1376,10 +1494,15 @@ export default function AiChatCompanion({
               {pendingFiles.length > 0 && (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {pendingFiles.map((file, index) => (
-                    <button
+                    <span
                       key={`${file.name}-${index}`}
-                      type="button"
-                      onClick={() => removePendingFile(index)}
+                      tabIndex={0}
+                      role="listitem"
+                      onKeyDown={e => {
+                        if (e.key !== 'Delete' && e.key !== 'Backspace') return
+                        e.preventDefault()
+                        removePendingFile(index)
+                      }}
                       style={{
                         border: '1px solid #E5E7EB',
                         background: '#F9FAFB',
@@ -1387,12 +1510,13 @@ export default function AiChatCompanion({
                         fontSize: 11,
                         color: '#4B5563',
                         padding: '4px 8px',
-                        cursor: 'pointer',
+                        cursor: 'default',
+                        outline: 'none',
                       }}
-                      title="Klik for at fjerne fil"
+                      title="Fokusér og tryk Delete eller Backspace for at fjerne"
                     >
-                      📎 {file.name} ×
-                    </button>
+                      📎 {file.name}
+                    </span>
                   ))}
                 </div>
               )}
@@ -1444,19 +1568,29 @@ export default function AiChatCompanion({
           </div>
         )}
 
-        <button
-          onClick={() => setIsOpen(!isOpen)}
-          style={{
-            width: 60, height: 60, borderRadius: '50%', background: '#7C3AED',
-            color: '#fff', border: 'none', boxShadow: '0 8px 24px rgba(124, 58, 237, 0.4)',
-            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 28, transition: 'transform 0.2s'
-          }}
-          onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
-          onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
-        >
-          {isOpen ? '↓' : '✨'}
-        </button>
+        <div className={`forge-ai-fab-wrap${isOpen ? ' is-open' : ''}`}>
+          {!isOpen && <div className="forge-ai-fab-ring" aria-hidden />}
+          <button
+            type="button"
+            className={`forge-ai-fab-btn${fabPressed ? ' pressing' : ''}`}
+            onClick={() => {
+              setFabPressed(true)
+              window.setTimeout(() => setFabPressed(false), 480)
+              setIsOpen(o => !o)
+            }}
+            aria-expanded={isOpen}
+            aria-label={isOpen ? 'Luk Forge AI' : 'Åbn Forge AI'}
+          >
+            <span className="forge-ai-fab-icons" aria-hidden>
+              <span className="forge-ai-fab-icon-layer forge-ai-fab-sparkle-layer">
+                <Sparkles size={26} strokeWidth={2.2} />
+              </span>
+              <span className="forge-ai-fab-icon-layer forge-ai-fab-chevron-layer">
+                <ChevronDown size={28} strokeWidth={2.5} />
+              </span>
+            </span>
+          </button>
+        </div>
       </div>
     </>
   )

@@ -77,6 +77,14 @@ export default function HmwPage() {
               <textarea
                 value={item.insight}
                 onChange={(e) => updateItem(item.id, 'insight', e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key !== 'Backspace' && e.key !== 'Delete') return
+                  if (e.metaKey || e.ctrlKey || e.altKey) return
+                  if (item.insight.trim() !== '' || item.question.trim() !== '') return
+                  if (data.items.length <= 1) return
+                  e.preventDefault()
+                  removeItem(item.id)
+                }}
                 placeholder="Indsigt/problem (fx: Brugere forstår ikke onboarding flowet)"
                 rows={2}
                 className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300"
@@ -84,18 +92,17 @@ export default function HmwPage() {
               <input
                 value={item.question}
                 onChange={(e) => updateItem(item.id, 'question', e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key !== 'Backspace' && e.key !== 'Delete') return
+                  if (e.metaKey || e.ctrlKey || e.altKey) return
+                  if (item.insight.trim() !== '' || item.question.trim() !== '') return
+                  if (data.items.length <= 1) return
+                  e.preventDefault()
+                  removeItem(item.id)
+                }}
                 placeholder="How might we..."
                 className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300"
               />
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => removeItem(item.id)}
-                  className="px-2 py-1 text-xs rounded-md border border-red-200 text-red-600 hover:bg-red-50"
-                >
-                  Slet
-                </button>
-              </div>
             </div>
           ))}
         </div>

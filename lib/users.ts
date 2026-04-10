@@ -9,6 +9,7 @@ export interface User {
     first_name?: string | null;
     last_name?: string | null;
     profile_role?: string | null;
+    avatar_url?: string | null;
     password: string; // Hashed password
     createdAt: string;
 }
@@ -101,6 +102,7 @@ export async function createUser(username: string, password: string, email?: str
             first_name: data.first_name ?? null,
             last_name: data.last_name ?? null,
             profile_role: data.profile_role ?? null,
+            avatar_url: data.avatar_url ?? null,
             password: data.password_hash,
             createdAt: data.created_at
         };
@@ -136,6 +138,7 @@ export async function getUserByUsername(username: string): Promise<User | null> 
             first_name: userData.first_name ?? null,
             last_name: userData.last_name ?? null,
             profile_role: userData.profile_role ?? null,
+            avatar_url: userData.avatar_url ?? null,
             password: userData.password_hash,
             createdAt: userData.created_at
         };
@@ -171,6 +174,7 @@ export async function getUserById(id: string): Promise<User | null> {
             first_name: userData.first_name ?? null,
             last_name: userData.last_name ?? null,
             profile_role: userData.profile_role ?? null,
+            avatar_url: userData.avatar_url ?? null,
             password: userData.password_hash,
             createdAt: userData.created_at
         };
@@ -238,6 +242,7 @@ export async function getUserByEmail(email: string): Promise<User | null> {
             first_name: userData.first_name ?? null,
             last_name: userData.last_name ?? null,
             profile_role: userData.profile_role ?? null,
+            avatar_url: userData.avatar_url ?? null,
             password: userData.password_hash,
             createdAt: userData.created_at
         };

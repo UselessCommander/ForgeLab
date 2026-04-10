@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import ToolLayout from '@/components/ToolLayout'
 import { useProjectToolData } from '@/lib/useProjectToolData'
+import { deleteEmptyFieldRow } from '@/lib/deleteRowKeyboard'
 
 type DikwData = {
   data: string[]
@@ -108,19 +109,15 @@ export default function DikwPyramidenPage() {
                   <textarea
                     value={item}
                     onChange={(e) => updateItem(section.key, index, e.target.value)}
+                    onKeyDown={(e) =>
+                      deleteEmptyFieldRow(e, item, state[section.key].length > 1, () =>
+                        removeItem(section.key, index)
+                      )
+                    }
                     placeholder="Skriv punkt..."
                     rows={2}
                     className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300"
                   />
-                  {state[section.key].length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeItem(section.key, index)}
-                      className="px-2 py-1 text-xs rounded-md border border-red-200 text-red-600 hover:bg-red-50"
-                    >
-                      Slet
-                    </button>
-                  )}
                 </div>
               ))}
             </div>

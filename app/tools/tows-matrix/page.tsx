@@ -5,6 +5,7 @@ import Link from 'next/link'
 import ForgeLabLogo from '@/components/ForgeLabLogo'
 import { useProjectToolData } from '@/lib/useProjectToolData'
 import { getProjectToolData } from '@/lib/projects'
+import { deleteEmptyFieldRow } from '@/lib/deleteRowKeyboard'
 
 export default function TOWSMatrix() {
   const [matrix, setMatrix] = useState({
@@ -162,12 +163,14 @@ export default function TOWSMatrix() {
                       type="text"
                       value={item}
                       onChange={(e) => updateList(strengths, setStrengths, index, e.target.value)}
+                      onKeyDown={(e) =>
+                        deleteEmptyFieldRow(e, item, strengths.length > 1, () =>
+                          removeListItem(strengths, setStrengths, index)
+                        )
+                      }
                       placeholder="..."
                       className="flex-1 px-2 py-1 text-xs rounded border border-gray-300 bg-white"
                     />
-                    {strengths.length > 1 && (
-                      <button onClick={() => removeListItem(strengths, setStrengths, index)} className="text-red-500 text-xs">×</button>
-                    )}
                   </div>
                 ))}
                 <button onClick={() => addListItem(strengths, setStrengths)} className="text-xs text-green-600">+</button>
@@ -183,12 +186,14 @@ export default function TOWSMatrix() {
                       type="text"
                       value={item}
                       onChange={(e) => updateList(weaknesses, setWeaknesses, index, e.target.value)}
+                      onKeyDown={(e) =>
+                        deleteEmptyFieldRow(e, item, weaknesses.length > 1, () =>
+                          removeListItem(weaknesses, setWeaknesses, index)
+                        )
+                      }
                       placeholder="..."
                       className="flex-1 px-2 py-1 text-xs rounded border border-gray-300 bg-white"
                     />
-                    {weaknesses.length > 1 && (
-                      <button onClick={() => removeListItem(weaknesses, setWeaknesses, index)} className="text-red-500 text-xs">×</button>
-                    )}
                   </div>
                 ))}
                 <button onClick={() => addListItem(weaknesses, setWeaknesses)} className="text-xs text-red-600">+</button>
@@ -204,12 +209,14 @@ export default function TOWSMatrix() {
                       type="text"
                       value={item}
                       onChange={(e) => updateList(opportunities, setOpportunities, index, e.target.value)}
+                      onKeyDown={(e) =>
+                        deleteEmptyFieldRow(e, item, opportunities.length > 1, () =>
+                          removeListItem(opportunities, setOpportunities, index)
+                        )
+                      }
                       placeholder="..."
                       className="flex-1 px-2 py-1 text-xs rounded border border-gray-300 bg-white"
                     />
-                    {opportunities.length > 1 && (
-                      <button onClick={() => removeListItem(opportunities, setOpportunities, index)} className="text-red-500 text-xs">×</button>
-                    )}
                   </div>
                 ))}
                 <button onClick={() => addListItem(opportunities, setOpportunities)} className="text-xs text-blue-600">+</button>
@@ -225,12 +232,14 @@ export default function TOWSMatrix() {
                       type="text"
                       value={item}
                       onChange={(e) => updateList(threats, setThreats, index, e.target.value)}
+                      onKeyDown={(e) =>
+                        deleteEmptyFieldRow(e, item, threats.length > 1, () =>
+                          removeListItem(threats, setThreats, index)
+                        )
+                      }
                       placeholder="..."
                       className="flex-1 px-2 py-1 text-xs rounded border border-gray-300 bg-white"
                     />
-                    {threats.length > 1 && (
-                      <button onClick={() => removeListItem(threats, setThreats, index)} className="text-red-500 text-xs">×</button>
-                    )}
                   </div>
                 ))}
                 <button onClick={() => addListItem(threats, setThreats)} className="text-xs text-orange-600">+</button>
@@ -253,13 +262,13 @@ export default function TOWSMatrix() {
                     <textarea
                       value={item}
                       onChange={(e) => updateMatrix('so', index, e.target.value)}
+                      onKeyDown={(e) =>
+                        deleteEmptyFieldRow(e, item, matrix.so.length > 1, () => removeMatrixItem('so', index))
+                      }
                       placeholder="..."
                       rows={2}
                       className="flex-1 px-2 py-1 text-xs rounded border border-gray-300 bg-white resize-none"
                     />
-                    {matrix.so.length > 1 && (
-                      <button onClick={() => removeMatrixItem('so', index)} className="text-red-500 text-xs">×</button>
-                    )}
                   </div>
                 ))}
                 <button onClick={() => addMatrixItem('so')} className="text-xs text-green-600">+ Tilføj</button>
@@ -276,13 +285,13 @@ export default function TOWSMatrix() {
                     <textarea
                       value={item}
                       onChange={(e) => updateMatrix('st', index, e.target.value)}
+                      onKeyDown={(e) =>
+                        deleteEmptyFieldRow(e, item, matrix.st.length > 1, () => removeMatrixItem('st', index))
+                      }
                       placeholder="..."
                       rows={2}
                       className="flex-1 px-2 py-1 text-xs rounded border border-gray-300 bg-white resize-none"
                     />
-                    {matrix.st.length > 1 && (
-                      <button onClick={() => removeMatrixItem('st', index)} className="text-red-500 text-xs">×</button>
-                    )}
                   </div>
                 ))}
                 <button onClick={() => addMatrixItem('st')} className="text-xs text-yellow-600">+ Tilføj</button>
@@ -299,13 +308,13 @@ export default function TOWSMatrix() {
                     <textarea
                       value={item}
                       onChange={(e) => updateMatrix('wo', index, e.target.value)}
+                      onKeyDown={(e) =>
+                        deleteEmptyFieldRow(e, item, matrix.wo.length > 1, () => removeMatrixItem('wo', index))
+                      }
                       placeholder="..."
                       rows={2}
                       className="flex-1 px-2 py-1 text-xs rounded border border-gray-300 bg-white resize-none"
                     />
-                    {matrix.wo.length > 1 && (
-                      <button onClick={() => removeMatrixItem('wo', index)} className="text-red-500 text-xs">×</button>
-                    )}
                   </div>
                 ))}
                 <button onClick={() => addMatrixItem('wo')} className="text-xs text-blue-600">+ Tilføj</button>
@@ -322,13 +331,13 @@ export default function TOWSMatrix() {
                     <textarea
                       value={item}
                       onChange={(e) => updateMatrix('wt', index, e.target.value)}
+                      onKeyDown={(e) =>
+                        deleteEmptyFieldRow(e, item, matrix.wt.length > 1, () => removeMatrixItem('wt', index))
+                      }
                       placeholder="..."
                       rows={2}
                       className="flex-1 px-2 py-1 text-xs rounded border border-gray-300 bg-white resize-none"
                     />
-                    {matrix.wt.length > 1 && (
-                      <button onClick={() => removeMatrixItem('wt', index)} className="text-red-500 text-xs">×</button>
-                    )}
                   </div>
                 ))}
                 <button onClick={() => addMatrixItem('wt')} className="text-xs text-red-600">+ Tilføj</button>

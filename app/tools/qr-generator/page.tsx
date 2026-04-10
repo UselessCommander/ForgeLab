@@ -733,14 +733,15 @@ export default function QRGenerator() {
                     
                     <div className="flex flex-wrap gap-2 mb-3">
                       <button
+                        type="button"
                         onClick={removeLogo}
-                        className={`px-3 py-1.5 rounded border-2 transition-all text-sm ${
+                        className={`px-3 py-1.5 rounded border-2 transition-all text-sm font-medium ${
                           !logoPreview && !centerText
                             ? 'border-gray-900 bg-gray-100'
                             : 'border-gray-200 hover:border-gray-400'
                         }`}
                       >
-                        <span className="text-lg">✕</span>
+                        Ingen logo
                       </button>
                       
                       <button
@@ -889,7 +890,14 @@ export default function QRGenerator() {
                     savedQRCodes.slice().reverse().map((savedQR) => (
                       <div
                         key={savedQR.id}
-                        className="bg-gray-50 rounded-lg p-4 border border-gray-200 hover:border-gray-300 transition-all"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.target !== e.currentTarget) return
+                          if (e.key !== 'Delete' && e.key !== 'Backspace') return
+                          e.preventDefault()
+                          deleteSavedQRCode(savedQR.id)
+                        }}
+                        className="bg-gray-50 rounded-lg p-4 border border-gray-200 hover:border-gray-300 transition-all outline-none focus:ring-2 focus:ring-gray-400"
                       >
                         <div className="flex gap-3">
                           <img
@@ -926,12 +934,6 @@ export default function QRGenerator() {
                                 className="px-3 py-1.5 text-xs bg-gray-900 text-white rounded hover:bg-gray-800 transition-colors"
                               >
                                 Indlæs
-                              </button>
-                              <button
-                                onClick={() => deleteSavedQRCode(savedQR.id)}
-                                className="px-3 py-1.5 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors ml-auto"
-                              >
-                                Slet
                               </button>
                             </div>
                           </div>

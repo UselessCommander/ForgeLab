@@ -1,0 +1,284 @@
+'use client'
+
+import { createPortal } from 'react-dom'
+import { useEffect, useState, type CSSProperties } from 'react'
+import type { StickyFontFamilyId, StickyNoteFormat } from '@/lib/stickyNoteRichText'
+import { STICKY_NOTE_FORMAT_SIZES, STICKY_FONT_SIZE_LABELS } from '@/lib/stickyNoteRichText'
+
+type Anchor = { left: number; top: number; width: number; height: number }
+
+type Props = {
+  visible: boolean
+  anchor: Anchor | null
+  format: StickyNoteFormat
+  noteColor: string
+  colorPalette: readonly string[]
+  boldActive: boolean
+  italicActive: boolean
+  strikeActive: boolean
+  onSetNoteColor: (c: string) => void
+  onSetFormat: (patch: Partial<StickyNoteFormat>) => void
+  onFontSizePx: (px: number) => void
+  onRunCommand: (fn: () => void) => void
+}
+
+const TOOLBAR_H = 40
+const GAP = 8
+
+const btnBase: CSSProperties = {
+  border: 'none',
+  background: 'transparent',
+  color: 'rgba(255,255,255,0.92)',
+  borderRadius: 6,
+  padding: '4px 8px',
+  fontSize: 12,
+  fontWeight: 600,
+  cursor: 'pointer',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  minHeight: 28,
+}
+
+const activeBtn: CSSProperties = {
+  background: 'rgba(255,255,255,0.16)',
+}
+
+export default function StickyRichToolbar({
+  visible,
+  anchor,
+  format,
+  noteColor,
+  colorPalette,
+  boldActive,
+  italicActive,
+  strikeActive,
+  onSetNoteColor,
+  onSetFormat,
+  onFontSizePx,
+  onRunCommand,
+}: Props) {
+  const [mounted, setMounted] = useState(false)
+  const [colorOpen, setColorOpen] = useState(false)
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  if (!mounted || !visible || !anchor) return null
+
+  const barW = 520
+  let left = anchor.left + anchor.width / 2 - barW / 2
+  left = Math.max(12, Math.min(left, window.innerWidth - barW - 12))
+  let top = anchor.top - TOOLBAR_H - GAP
+  if (top < 12) top = anchor.top + Math.max(anchor.height, 8) + GAP
+
+  const bar = (
+    <div
+      role="toolbar"
+      aria-label="Sticky note formatering"
+      style={{
+        position: 'fixed',
+        left,
+        top,
+        width: barW,
+        minHeight: TOOLBAR_H,
+        zIndex: 12000,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '6px 10px',
+        borderRadius: 10,
+        background: 'linear-gradient(180deg, #3a3a3c 0%, #2c2c2e 100%)',
+        boxShadow: '0 8px 28px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.06)',
+        fontFamily: 'ui-sans-serif, system-ui, sans-serif',
+      }}
+      onMouseDown={e => e.preventDefault()}
+    >
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 4 }}>
+        <button
+          type="button"
+          title="Sticky-farve"
+          aria-label="Vælg sticky-farve"
+          style={{
+            width: 26,
+            height: 26,
+            borderRadius: '50%',
+            border: '2px solid rgba(255,255,255,0.35)',
+            background: noteColor,
+            cursor: 'pointer',
+            padding: 0,
+            flexShrink: 0,
+          }}
+          onMouseDown={e => e.preventDefault()}
+          onClick={e => {
+            e.preventDefault()
+            setColorOpen(v => !v)
+          }}
+        />
+        <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 10 }}>▾</span>
+        {colorOpen ? (
+          <div
+            style={{
+              display: 'flex',
+              position: 'absolute',
+              top: '100%',
+              left: 0,
+              marginTop: 6,
+              padding: 8,
+              gap: 6,
+              flexWrap: 'wrap',
+              width: 160,
+              background: '#1c1c1e',
+              borderRadius: 10,
+              boxShadow: '0 12px 32px rgba(0,0,0,0.45)',
+              zIndex: 2,
+            }}
+            onMouseDown={e => e.preventDefault()}
+          >
+            {colorPalette.map(c => (
+              <button
+                key={c}
+                type="button"
+                title={c}
+                onClick={() => {
+                  onSetNoteColor(c)
+                  setColorOpen(false)
+                }}
+                style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: '50%',
+                  border: noteColor === c ? '2px solid #fff' : '1px solid rgba(255,255,255,0.2)',
+                  background: c,
+                  cursor: 'pointer',
+                  padding: 0,
+                }}
+              />
+            ))}
+          </div>
+        ) : null}
+      </div>
+
+      <div style={{ width: 1, height: 22, background: 'rgba(255,255,255,0.12)', flexShrink: 0 }} />
+
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 2 }}>
+        <span style={{ ...btnBase, fontSize: 13, fontWeight: 700, padding: '4px 6px' }}>Aa</span>
+        <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 10 }}>▾</span>
+        <select
+          aria-label="Skrifttype"
+          value={format.fontFamily}
+          onChange={e => onSetFormat({ fontFamily: e.target.value as StickyFontFamilyId })}
+          onMouseDown={e => e.preventDefault()}
+          style={{
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            width: '100%',
+            height: '100%',
+            opacity: 0,
+            cursor: 'pointer',
+            fontSize: 14,
+          }}
+        >
+          <option value="sans">Sans</option>
+          <option value="serif">Serif</option>
+          <option value="mono">Monospace</option>
+        </select>
+      </div>
+
+      <div style={{ position: 'relative', minWidth: 100 }}>
+        <select
+          aria-label="Skriftstørrelse"
+          value={format.fontSizePx}
+          onChange={e => onFontSizePx(Number(e.target.value))}
+          onMouseDown={e => e.preventDefault()}
+          style={{
+            width: '100%',
+            appearance: 'none',
+            WebkitAppearance: 'none',
+            background: 'rgba(255,255,255,0.1)',
+            color: '#fff',
+            border: '1px solid rgba(255,255,255,0.15)',
+            borderRadius: 6,
+            padding: '5px 26px 5px 10px',
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: 'pointer',
+          }}
+        >
+          {STICKY_NOTE_FORMAT_SIZES.map(sz => (
+            <option key={sz} value={sz} style={{ color: '#111' }}>
+              {STICKY_FONT_SIZE_LABELS[sz] ?? sz} ({sz}px)
+            </option>
+          ))}
+        </select>
+        <span
+          style={{
+            position: 'absolute',
+            right: 8,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            color: 'rgba(255,255,255,0.5)',
+            fontSize: 9,
+            pointerEvents: 'none',
+          }}
+        >
+          ▾
+        </span>
+      </div>
+
+      <div style={{ width: 1, height: 22, background: 'rgba(255,255,255,0.12)', flexShrink: 0 }} />
+
+      <button
+        type="button"
+        title="Fed"
+        aria-pressed={boldActive}
+        style={{ ...btnBase, ...(boldActive ? activeBtn : {}), fontWeight: 800, minWidth: 30 }}
+        onClick={() => onRunCommand(() => document.execCommand('bold', false))}
+      >
+        B
+      </button>
+      <button
+        type="button"
+        title="Kursiv"
+        aria-pressed={italicActive}
+        style={{ ...btnBase, ...(italicActive ? activeBtn : {}), fontStyle: 'italic', minWidth: 30 }}
+        onClick={() => onRunCommand(() => document.execCommand('italic', false))}
+      >
+        I
+      </button>
+      <button
+        type="button"
+        title="Gennemstreget"
+        aria-pressed={strikeActive}
+        style={{ ...btnBase, ...(strikeActive ? activeBtn : {}), textDecoration: 'line-through', minWidth: 30 }}
+        onClick={() => onRunCommand(() => document.execCommand('strikeThrough', false))}
+      >
+        S
+      </button>
+      <button
+        type="button"
+        title="Link"
+        style={{ ...btnBase, minWidth: 30 }}
+        onClick={() =>
+          onRunCommand(() => {
+            const url = window.prompt('Indsæt URL:', 'https://')
+            if (url) document.execCommand('createLink', false, url)
+          })
+        }
+      >
+        🔗
+      </button>
+      <button
+        type="button"
+        title="Punktliste"
+        style={{ ...btnBase, minWidth: 30 }}
+        onClick={() => onRunCommand(() => document.execCommand('insertUnorderedList', false))}
+      >
+        ≡
+      </button>
+    </div>
+  )
+
+  return createPortal(bar, document.body)
+}

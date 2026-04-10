@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import ForgeLabLogo from '@/components/ForgeLabLogo'
-import { Link2, ImagePlus, Plus, Copy, Check, Trash2 } from 'lucide-react'
+import { Link2, ImagePlus, Plus, Copy, Check } from 'lucide-react'
 import { useProjectToolData } from '@/lib/useProjectToolData'
+import { deleteEmptyFieldRow } from '@/lib/deleteRowKeyboard'
 
 type VariantType = 'url' | 'image'
 
@@ -266,11 +267,6 @@ export default function AbTestPage() {
                   <div key={v.id} className="p-4 rounded-xl bg-gray-50 border border-gray-100">
                     <div className="flex items-center justify-between mb-3">
                       <span className="font-medium text-gray-900">Variant {v.label}</span>
-                      {variants.length > 2 && (
-                        <button type="button" onClick={() => removeVariant(v.id)} className="text-gray-400 hover:text-red-600">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
                     </div>
                     <div className="flex gap-2 mb-3">
                       <button
@@ -293,12 +289,25 @@ export default function AbTestPage() {
                         type="url"
                         value={v.value}
                         onChange={(e) => updateVariant(v.id, { value: e.target.value })}
+                        onKeyDown={(e) =>
+                          deleteEmptyFieldRow(e, v.value, variants.length > 2, () => removeVariant(v.id))
+                        }
                         placeholder="https://eksempel.dk"
                         className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-violet-500"
                         required
                       />
                     ) : (
-                      <div>
+                      <div
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.target !== e.currentTarget) return
+                          if (e.key !== 'Delete' && e.key !== 'Backspace') return
+                          if (variants.length <= 2) return
+                          e.preventDefault()
+                          removeVariant(v.id)
+                        }}
+                        className="outline-none rounded-xl focus:ring-2 focus:ring-violet-300"
+                      >
                         <input
                           type="file"
                           accept="image/*"

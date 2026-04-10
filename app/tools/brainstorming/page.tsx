@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import ToolLayout from '@/components/ToolLayout'
 import { useProjectToolData } from '@/lib/useProjectToolData'
+import { deleteEmptyFieldRow } from '@/lib/deleteRowKeyboard'
 
 type BrainstormIdea = {
   id: string
@@ -92,11 +93,14 @@ export default function BrainstormingPage() {
                 <textarea
                   value={idea.text}
                   onChange={(e) => updateIdea(idea.id, { text: e.target.value })}
+                  onKeyDown={(e) =>
+                    deleteEmptyFieldRow(e, idea.text, data.ideas.length > 1, () => removeIdea(idea.id))
+                  }
                   placeholder="Skriv idé..."
                   rows={2}
                   className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300"
                 />
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   <input
                     value={idea.theme}
                     onChange={(e) => updateIdea(idea.id, { theme: e.target.value })}
@@ -114,13 +118,6 @@ export default function BrainstormingPage() {
                     <option value={2}>Prioritet 2 (mellem)</option>
                     <option value={3}>Prioritet 3 (høj)</option>
                   </select>
-                  <button
-                    type="button"
-                    onClick={() => removeIdea(idea.id)}
-                    className="rounded-lg border border-red-200 text-red-600 text-sm hover:bg-red-50"
-                  >
-                    Slet
-                  </button>
                 </div>
               </div>
             ))}

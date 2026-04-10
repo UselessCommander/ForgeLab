@@ -3,6 +3,7 @@
 import { useState, Suspense } from 'react'
 import ToolLayout from '@/components/ToolLayout'
 import { useProjectToolData } from '@/lib/useProjectToolData'
+import { deleteEmptyFieldRow } from '@/lib/deleteRowKeyboard'
 
 type MapSection = string[]
 
@@ -88,19 +89,13 @@ function EmpathyMapContent() {
             <textarea
               value={item}
               onChange={(e) => onUpdate(index, e.target.value)}
+              onKeyDown={(e) =>
+                deleteEmptyFieldRow(e, item, items.length > 1, () => onRemove(index))
+              }
               placeholder="..."
               rows={2}
               className="flex-1 px-3 py-2 text-sm rounded border border-gray-300 bg-white resize-none focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-transparent"
             />
-            {items.length > 1 && (
-              <button
-                onClick={() => onRemove(index)}
-                className="text-red-500 hover:text-red-700 text-sm shrink-0"
-                aria-label="Fjern"
-              >
-                ×
-              </button>
-            )}
           </div>
         ))}
         <button onClick={onAdd} className="text-xs text-gray-600 hover:text-gray-900 font-medium">

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import ToolLayout from '@/components/ToolLayout'
 import { useProjectToolData } from '@/lib/useProjectToolData'
+import { deleteEmptyFieldRow } from '@/lib/deleteRowKeyboard'
 
 export default function PortersFiveForces() {
   const [forces, setForces] = useState({
@@ -105,19 +106,15 @@ export default function PortersFiveForces() {
                     <textarea
                       value={item}
                       onChange={(e) => updateForce(force.key, index, e.target.value)}
+                      onKeyDown={(e) =>
+                        deleteEmptyFieldRow(e, item, forces[force.key].length > 1, () =>
+                          removeItem(force.key, index)
+                        )
+                      }
                       placeholder="Skriv observation..."
                       rows={2}
                       className="flex-1 px-2 py-1 text-xs border border-neutral-300 bg-white resize-none"
                     />
-                    {forces[force.key].length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removeItem(force.key, index)}
-                        className="px-2 text-xs border border-red-200 text-red-600"
-                      >
-                        ×
-                      </button>
-                    )}
                   </div>
                 ))}
                 <button
@@ -157,19 +154,15 @@ export default function PortersFiveForces() {
                     <textarea
                       value={item}
                       onChange={(e) => updateForce('rivalry', index, e.target.value)}
+                      onKeyDown={(e) =>
+                        deleteEmptyFieldRow(e, item, forces.rivalry.length > 1, () =>
+                          removeItem('rivalry', index)
+                        )
+                      }
                       placeholder="Skriv observation..."
                       rows={2}
                       className="flex-1 px-2 py-1 text-xs border border-neutral-300 bg-white resize-none"
                     />
-                    {forces.rivalry.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removeItem('rivalry', index)}
-                        className="px-2 text-xs border border-red-200 text-red-600"
-                      >
-                        ×
-                      </button>
-                    )}
                   </div>
                 ))}
                 <button
@@ -196,19 +189,15 @@ export default function PortersFiveForces() {
                         <textarea
                           value={item}
                           onChange={(e) => updateForce(force.key, index, e.target.value)}
+                          onKeyDown={(e) =>
+                            deleteEmptyFieldRow(e, item, forces[force.key].length > 1, () =>
+                              removeItem(force.key, index)
+                            )
+                          }
                           placeholder="Skriv observation..."
                           rows={2}
                           className="flex-1 px-2 py-1 text-xs border border-neutral-300 bg-white resize-none"
                         />
-                        {forces[force.key].length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => removeItem(force.key, index)}
-                            className="px-2 text-xs border border-red-200 text-red-600"
-                          >
-                            ×
-                          </button>
-                        )}
                       </div>
                     ))}
                     <button

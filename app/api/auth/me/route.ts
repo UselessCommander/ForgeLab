@@ -15,6 +15,7 @@ export async function GET() {
         firstName: null,
         lastName: null,
         profileRole: null,
+        avatarUrl: null,
       })
     }
 
@@ -26,6 +27,7 @@ export async function GET() {
       firstName: (user as any)?.first_name || null,
       lastName: (user as any)?.last_name || null,
       profileRole: (user as any)?.profile_role || null,
+      avatarUrl: (user as any)?.avatar_url || null,
     })
   }
 

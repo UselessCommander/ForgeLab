@@ -3,9 +3,9 @@
 import { useState, useRef, Suspense } from 'react'
 import ToolLayout from '@/components/ToolLayout'
 import { useProjectToolData } from '@/lib/useProjectToolData'
+import { deleteEmptyFieldRow } from '@/lib/deleteRowKeyboard'
 import {
   Plus,
-  Trash2,
   ChevronUp,
   ChevronDown,
   FileText,
@@ -643,6 +643,9 @@ function SurveyTemplateContent() {
                       type="text"
                       value={q.title}
                       onChange={(e) => updateQuestion(q.id, { title: e.target.value })}
+                      onKeyDown={(e) =>
+                        deleteEmptyFieldRow(e, q.title, questions.length > 1, () => removeQuestion(q.id))
+                      }
                       placeholder="Spørgsmålstekst"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-lime-500"
                     />
@@ -721,17 +724,13 @@ function SurveyTemplateContent() {
                               onChange={(e) =>
                                 updateOption(q.id, i, e.target.value)
                               }
+                              onKeyDown={(e) =>
+                                deleteEmptyFieldRow(e, opt, q.options.length > 1, () =>
+                                  removeOption(q.id, i)
+                                )
+                              }
                               className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-lime-500"
                             />
-                            <button
-                              type="button"
-                              onClick={() => removeOption(q.id, i)}
-                              disabled={q.options.length <= 1}
-                              className="p-1.5 text-gray-400 hover:text-red-600 disabled:opacity-30"
-                              aria-label="Fjern valg"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
                           </div>
                         ))}
                         <button
@@ -764,14 +763,6 @@ function SurveyTemplateContent() {
                       </div>
                     )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => removeQuestion(q.id)}
-                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                    aria-label="Slet spørgsmål"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
                 </div>
               </div>
             ))}

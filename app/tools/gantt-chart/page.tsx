@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import ForgeLabLogo from '@/components/ForgeLabLogo'
 import { useProjectToolData } from '@/lib/useProjectToolData'
+import { deleteEmptyFieldRow } from '@/lib/deleteRowKeyboard'
 
 interface Task {
   id: string
@@ -115,13 +116,16 @@ export default function GanttChart() {
           <div className="space-y-3">
             {tasks.map((task) => (
               <div key={task.id} className="border-2 border-amber-100 rounded-lg p-4 bg-amber-50/20">
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1">Navn</label>
                     <input
                       type="text"
                       value={task.name}
                       onChange={(e) => updateTask(task.id, 'name', e.target.value)}
+                      onKeyDown={(e) =>
+                        deleteEmptyFieldRow(e, task.name, true, () => deleteTask(task.id))
+                      }
                       placeholder="Opgave navn..."
                       className="w-full px-3 py-2 rounded border border-gray-300 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-500 text-sm"
                     />
@@ -154,14 +158,6 @@ export default function GanttChart() {
                       onChange={(e) => updateTask(task.id, 'progress', parseInt(e.target.value) || 0)}
                       className="w-full px-3 py-2 rounded border border-gray-300 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-500 text-sm"
                     />
-                  </div>
-                  <div className="flex items-end">
-                    <button
-                      onClick={() => deleteTask(task.id)}
-                      className="w-full px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors font-medium text-sm"
-                    >
-                      Slet
-                    </button>
                   </div>
                 </div>
               </div>

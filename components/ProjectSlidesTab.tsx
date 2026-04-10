@@ -2,6 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { getProjectToolData, saveProjectToolData } from '@/lib/projects'
+import {
+  buildRemoteTextPresenceLayers,
+  getSelectionOffsetsInContentEditable,
+  type RemoteTextPresenceLayer,
+} from '@/lib/projectEditorPresence'
+import { supabase } from '@/lib/supabase'
 
 type ProjectSlidesTabProps = {
   projectId: string
@@ -36,16 +42,31 @@ const DEFAULT_SLIDES_DOC: SlidesDoc = {
   updatedAt: 0,
 }
 
+const colorForUserId = (id: string) => {
+  const palette = ['#EF4444', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316']
+  let hash = 0
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) | 0
+  return palette[Math.abs(hash) % palette.length]
+}
+
 export default function ProjectSlidesTab({ projectId, canEdit }: ProjectSlidesTabProps) {
   const [doc, setDoc] = useState<SlidesDoc>(DEFAULT_SLIDES_DOC)
   const [loaded, setLoaded] = useState(false)
   const [saving, setSaving] = useState(false)
   const [fontName, setFontName] = useState('Arial')
   const [fontSize, setFontSize] = useState('4')
+  const [remotePresenceLayers, setRemotePresenceLayers] = useState<RemoteTextPresenceLayer[]>([])
   const editorRef = useRef<HTMLDivElement>(null)
   const lastRenderedSlideIdRef = useRef('')
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isUnmountedRef = useRef(false)
+  const slidesChannelRef = useRef<any>(null)
+  const clientPresenceIdRef = useRef(`slides-${Math.random().toString(36).slice(2, 8)}`)
+  const presenceThrottleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const presenceRefreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const lastPresencePayloadRef = useRef<string>('')
+  const schedulePresencePublishRef = useRef<() => void>(() => {})
+  const activeSlideIdRef = useRef<string | undefined>(undefined)
 
   const normalizeSlidesDoc = (raw: any): SlidesDoc => {
     const rawSlides = Array.isArray(raw?.slides) ? raw.slides : []
@@ -81,6 +102,64 @@ export default function ProjectSlidesTab({ projectId, canEdit }: ProjectSlidesTa
     () => doc.slides.find(slide => slide.id === doc.activeSlideId) || doc.slides[0],
     [doc]
   )
+  activeSlideIdRef.current = activeSlide?.id
+
+  type SlidePresence = {
+    userId: string
+    color: string
+    slideId: string
+    selectionStart: number
+    selectionEnd: number
+    at: number
+  }
+
+  const publishSlidesPresence = () => {
+    const editor = editorRef.current
+    const slideId = activeSlideIdRef.current
+    if (!editor || !slidesChannelRef.current || !slideId) return
+    const offsets = getSelectionOffsetsInContentEditable(editor)
+    if (!offsets) return
+    const payload: SlidePresence = {
+      userId: clientPresenceIdRef.current,
+      color: colorForUserId(clientPresenceIdRef.current),
+      slideId,
+      selectionStart: offsets.selectionStart,
+      selectionEnd: offsets.selectionEnd,
+      at: Date.now(),
+    }
+    const asString = JSON.stringify(payload)
+    if (asString === lastPresencePayloadRef.current) return
+    lastPresencePayloadRef.current = asString
+    slidesChannelRef.current.track(payload).catch(() => {})
+  }
+
+  const scheduleSlidesPresencePublish = () => {
+    if (presenceThrottleTimerRef.current) clearTimeout(presenceThrottleTimerRef.current)
+    presenceThrottleTimerRef.current = setTimeout(() => {
+      publishSlidesPresence()
+    }, 48)
+  }
+
+  schedulePresencePublishRef.current = scheduleSlidesPresencePublish
+
+  const updateRenderedSlidesPresence = (presenceState?: Record<string, any[]>) => {
+    const editor = editorRef.current
+    const slideId = activeSlideIdRef.current
+    if (!editor || !slideId) return
+    const state = presenceState || (slidesChannelRef.current?.presenceState?.() as Record<string, any[]>) || {}
+    const next = buildRemoteTextPresenceLayers(editor, state, {
+      selfUserId: clientPresenceIdRef.current,
+      docId: slideId,
+      docKey: 'slideId',
+      colorForUser: colorForUserId,
+    })
+    setRemotePresenceLayers(next)
+  }
+
+  const refreshSlidesPresenceUi = (presenceState?: Record<string, any[]>) => {
+    if (isUnmountedRef.current) return
+    updateRenderedSlidesPresence(presenceState)
+  }
 
   const persist = (nextDoc: SlidesDoc) => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
@@ -109,12 +188,95 @@ export default function ProjectSlidesTab({ projectId, canEdit }: ProjectSlidesTa
         setLoaded(true)
       }
     }
+    isUnmountedRef.current = false
     boot()
     return () => {
       isUnmountedRef.current = true
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     }
   }, [projectId])
+
+  useEffect(() => {
+    if (!loaded || !projectId) return
+    let cancelled = false
+    const channel = supabase.channel(`project-slides:${projectId}`, {
+      config: {
+        broadcast: { self: false },
+        presence: { key: clientPresenceIdRef.current },
+      },
+    })
+
+    channel
+      .on('presence', { event: 'sync' }, () => {
+        const state = slidesChannelRef.current?.presenceState?.() as Record<string, any[]> | undefined
+        refreshSlidesPresenceUi(state)
+      })
+      .on('presence', { event: 'join' }, () => {
+        const state = slidesChannelRef.current?.presenceState?.() as Record<string, any[]> | undefined
+        refreshSlidesPresenceUi(state)
+      })
+      .on('presence', { event: 'leave' }, () => {
+        const state = slidesChannelRef.current?.presenceState?.() as Record<string, any[]> | undefined
+        refreshSlidesPresenceUi(state)
+      })
+
+    channel.subscribe(async (status: string) => {
+      if (status !== 'SUBSCRIBED' || cancelled) return
+      await slidesChannelRef.current?.track?.({
+        userId: clientPresenceIdRef.current,
+        color: colorForUserId(clientPresenceIdRef.current),
+        slideId: '',
+        selectionStart: 0,
+        selectionEnd: 0,
+        at: Date.now(),
+      })
+      const state = slidesChannelRef.current?.presenceState?.() as Record<string, any[]> | undefined
+      refreshSlidesPresenceUi(state)
+    })
+
+    slidesChannelRef.current = channel
+
+    presenceRefreshTimerRef.current = setInterval(() => {
+      const state = slidesChannelRef.current?.presenceState?.() as Record<string, any[]> | undefined
+      refreshSlidesPresenceUi(state)
+    }, 1200)
+
+    return () => {
+      cancelled = true
+      if (presenceRefreshTimerRef.current) {
+        clearInterval(presenceRefreshTimerRef.current)
+        presenceRefreshTimerRef.current = null
+      }
+      if (presenceThrottleTimerRef.current) clearTimeout(presenceThrottleTimerRef.current)
+      if (slidesChannelRef.current) {
+        supabase.removeChannel(slidesChannelRef.current)
+        slidesChannelRef.current = null
+      }
+    }
+  }, [projectId, loaded])
+
+  useEffect(() => {
+    if (!canEdit) return
+    const onSelectionChange = () => {
+      if (isUnmountedRef.current) return
+      const editor = editorRef.current
+      const sel = window.getSelection()
+      if (!editor || !sel || sel.rangeCount === 0) return
+      const node = sel.anchorNode
+      if (!node || !editor.contains(node)) return
+      schedulePresencePublishRef.current()
+    }
+    document.addEventListener('selectionchange', onSelectionChange)
+    return () => document.removeEventListener('selectionchange', onSelectionChange)
+  }, [canEdit])
+
+  useEffect(() => {
+    if (!loaded || !activeSlide) return
+    scheduleSlidesPresencePublish()
+    const t = setTimeout(() => updateRenderedSlidesPresence(), 80)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doc.activeSlideId, loaded])
 
   useEffect(() => {
     let cancelled = false
@@ -205,6 +367,7 @@ export default function ProjectSlidesTab({ projectId, canEdit }: ProjectSlidesTa
     editorRef.current?.focus()
     document.execCommand(command, false, value)
     updateActiveSlideHtml(editorRef.current?.innerHTML || '<p></p>')
+    scheduleSlidesPresencePublish()
   }
 
   if (!loaded) {
@@ -233,10 +396,20 @@ export default function ProjectSlidesTab({ projectId, canEdit }: ProjectSlidesTa
           {doc.slides.map((slide, idx) => {
             const active = slide.id === doc.activeSlideId
             return (
-              <div key={slide.id} style={{ border: active ? '1px solid #60A5FA' : '1px solid #DDE3EE', borderRadius: 10, background: active ? '#EFF6FF' : '#fff', padding: 8 }}>
+              <div
+                key={slide.id}
+                style={{ border: active ? '1px solid #60A5FA' : '1px solid #DDE3EE', borderRadius: 10, background: active ? '#EFF6FF' : '#fff', padding: 8 }}
+              >
                 <button
                   type="button"
                   onClick={() => setDoc(prev => ({ ...prev, activeSlideId: slide.id }))}
+                  onKeyDown={e => {
+                    if (!canEdit || doc.slides.length <= 1) return
+                    if (e.key !== 'Delete' && e.key !== 'Backspace') return
+                    e.preventDefault()
+                    removeSlide(slide.id)
+                  }}
+                  title={canEdit && doc.slides.length > 1 ? 'Vælg slide · Delete eller Backspace sletter' : undefined}
                   style={{ width: '100%', textAlign: 'left', border: 'none', background: 'transparent', cursor: 'pointer', padding: 0 }}
                 >
                   <div style={{ fontSize: 11, color: '#64748B', marginBottom: 5 }}>Slide {idx + 1}</div>
@@ -244,15 +417,6 @@ export default function ProjectSlidesTab({ projectId, canEdit }: ProjectSlidesTa
                     {slide.title || `Slide ${idx + 1}`}
                   </div>
                 </button>
-                {canEdit && doc.slides.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => removeSlide(slide.id)}
-                    style={{ marginTop: 6, border: 'none', background: 'transparent', color: '#DC2626', fontSize: 11, cursor: 'pointer', padding: 0 }}
-                  >
-                    Slet
-                  </button>
-                )}
               </div>
             )
           })}
@@ -330,14 +494,85 @@ export default function ProjectSlidesTab({ projectId, canEdit }: ProjectSlidesTa
               style={{ width: '100%', border: 'none', borderBottom: '1px solid #E5E7EB', outline: 'none', padding: '6px 0 10px', fontSize: 28, fontWeight: 700, color: '#0F172A', marginBottom: 14, background: 'transparent' }}
             />
 
-            <div style={{ margin: '0 auto', width: 'min(100%, 960px)', aspectRatio: '16 / 9', border: '1px solid #D1D5DB', borderRadius: 12, background: '#fff', boxShadow: 'inset 0 0 0 1px #F8FAFC' }}>
+            <div
+              style={{
+                margin: '0 auto',
+                width: 'min(100%, 960px)',
+                aspectRatio: '16 / 9',
+                border: '1px solid #D1D5DB',
+                borderRadius: 12,
+                background: '#fff',
+                boxShadow: 'inset 0 0 0 1px #F8FAFC',
+                position: 'relative',
+              }}
+            >
               <div
                 ref={editorRef}
                 contentEditable={canEdit}
                 suppressContentEditableWarning
-                onInput={e => updateActiveSlideHtml((e.target as HTMLDivElement).innerHTML)}
+                onInput={e => {
+                  updateActiveSlideHtml((e.target as HTMLDivElement).innerHTML)
+                  scheduleSlidesPresencePublish()
+                }}
+                onMouseUp={() => scheduleSlidesPresencePublish()}
+                onKeyUp={() => scheduleSlidesPresencePublish()}
+                onClick={() => scheduleSlidesPresencePublish()}
+                onScroll={() => updateRenderedSlidesPresence()}
                 style={{ width: '100%', height: '100%', outline: 'none', padding: 28, fontSize: 24, lineHeight: 1.35, color: '#0F172A', fontFamily: 'Arial, Helvetica, sans-serif', overflow: 'auto' }}
               />
+              {remotePresenceLayers.map(layer => (
+                <div
+                  key={layer.id}
+                  style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    right: 0,
+                    bottom: 0,
+                    pointerEvents: 'none',
+                    zIndex: 5,
+                  }}
+                >
+                  {layer.highlights.map((h, i) => (
+                    <div
+                      key={`${layer.id}-sel-${i}`}
+                      style={{
+                        position: 'absolute',
+                        left: h.left,
+                        top: h.top,
+                        width: h.width,
+                        height: h.height,
+                        background: `${layer.color}44`,
+                        borderRadius: 3,
+                        boxShadow: `inset 0 0 0 1px ${layer.color}66`,
+                      }}
+                    />
+                  ))}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: layer.caretLeft,
+                      top: layer.caretTop,
+                    }}
+                  >
+                    <div style={{ width: 2, height: 20, background: layer.color, borderRadius: 2 }} />
+                    <div
+                      style={{
+                        marginTop: 2,
+                        background: layer.color,
+                        color: '#fff',
+                        fontSize: 10,
+                        fontWeight: 700,
+                        borderRadius: 6,
+                        padding: '2px 6px',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {layer.label}
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>

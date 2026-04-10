@@ -14,6 +14,7 @@ import {
   getProjects,
   createProject,
   deleteProject,
+  inviteProjectMember,
   type Project,
 } from '@/lib/projects'
 import { VAERKTOEJER } from '@/lib/vaerktoejer-data'
@@ -41,12 +42,31 @@ type ProjectInviteNotification = {
   invitedByName: string
 }
 
+function parseInviteEmailList(raw: string): string[] {
+  const parts = raw.split(/[\n,;]+/)
+  const seen = new Set<string>()
+  const out: string[] = []
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  for (const part of parts) {
+    const e = part.trim().toLowerCase()
+    if (!e || seen.has(e)) continue
+    if (emailRegex.test(e)) {
+      seen.add(e)
+      out.push(e)
+    }
+  }
+  return out
+}
+
 export default function DashboardClient() {
   const [projects, setProjects] = useState<Project[]>([])
   const [username, setUsername] = useState<string>('')
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [newName, setNewName] = useState('')
   const [newDesc, setNewDesc] = useState('')
+  const [newFramework, setNewFramework] = useState<FrameworkId>('none')
+  const [createInviteEmails, setCreateInviteEmails] = useState('')
+  const [createInviteRole, setCreateInviteRole] = useState<'editor' | 'viewer'>('editor')
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null)
@@ -134,17 +154,26 @@ export default function DashboardClient() {
   }
 
 
+  const closeCreateModal = () => {
+    setShowCreateModal(false)
+    setNewName('')
+    setNewDesc('')
+    setNewFramework('none')
+    setCreateInviteEmails('')
+    setCreateInviteRole('editor')
+  }
+
   const handleCreate = async () => {
     if (!newName.trim() || creating) return
 
     if (isOffline) {
-      // Demo mode: create project locally
+      // Demo mode: create project locally (invites kræver online konto)
       const newProject: Project = {
         id: `demo-${Date.now()}`,
         name: newName.trim(),
         description: newDesc.trim(),
         toolIds: [],
-        framework: 'none',
+        framework: newFramework,
         role: 'owner',
         updatedAt: new Date().toISOString(),
         createdAt: new Date().toISOString(),
@@ -152,20 +181,32 @@ export default function DashboardClient() {
       const updated = [...projects, newProject]
       setProjects(updated)
       localStorage.setItem('forgelab_demo_projects', JSON.stringify(updated))
-      setShowCreateModal(false)
-      setNewName('')
-      setNewDesc('')
+      closeCreateModal()
       window.location.href = `/dashboard/projects/${newProject.id}`
       return
     }
 
+    const inviteList = parseInviteEmailList(createInviteEmails)
+
     try {
       setCreating(true)
-      const p = await createProject(newName.trim(), newDesc.trim())
+      const p = await createProject(newName.trim(), newDesc.trim(), { framework: newFramework })
+      const inviteFailures: string[] = []
+      for (const email of inviteList) {
+        try {
+          await inviteProjectMember(p.id, email, createInviteRole)
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : 'Ukendt fejl'
+          inviteFailures.push(`${email}: ${msg}`)
+        }
+      }
       await loadProjects()
-      setShowCreateModal(false)
-      setNewName('')
-      setNewDesc('')
+      closeCreateModal()
+      if (inviteFailures.length > 0) {
+        alert(
+          `Projektet er oprettet, men nogle invitationer mislykkedes:\n\n${inviteFailures.join('\n')}\n\n(Tjek at modtageren har en ForgeLab-konto med den e-mail.)`
+        )
+      }
       window.location.href = `/dashboard/projects/${p.id}`
     } catch (error) {
       console.error('Error creating project:', error)
@@ -769,9 +810,9 @@ export default function DashboardClient() {
         </section>
       </div>
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => setShowCreateModal(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={closeCreateModal}>
           <div
-            className="w-full max-w-md bg-white rounded-2xl border border-gray-200/80 shadow-xl p-6"
+            className="w-full max-w-md max-h-[min(90vh,720px)] overflow-y-auto bg-white rounded-2xl border border-gray-200/80 shadow-xl p-6"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Opret nyt projekt</h3>
@@ -797,15 +838,55 @@ export default function DashboardClient() {
                   className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-transparent"
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Framework</label>
+                <select
+                  value={newFramework}
+                  onChange={(e) => setNewFramework((e.target.value as FrameworkId) || 'none')}
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-transparent bg-white text-gray-900"
+                >
+                  <option value="none">Ingen framework</option>
+                  <option value="double-diamond">Double Diamond</option>
+                  <option value="google-design-sprint">Google Design Sprint</option>
+                  <option value="design-thinking">Design Thinking</option>
+                </select>
+                <p className="mt-1.5 text-xs text-gray-500">Bruges til faseinddeling af værktøjer i projektet.</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Invitér deltagere (valgfrit)</label>
+                <textarea
+                  value={createInviteEmails}
+                  onChange={(e) => setCreateInviteEmails(e.target.value)}
+                  placeholder="Én e-mail pr. linje eller adskilt med komma (fx navn@firma.dk)"
+                  rows={3}
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-transparent resize-y min-h-[4.5rem] text-sm"
+                />
+                <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <label className="text-sm text-gray-600 shrink-0">Rolle for inviterede</label>
+                  <select
+                    value={createInviteRole}
+                    onChange={(e) => setCreateInviteRole(e.target.value as 'editor' | 'viewer')}
+                    className="w-full sm:w-auto sm:min-w-[140px] px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white text-gray-900"
+                  >
+                    <option value="editor">Editor</option>
+                    <option value="viewer">Viewer</option>
+                  </select>
+                </div>
+                <p className="mt-1.5 text-xs text-gray-500">
+                  Personerne skal allerede have en ForgeLab-konto med den angivne e-mail.
+                </p>
+              </div>
             </div>
             <div className="flex gap-3 mt-6">
               <button
-                onClick={() => setShowCreateModal(false)}
+                type="button"
+                onClick={closeCreateModal}
                 className="flex-1 px-4 py-3 border-2 border-gray-200 text-gray-700 rounded-xl font-medium hover:border-gray-300 hover:bg-gray-50 transition-all"
               >
                 Annuller
               </button>
               <button
+                type="button"
                 onClick={handleCreate}
                 disabled={!newName.trim() || creating}
                 className="flex-1 px-4 py-3 bg-amber-500 text-white rounded-xl font-semibold hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-amber-500/25"
