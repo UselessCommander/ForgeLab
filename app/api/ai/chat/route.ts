@@ -7,6 +7,16 @@ import { z } from 'zod'
 import { refreshProjectKnowledgeIndex, retrieveProjectKnowledge } from '@/lib/project-rag'
 
 export const maxDuration = 30
+const env = (...keys: string[]) => {
+  for (const key of keys) {
+    const value = process.env[key]
+    if (typeof value === 'string' && value.trim()) return value
+  }
+  return ''
+}
+
+const hasEnv = (...keys: string[]) => Boolean(env(...keys))
+
 const SUPPORTED_AI_PROVIDERS = [
   'auto',
   'max',
@@ -63,7 +73,7 @@ export async function POST(req: Request) {
   try {
     const { messages, context, aiProvider: requestedProvider, aiModel: requestedModel } = await req.json()
 
-    const envProvider = (process.env.AI_PROVIDER || 'google').toLowerCase()
+    const envProvider = (env('AI_PROVIDER', 'NEXT_PUBLIC_AI_PROVIDER') || 'google').toLowerCase()
     const normalizedRequestedProvider =
       typeof requestedProvider === 'string' ? requestedProvider.toLowerCase() : undefined
     const aiProvider = (
@@ -71,64 +81,67 @@ export async function POST(req: Request) {
         ? normalizedRequestedProvider
         : envProvider
     ) as SupportedProvider
-    const googleModel = process.env.GOOGLE_MODEL || 'gemini-2.5-flash'
-    const openaiModel = process.env.OPENAI_MODEL || 'gpt-4o-mini'
-    const anthropicModel = process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-latest'
-    const openrouterModel = process.env.OPENROUTER_MODEL || 'google/gemma-4-31b-it:free'
-    const mistralModel = process.env.MISTRAL_MODEL || 'mistral-small-latest'
-    const groqModel = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile'
-    const kimiModel = process.env.KIMI_MODEL || 'kimi-k2.5'
+    const googleModel = env('GOOGLE_MODEL', 'NEXT_PUBLIC_GOOGLE_MODEL') || 'gemini-2.5-flash'
+    const openaiModel = env('OPENAI_MODEL', 'NEXT_PUBLIC_OPENAI_MODEL') || 'gpt-4o-mini'
+    const anthropicModel = env('ANTHROPIC_MODEL', 'NEXT_PUBLIC_ANTHROPIC_MODEL') || 'claude-3-5-sonnet-latest'
+    const openrouterModel = env('OPENROUTER_MODEL', 'NEXT_PUBLIC_OPENROUTER_MODEL') || 'google/gemma-4-31b-it:free'
+    const mistralModel = env('MISTRAL_MODEL', 'NEXT_PUBLIC_MISTRAL_MODEL') || 'mistral-small-latest'
+    const groqModel = env('GROQ_MODEL', 'NEXT_PUBLIC_GROQ_MODEL') || 'llama-3.3-70b-versatile'
+    const kimiModel = env('KIMI_MODEL', 'NEXT_PUBLIC_KIMI_MODEL') || 'kimi-k2.5'
     const requestedModelSafe = typeof requestedModel === 'string' ? requestedModel : undefined
 
     if (aiProvider === 'openai') {
-      if (!process.env.OPENAI_API_KEY) {
+      if (!hasEnv('OPENAI_API_KEY')) {
         return new Response(
-          JSON.stringify({ error: 'OpenAI API key mangler. Sæt OPENAI_API_KEY i .env.local.' }),
+          JSON.stringify({ error: 'OpenAI API key mangler. Sæt OPENAI_API_KEY i miljøvariabler (lokalt/Vercel).' }),
           { status: 500, headers: { 'Content-Type': 'application/json' } }
         )
       }
     } else if (aiProvider === 'openrouter') {
-      if (!process.env.OPENROUTER_API_KEY) {
+      if (!hasEnv('OPENROUTER_API_KEY')) {
         return new Response(
-          JSON.stringify({ error: 'OpenRouter API key mangler. Sæt OPENROUTER_API_KEY i .env.local.' }),
+          JSON.stringify({ error: 'OpenRouter API key mangler. Sæt OPENROUTER_API_KEY i miljøvariabler (lokalt/Vercel).' }),
           { status: 500, headers: { 'Content-Type': 'application/json' } }
         )
       }
     } else if (aiProvider === 'kimi') {
-      if (!process.env.MOONSHOT_API_KEY && !process.env.KIMI_API_KEY) {
+      if (!hasEnv('MOONSHOT_API_KEY', 'KIMI_API_KEY')) {
         return new Response(
           JSON.stringify({
             error:
-              'Moonshot API key mangler. Sæt MOONSHOT_API_KEY eller KIMI_API_KEY i .env.local (officielle Kimi API).',
+              'Moonshot API key mangler. Sæt MOONSHOT_API_KEY eller KIMI_API_KEY i miljøvariabler (lokalt/Vercel).',
           }),
           { status: 500, headers: { 'Content-Type': 'application/json' } }
         )
       }
     } else if (aiProvider === 'anthropic') {
-      if (!process.env.ANTHROPIC_API_KEY) {
+      if (!hasEnv('ANTHROPIC_API_KEY')) {
         return new Response(
-          JSON.stringify({ error: 'Anthropic API key mangler. Sæt ANTHROPIC_API_KEY i .env.local.' }),
+          JSON.stringify({ error: 'Anthropic API key mangler. Sæt ANTHROPIC_API_KEY i miljøvariabler (lokalt/Vercel).' }),
           { status: 500, headers: { 'Content-Type': 'application/json' } }
         )
       }
     } else if (aiProvider === 'mistral') {
-      if (!process.env.MISTRAL_API_KEY) {
+      if (!hasEnv('MISTRAL_API_KEY')) {
         return new Response(
-          JSON.stringify({ error: 'Mistral API key mangler. Sæt MISTRAL_API_KEY i .env.local.' }),
+          JSON.stringify({ error: 'Mistral API key mangler. Sæt MISTRAL_API_KEY i miljøvariabler (lokalt/Vercel).' }),
           { status: 500, headers: { 'Content-Type': 'application/json' } }
         )
       }
     } else if (aiProvider === 'groq') {
-      if (!process.env.GROQ_API_KEY) {
+      if (!hasEnv('GROQ_API_KEY')) {
         return new Response(
-          JSON.stringify({ error: 'Groq API key mangler. Sæt GROQ_API_KEY i .env.local.' }),
+          JSON.stringify({ error: 'Groq API key mangler. Sæt GROQ_API_KEY i miljøvariabler (lokalt/Vercel).' }),
           { status: 500, headers: { 'Content-Type': 'application/json' } }
         )
       }
     } else if (aiProvider === 'google') {
-      if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
+      if (!hasEnv('GOOGLE_GENERATIVE_AI_API_KEY', 'GOOGLE_API_KEY', 'GEMINI_API_KEY')) {
         return new Response(
-          JSON.stringify({ error: 'Google AI API key mangler. Sæt GOOGLE_GENERATIVE_AI_API_KEY i .env.local.' }),
+          JSON.stringify({
+            error:
+              'Google AI API key mangler. Sæt GOOGLE_GENERATIVE_AI_API_KEY (eller GOOGLE_API_KEY/GEMINI_API_KEY) i miljøvariabler (lokalt/Vercel).',
+          }),
           { status: 500, headers: { 'Content-Type': 'application/json' } }
         )
       }
@@ -348,12 +361,12 @@ export async function POST(req: Request) {
     }
 
     const openrouter = createOpenAI({
-      apiKey: process.env.OPENROUTER_API_KEY,
+      apiKey: env('OPENROUTER_API_KEY'),
       baseURL: 'https://openrouter.ai/api/v1',
     })
 
-    const moonshotApiKey = process.env.MOONSHOT_API_KEY || process.env.KIMI_API_KEY || ''
-    const moonshotBaseUrl = process.env.MOONSHOT_BASE_URL || 'https://api.moonshot.ai/v1'
+    const moonshotApiKey = env('MOONSHOT_API_KEY', 'KIMI_API_KEY')
+    const moonshotBaseUrl = env('MOONSHOT_BASE_URL') || 'https://api.moonshot.ai/v1'
     const moonshot = moonshotApiKey
       ? createOpenAI({
           apiKey: moonshotApiKey,
@@ -362,7 +375,7 @@ export async function POST(req: Request) {
       : null
 
     const groq = createOpenAI({
-      apiKey: process.env.GROQ_API_KEY,
+      apiKey: env('GROQ_API_KEY'),
       baseURL: 'https://api.groq.com/openai/v1',
     })
 
@@ -536,32 +549,32 @@ export async function POST(req: Request) {
       )
 
       if (hasFiles) {
-        if (process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
+        if (hasEnv('GOOGLE_GENERATIVE_AI_API_KEY', 'GOOGLE_API_KEY', 'GEMINI_API_KEY')) {
           candidates.push({ provider: 'google', modelId: googleModel, model: google(googleModel) })
         }
-        if (process.env.ANTHROPIC_API_KEY) {
+        if (hasEnv('ANTHROPIC_API_KEY')) {
           candidates.push({ provider: 'anthropic', modelId: anthropicModel, model: anthropic(anthropicModel) })
         }
-        if (process.env.OPENAI_API_KEY) {
+        if (hasEnv('OPENAI_API_KEY')) {
           candidates.push({ provider: 'openai', modelId: openaiModel, model: openai(openaiModel) })
         }
       } else {
-        if (process.env.OPENAI_API_KEY) {
+        if (hasEnv('OPENAI_API_KEY')) {
           candidates.push({ provider: 'openai', modelId: openaiModel, model: openai(openaiModel) })
         }
-        if (process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
+        if (hasEnv('GOOGLE_GENERATIVE_AI_API_KEY', 'GOOGLE_API_KEY', 'GEMINI_API_KEY')) {
           candidates.push({ provider: 'google', modelId: googleModel, model: google(googleModel) })
         }
-        if (process.env.ANTHROPIC_API_KEY) {
+        if (hasEnv('ANTHROPIC_API_KEY')) {
           candidates.push({ provider: 'anthropic', modelId: anthropicModel, model: anthropic(anthropicModel) })
         }
-        if (process.env.OPENROUTER_API_KEY) {
+        if (hasEnv('OPENROUTER_API_KEY')) {
           candidates.push({ provider: 'openrouter', modelId: openrouterModel, model: openrouter(openrouterModel) })
         }
-        if (process.env.MISTRAL_API_KEY) {
+        if (hasEnv('MISTRAL_API_KEY')) {
           candidates.push({ provider: 'mistral', modelId: mistralModel, model: mistral(mistralModel) })
         }
-        if (process.env.GROQ_API_KEY) {
+        if (hasEnv('GROQ_API_KEY')) {
           candidates.push({ provider: 'groq', modelId: groqModel, model: groq(groqModel) })
         }
       }

@@ -139,9 +139,15 @@ export default function ProjectDoubleDiamondBoard({
   markersRef.current = markers
 
   const draggingSlug = useRef<string | null>(null)
+  const draggingSlugs = useRef<string[] | null>(null)
+  const dragStartNorm = useRef<{ nx: number; ny: number } | null>(null)
+  const dragStartPositions = useRef<Record<string, { nx: number; ny: number }>>({})
+  const interactionMode = useRef<'move' | 'select' | null>(null)
   const pointerStart = useRef<{ x: number; y: number } | null>(null)
   const activeSlug = useRef<string | null>(null)
   const hasMoved = useRef(false)
+  const [selectedSlugs, setSelectedSlugs] = useState<string[]>([])
+  const [selectionBox, setSelectionBox] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null)
 
   const clientToNorm = useCallback((clientX: number, clientY: number) => {
     const el = canvasRef.current
@@ -159,27 +165,70 @@ export default function ProjectDoubleDiamondBoard({
     }
 
     const onMove = (e: PointerEvent) => {
-      const slug = draggingSlug.current
-      if (!slug) return
-      const { nx, ny } = clientToNorm(e.clientX, e.clientY)
-      if (pointerStart.current) {
-        const d = Math.hypot(e.clientX - pointerStart.current.x, e.clientY - pointerStart.current.y)
-        if (d > DRAG_THRESHOLD) hasMoved.current = true
+      if (interactionMode.current === 'move') {
+        const slugs = draggingSlugs.current
+        if (!slugs?.length) return
+        const { nx, ny } = clientToNorm(e.clientX, e.clientY)
+        if (pointerStart.current) {
+          const d = Math.hypot(e.clientX - pointerStart.current.x, e.clientY - pointerStart.current.y)
+          if (d > DRAG_THRESHOLD) hasMoved.current = true
+        }
+
+        const start = dragStartNorm.current
+        if (!start) return
+        const dx = nx - start.nx
+        const dy = ny - start.ny
+
+        setMarkers((prev) => {
+          const next = prev.map((m) => {
+            if (!slugs.includes(m.slug)) return m
+            const startPos = dragStartPositions.current[m.slug]
+            if (!startPos) return m
+            return {
+              ...m,
+              nx: clamp01(startPos.nx + dx),
+              ny: clamp01(startPos.ny + dy),
+            }
+          })
+          markersRef.current = next
+          return next
+        })
+        return
       }
-      setMarkers((prev) => {
-        const next = prev.map((m) => (m.slug === slug ? { ...m, nx, ny } : m))
-        markersRef.current = next
-        return next
-      })
+
+      if (interactionMode.current === 'select') {
+        const start = dragStartNorm.current
+        if (!start) return
+        const { nx, ny } = clientToNorm(e.clientX, e.clientY)
+        if (pointerStart.current) {
+          const d = Math.hypot(e.clientX - pointerStart.current.x, e.clientY - pointerStart.current.y)
+          if (d > DRAG_THRESHOLD) hasMoved.current = true
+        }
+        setSelectionBox({ x1: start.nx, y1: start.ny, x2: nx, y2: ny })
+
+        const minX = Math.min(start.nx, nx)
+        const maxX = Math.max(start.nx, nx)
+        const minY = Math.min(start.ny, ny)
+        const maxY = Math.max(start.ny, ny)
+        const selected = markersRef.current
+          .filter((m) => m.nx >= minX && m.nx <= maxX && m.ny >= minY && m.ny <= maxY)
+          .map((m) => m.slug)
+        setSelectedSlugs(selected)
+      }
     }
 
     const onUp = async () => {
       const slug = activeSlug.current
       const moved = hasMoved.current
       draggingSlug.current = null
+      draggingSlugs.current = null
+      dragStartNorm.current = null
+      dragStartPositions.current = {}
+      interactionMode.current = null
       pointerStart.current = null
       activeSlug.current = null
       hasMoved.current = false
+      setSelectionBox(null)
       document.body.style.cursor = ''
 
       if (moved && canEdit) {
@@ -208,11 +257,41 @@ export default function ProjectDoubleDiamondBoard({
     if (!canEdit) return
     e.preventDefault()
     e.stopPropagation()
+    const selected = selectedSlugs.includes(slug) ? selectedSlugs : [slug]
+    setSelectedSlugs(selected)
     hasMoved.current = false
+    interactionMode.current = 'move'
     draggingSlug.current = slug
+    draggingSlugs.current = selected
+    const startPos = markersRef.current.find((m) => m.slug === slug)
+    if (!startPos) return
+    dragStartNorm.current = { nx: startPos.nx, ny: startPos.ny }
+    dragStartPositions.current = Object.fromEntries(
+      markersRef.current
+        .filter((m) => selected.includes(m.slug))
+        .map((m) => [m.slug, { nx: m.nx, ny: m.ny }])
+    )
     activeSlug.current = slug
     pointerStart.current = { x: e.clientX, y: e.clientY }
     document.body.style.cursor = 'grabbing'
+  }
+
+  const onBoardPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!canEdit) return
+    const target = e.target as HTMLElement
+    if (target.closest('[data-marker="true"]')) return
+    e.preventDefault()
+    const { nx, ny } = clientToNorm(e.clientX, e.clientY)
+    interactionMode.current = 'select'
+    draggingSlugs.current = null
+    draggingSlug.current = null
+    dragStartNorm.current = { nx, ny }
+    pointerStart.current = { x: e.clientX, y: e.clientY }
+    hasMoved.current = false
+    activeSlug.current = null
+    setSelectionBox({ x1: nx, y1: ny, x2: nx, y2: ny })
+    setSelectedSlugs([])
+    document.body.style.cursor = 'crosshair'
   }
 
   const handleReset = async () => {
@@ -229,6 +308,7 @@ export default function ProjectDoubleDiamondBoard({
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-neutral-600">
           <p>
             <span className="font-medium text-neutral-800">Træk</span> ikonerne for at placere dem frit.{' '}
+            <span className="font-medium text-neutral-800">Træk på tomt område</span> for at markere flere og flytte dem samlet.{' '}
             <span className="font-medium text-neutral-800">Klik</span> (uden at trække) åbner værktøjet.
           </p>
           <button
@@ -241,7 +321,11 @@ export default function ProjectDoubleDiamondBoard({
         </div>
       )}
       <div className="relative w-full overflow-x-auto rounded-xl border border-neutral-200 bg-white p-3 md:p-4">
-        <div ref={canvasRef} className="relative mx-auto min-w-[800px] w-full pb-1 touch-none">
+        <div
+          ref={canvasRef}
+          onPointerDown={onBoardPointerDown}
+          className="relative mx-auto min-w-[800px] w-full pb-1 touch-none"
+        >
           <DoubleDiamondDiagram readOnly />
           <div className="pointer-events-none absolute inset-0 z-10">
             {markers.map(({ slug, title, nx, ny }) => {
@@ -249,9 +333,10 @@ export default function ProjectDoubleDiamondBoard({
               const left = nx * 100
               const top = ny * 100
               const href = `/tools/${slug}?projectId=${encodeURIComponent(projectId)}`
+              const isSelected = selectedSlugs.includes(slug)
               const shellClass = `group pointer-events-auto absolute z-20 flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-xl border border-neutral-200 bg-white shadow-md transition hover:z-30 hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 ${
                 canEdit ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
-              }`
+              } ${isSelected ? 'ring-2 ring-amber-500 ring-offset-2' : ''}`
               const tip = (
                 <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-1.5 hidden -translate-x-1/2 whitespace-nowrap rounded-md border border-neutral-200 bg-neutral-900 px-2 py-1 text-[11px] font-medium text-white shadow-md sm:block sm:opacity-0 sm:transition-opacity sm:duration-150 sm:group-hover:opacity-100">
                   {title}
@@ -282,6 +367,7 @@ export default function ProjectDoubleDiamondBoard({
               return (
                 <div
                   key={slug}
+                  data-marker="true"
                   role="button"
                   tabIndex={0}
                   onPointerDown={(e) => onIconPointerDown(e, slug)}
@@ -302,6 +388,17 @@ export default function ProjectDoubleDiamondBoard({
               )
             })}
           </div>
+          {selectionBox && (
+            <div
+              className="pointer-events-none absolute z-40 border border-amber-500/80 bg-amber-200/25"
+              style={{
+                left: `${Math.min(selectionBox.x1, selectionBox.x2) * 100}%`,
+                top: `${Math.min(selectionBox.y1, selectionBox.y2) * 100}%`,
+                width: `${Math.abs(selectionBox.x2 - selectionBox.x1) * 100}%`,
+                height: `${Math.abs(selectionBox.y2 - selectionBox.y1) * 100}%`,
+              }}
+            />
+          )}
         </div>
       </div>
     </div>
