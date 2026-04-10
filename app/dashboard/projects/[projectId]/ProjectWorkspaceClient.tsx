@@ -5837,16 +5837,6 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           </div>
         </div>
       )}
-
-      {/* ── Hint bar ──────────────────────────────────────────────── */}
-      <div style={S.hintBar}>
-        <span>🖱️ Scroll = zoom</span>
-        <span style={{ opacity: 0.35 }}>·</span>
-        <span>🤚 Hold Space + træk = pan</span>
-        {canEdit && <><span style={{ opacity: 0.35 }}>·</span><span>▢ Træk på baggrund = markér elementer</span></>}
-        {canEdit && <><span style={{ opacity: 0.35 }}>·</span><span>⌫ Delete/Backspace = slet markerede</span></>}
-        {canEdit && <><span style={{ opacity: 0.35 }}>·</span><span>✦ Træk kort for at flytte</span></>}
-      </div>
       {activeWorkspaceTab === 'board' && contextMenu && canEdit && (
         <div
           onClick={e => e.stopPropagation()}
@@ -6383,14 +6373,6 @@ const S = {
     cursor: 'pointer', fontSize: 13, fontWeight: 500,
     transition: 'all 0.15s', color: '#374151', background: 'white',
     whiteSpace: 'nowrap',
-  } as React.CSSProperties,
-
-  hintBar: {
-    position: 'fixed', bottom: 18, left: '50%', transform: 'translateX(-50%)',
-    background: 'rgba(17,24,39,0.72)', backdropFilter: 'blur(8px)',
-    borderRadius: 99, padding: '6px 16px', color: 'white', fontSize: 11,
-    zIndex: 50, pointerEvents: 'none', display: 'flex', alignItems: 'center',
-    gap: 8, whiteSpace: 'nowrap', letterSpacing: '0.01em',
   } as React.CSSProperties,
 
   ctxItem: {
