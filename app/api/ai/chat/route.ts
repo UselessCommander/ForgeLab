@@ -1,5 +1,5 @@
 import { generateText, streamText, tool, type ModelMessage } from 'ai'
-import { google } from '@ai-sdk/google'
+import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAI, openai } from '@ai-sdk/openai'
 import { anthropic } from '@ai-sdk/anthropic'
 import { mistral } from '@ai-sdk/mistral'
@@ -363,6 +363,10 @@ export async function POST(req: Request) {
     const openrouter = createOpenAI({
       apiKey: env('OPENROUTER_API_KEY'),
       baseURL: 'https://openrouter.ai/api/v1',
+    })
+    const googleApiKey = env('GOOGLE_GENERATIVE_AI_API_KEY', 'GOOGLE_API_KEY', 'GEMINI_API_KEY')
+    const google = createGoogleGenerativeAI({
+      apiKey: googleApiKey,
     })
 
     const moonshotApiKey = env('MOONSHOT_API_KEY', 'KIMI_API_KEY')
