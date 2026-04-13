@@ -30,6 +30,9 @@ export function middleware(request: NextRequest) {
     '/try/qr-generator',
     '/analytics',
     '/vaerktoejer-oversigt',
+    '/privatliv',
+    '/vilkar',
+    '/cookies',
   ]
   const isPublicRoute = publicRoutes.some(route => request.nextUrl.pathname === route)
   const isPublicStandaloneTool = request.nextUrl.pathname.startsWith('/tools/')

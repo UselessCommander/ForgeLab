@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import ForgeLabLogo from '@/components/ForgeLabLogo'
 import CookieConsent from '@/components/CookieConsent'
+import LandingLegalSection from '@/components/LandingLegalSection'
 import {
   QrCode,
   BarChart3,
@@ -207,6 +208,8 @@ export default function LandingPage() {
           </div>
         </section>
 
+        <LandingLegalSection />
+
         {/* Why ForgeLab */}
         <section className="container mx-auto px-6 py-20">
           <div className="max-w-4xl mx-auto">
@@ -289,12 +292,21 @@ export default function LandingPage() {
                 <ForgeLabLogo size={24} />
                 <span className="text-gray-600 font-medium">ForgeLab</span>
               </div>
-              <div className="flex items-center gap-6 text-sm text-gray-500">
+              <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-gray-500">
                 <Link href="/login" className="hover:text-gray-900 transition-colors">
                   Log Ind
                 </Link>
                 <Link href="/register" className="hover:text-gray-900 transition-colors">
                   Opret Bruger
+                </Link>
+                <Link href="/privatliv" className="hover:text-gray-900 transition-colors">
+                  Privatliv
+                </Link>
+                <Link href="/vilkar" className="hover:text-gray-900 transition-colors">
+                  Vilkår
+                </Link>
+                <Link href="/cookies" className="hover:text-gray-900 transition-colors">
+                  Cookies
                 </Link>
               </div>
             </div>

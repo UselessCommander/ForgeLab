@@ -8,7 +8,17 @@ import {
 } from '@/lib/theme'
 
 function isPublicRoute(pathname: string): boolean {
-  const publicExact = new Set(['/', '/login', '/register', '/auth/callback', '/vaerktoejer-oversigt', '/analytics'])
+  const publicExact = new Set([
+    '/',
+    '/login',
+    '/register',
+    '/auth/callback',
+    '/vaerktoejer-oversigt',
+    '/analytics',
+    '/privatliv',
+    '/vilkar',
+    '/cookies',
+  ])
   if (publicExact.has(pathname)) return true
   if (pathname.startsWith('/analytics/')) return true
   if (pathname.startsWith('/tools/')) return true
