@@ -553,26 +553,25 @@ export default function ProjectSlidesTab({ projectId, canEdit, contentInsetLeftP
       }
 
       setGenerationEvents(prev => [...prev, 'Outline modtaget, validerer struktur'])
-      const nextOutline = (Array.isArray(payload?.slides) ? payload.slides : []).map((slide: any, index: number) => ({
-        title: typeof slide?.title === 'string' && slide.title.trim() ? slide.title.trim() : `Slide ${index + 1}`,
-        bullets: Array.isArray(slide?.bullets) ? slide.bullets.filter((x: unknown) => typeof x === 'string') : [],
-        speakerNotes: typeof slide?.speakerNotes === 'string' ? slide.speakerNotes : '',
-        imagePrompt: typeof slide?.imagePrompt === 'string' ? slide.imagePrompt : '',
-      }))
+      const nextOutline: GeneratedOutlineSlide[] = (Array.isArray(payload?.slides) ? payload.slides : []).map(
+        (slide: unknown, index: number) => {
+          const s = slide as Record<string, unknown>
+          return {
+            title:
+              typeof s.title === 'string' && s.title.trim() ? s.title.trim() : `Slide ${index + 1}`,
+            bullets: Array.isArray(s.bullets) ? s.bullets.filter((x: unknown) => typeof x === 'string') : [],
+            speakerNotes: typeof s.speakerNotes === 'string' ? s.speakerNotes : '',
+            imagePrompt: typeof s.imagePrompt === 'string' ? s.imagePrompt : '',
+          }
+        }
+      )
 
       if (nextOutline.length === 0) {
         throw new Error('Kimi returnerede ingen slides')
       }
 
       setGeneratedDeckTitle(typeof payload?.deckTitle === 'string' ? payload.deckTitle : 'Generated Deck')
-      setGeneratedOutline(
-        nextOutline.map(slide => ({
-          bullets: Array.isArray(slide?.bullets) ? slide.bullets.filter((x: unknown) => typeof x === 'string') : [],
-          title: slide.title,
-          speakerNotes: slide.speakerNotes,
-          imagePrompt: slide.imagePrompt,
-        }))
-      )
+      setGeneratedOutline(nextOutline)
       setGenerationEvents(prev => [...prev, `Outline klar (${nextOutline.length} slides)`])
       setGenerationSteps(prev => prev.map(step => ({ ...step, status: 'done' })))
     } catch (error) {

@@ -227,8 +227,23 @@ export function getDemoCardSortApiPayload(reference = new Date(), scope?: DemoCa
   }
 }
 
+/**
+ * Række fra API/panel før merge: samme som demo-rækken, men `responseSummary.totalResponses`
+ * kan mangle (Vercel/TS), og `boardCards` kan mangle.
+ */
+export type CardSortMergeSource = Omit<CardSortDemoProjectRow, 'responses' | 'responseSummary' | 'boardCards'> & {
+  responses: CardSortResponseRecord[]
+  responseSummary: Omit<CardSortDemoProjectRow['responseSummary'], 'totalResponses'> & {
+    totalResponses?: number
+  }
+  boardCards?: CardSortDemoProjectRow['boardCards']
+}
+
 /** Når projektet findes men ingen svar er registreret: vis samme demo-metrics og demo-rækker. */
-export function mergeProjectWithResponseDemo<P extends CardSortDemoProjectRow>(project: P, reference = new Date()): P {
+export function mergeProjectWithResponseDemo(
+  project: CardSortMergeSource,
+  reference = new Date()
+): CardSortDemoProjectRow {
   const responses = getDemoCardSortResponses(reference)
   const boardCats = Math.max(project.boardUniqueCategories || 0, 3)
   return {

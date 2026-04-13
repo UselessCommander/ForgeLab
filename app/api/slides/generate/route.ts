@@ -118,7 +118,6 @@ export async function POST(req: Request) {
       ? createOpenAI({
           apiKey: moonshotApiKey,
           baseURL: env('MOONSHOT_BASE_URL', 'KIMI_BASE_URL') || 'https://api.moonshot.ai/v1',
-          compatibility: 'strict',
         })
       : null
     const modelId = env('KIMI_MODEL', 'NEXT_PUBLIC_KIMI_MODEL') || 'kimi-k2.5'

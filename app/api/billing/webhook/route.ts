@@ -8,6 +8,12 @@ function toIsoFromUnix(seconds?: number | null) {
   return new Date(seconds * 1000).toISOString()
 }
 
+/** Stripe API still returns this; v22 typings omit it on `Subscription` in some builds. */
+function subscriptionCurrentPeriodEndUnix(subscription: Stripe.Subscription): number | undefined {
+  const end = (subscription as unknown as { current_period_end?: number }).current_period_end
+  return typeof end === 'number' && !Number.isNaN(end) ? end : undefined
+}
+
 async function applySubscriptionUpdate(subscription: Stripe.Subscription) {
   const userIdFromMetadata = subscription.metadata?.userId
   const customerId =
@@ -17,7 +23,7 @@ async function applySubscriptionUpdate(subscription: Stripe.Subscription) {
     stripe_customer_id: customerId,
     stripe_subscription_id: subscription.id,
     subscription_status: subscription.status,
-    subscription_current_period_end: toIsoFromUnix(subscription.current_period_end),
+    subscription_current_period_end: toIsoFromUnix(subscriptionCurrentPeriodEndUnix(subscription)),
     subscription_cancel_at_period_end: Boolean(subscription.cancel_at_period_end),
     plan_key: subscription.status === 'active' || subscription.status === 'trialing' ? 'pro' : 'free',
   }
@@ -40,7 +46,7 @@ async function markSubscriptionDeleted(subscription: Stripe.Subscription) {
   const updates = {
     stripe_subscription_id: null,
     subscription_status: 'canceled',
-    subscription_current_period_end: toIsoFromUnix(subscription.current_period_end),
+    subscription_current_period_end: toIsoFromUnix(subscriptionCurrentPeriodEndUnix(subscription)),
     subscription_cancel_at_period_end: false,
     plan_key: 'free',
   }
