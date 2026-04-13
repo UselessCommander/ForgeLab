@@ -147,6 +147,9 @@ export default function ProjectDoubleDiamondBoard({
   const activeSlug = useRef<string | null>(null)
   const hasMoved = useRef(false)
   const [selectedSlugs, setSelectedSlugs] = useState<string[]>([])
+  const selectedSlugSet = useMemo(() => new Set(selectedSlugs), [selectedSlugs])
+  const latestPointerNorm = useRef<{ nx: number; ny: number } | null>(null)
+  const frameIdRef = useRef<number | null>(null)
 
   const clientToNorm = useCallback((clientX: number, clientY: number) => {
     const el = canvasRef.current
@@ -163,6 +166,33 @@ export default function ProjectDoubleDiamondBoard({
       return
     }
 
+    const flushMoveFrame = () => {
+      frameIdRef.current = null
+      const slugs = draggingSlugs.current
+      const pointerNorm = latestPointerNorm.current
+      const start = dragStartNorm.current
+      if (!slugs?.length || !pointerNorm || !start) return
+
+      const slugSet = new Set(slugs)
+      const dx = pointerNorm.nx - start.nx
+      const dy = pointerNorm.ny - start.ny
+
+      setMarkers((prev) => {
+        const next = prev.map((m) => {
+          if (!slugSet.has(m.slug)) return m
+          const startPos = dragStartPositions.current[m.slug]
+          if (!startPos) return m
+          return {
+            ...m,
+            nx: clamp01(startPos.nx + dx),
+            ny: clamp01(startPos.ny + dy),
+          }
+        })
+        markersRef.current = next
+        return next
+      })
+    }
+
     const onMove = (e: PointerEvent) => {
       if (interactionMode.current === 'move') {
         const slugs = draggingSlugs.current
@@ -173,25 +203,10 @@ export default function ProjectDoubleDiamondBoard({
           if (d > DRAG_THRESHOLD) hasMoved.current = true
         }
 
-        const start = dragStartNorm.current
-        if (!start) return
-        const dx = nx - start.nx
-        const dy = ny - start.ny
-
-        setMarkers((prev) => {
-          const next = prev.map((m) => {
-            if (!slugs.includes(m.slug)) return m
-            const startPos = dragStartPositions.current[m.slug]
-            if (!startPos) return m
-            return {
-              ...m,
-              nx: clamp01(startPos.nx + dx),
-              ny: clamp01(startPos.ny + dy),
-            }
-          })
-          markersRef.current = next
-          return next
-        })
+        latestPointerNorm.current = { nx, ny }
+        if (frameIdRef.current == null) {
+          frameIdRef.current = window.requestAnimationFrame(flushMoveFrame)
+        }
         return
       }
 
@@ -208,6 +223,11 @@ export default function ProjectDoubleDiamondBoard({
       pointerStart.current = null
       activeSlug.current = null
       hasMoved.current = false
+      latestPointerNorm.current = null
+      if (frameIdRef.current != null) {
+        window.cancelAnimationFrame(frameIdRef.current)
+        frameIdRef.current = null
+      }
       document.body.style.cursor = ''
 
       if (moved && canEdit) {
@@ -229,6 +249,10 @@ export default function ProjectDoubleDiamondBoard({
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
       window.removeEventListener('pointercancel', onUp)
+      if (frameIdRef.current != null) {
+        window.cancelAnimationFrame(frameIdRef.current)
+        frameIdRef.current = null
+      }
     }
   }, [canEdit, clientToNorm, onLayoutSave, projectId, router])
 
@@ -243,7 +267,7 @@ export default function ProjectDoubleDiamondBoard({
       return
     }
 
-    if (!selectedSlugs.includes(slug)) {
+    if (!selectedSlugSet.has(slug)) {
       // Første klik markerer kun; næste træk på markeret ikon flytter.
       setSelectedSlugs([slug])
       return
@@ -315,7 +339,7 @@ export default function ProjectDoubleDiamondBoard({
               const left = nx * 100
               const top = ny * 100
               const href = `/tools/${slug}?projectId=${encodeURIComponent(projectId)}`
-              const isSelected = selectedSlugs.includes(slug)
+              const isSelected = selectedSlugSet.has(slug)
               const shellClass = `group pointer-events-auto absolute z-20 flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-xl border border-neutral-200 bg-white shadow-md transition hover:z-30 hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 ${
                 canEdit ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
               } ${isSelected ? 'ring-2 ring-amber-500 ring-offset-2' : ''}`

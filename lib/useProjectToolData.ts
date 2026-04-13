@@ -1,14 +1,17 @@
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
 import { getProjectToolData, saveProjectToolData } from './projects'
 import { useToolEmbed } from '@/components/ToolEmbedContext'
 
+const GUEST_STANDALONE_PREFIX = 'forgelab_guest_tool_'
+const GUEST_PROJECT_PREFIX = 'forgelab_guest_project_tool_'
+
 /**
  * Hook til at gemme og loade tool data automatisk når værktøjet er i et projekt
- * 
- * @param toolSlug - Slug for værktøjet (f.eks. 'swot-generator')
- * @param data - Den nuværende state/data fra værktøjet
- * @param setData - Funktion til at opdatere state
- * @param debounceMs - Hvor lang tid der skal gå før data gemmes (default 1000ms)
+ *
+ * - Logget ind + `projectId`: load/gem via API (database).
+ * - Gæst + `projectId`: kun localStorage (ingen DB-kald).
+ * - Gæst uden `projectId`: kun localStorage pr. værktøj (session i browseren).
+ * - Logget ind uden `projectId`: ingen cloud-gemning (som før).
  */
 export function useProjectToolData<T>(
   toolSlug: string,
@@ -17,8 +20,9 @@ export function useProjectToolData<T>(
   debounceMs: number = 1000
 ) {
   const { projectId: contextProjectId } = useToolEmbed()
+  const [authReady, setAuthReady] = useState(false)
+  const [authenticated, setAuthenticated] = useState(false)
 
-  // Get projectId from URL search params or Context
   const getProjectId = useCallback(() => {
     if (contextProjectId) return contextProjectId
     if (typeof window === 'undefined') return null
@@ -30,15 +34,71 @@ export function useProjectToolData<T>(
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
   const isInitialLoadRef = useRef(true)
 
-  // Load data when component mounts and projectId is available
   useEffect(() => {
-    if (!projectId || !isInitialLoadRef.current) return
+    let cancelled = false
+    fetch('/api/auth/me', { credentials: 'include' })
+      .then((r) => r.json())
+      .then((j: { authenticated?: boolean }) => {
+        if (!cancelled) {
+          setAuthenticated(!!j?.authenticated)
+          setAuthReady(true)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAuthenticated(false)
+          setAuthReady(true)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const persistGuest = useCallback(
+    (payload: T) => {
+      if (typeof window === 'undefined') return
+      if (projectId && !authenticated) {
+        localStorage.setItem(`${GUEST_PROJECT_PREFIX}${projectId}_${toolSlug}`, JSON.stringify(payload))
+      } else if (!projectId && !authenticated) {
+        localStorage.setItem(`${GUEST_STANDALONE_PREFIX}${toolSlug}`, JSON.stringify(payload))
+      }
+    },
+    [projectId, toolSlug, authenticated]
+  )
+
+  const loadGuest = useCallback((): T | null => {
+    if (typeof window === 'undefined') return null
+    try {
+      if (projectId && !authenticated) {
+        const raw = localStorage.getItem(`${GUEST_PROJECT_PREFIX}${projectId}_${toolSlug}`)
+        return raw ? (JSON.parse(raw) as T) : null
+      }
+      if (!projectId && !authenticated) {
+        const raw = localStorage.getItem(`${GUEST_STANDALONE_PREFIX}${toolSlug}`)
+        return raw ? (JSON.parse(raw) as T) : null
+      }
+    } catch {
+      return null
+    }
+    return null
+  }, [projectId, toolSlug, authenticated])
+
+  useEffect(() => {
+    if (!authReady || !isInitialLoadRef.current) return
 
     const loadData = async () => {
       try {
-        const savedData = await getProjectToolData(projectId, toolSlug)
-        if (savedData && Object.keys(savedData).length > 0) {
-          setData(savedData as T)
+        if (projectId && authenticated) {
+          const savedData = await getProjectToolData(projectId, toolSlug)
+          if (savedData && Object.keys(savedData).length > 0) {
+            setData(savedData as T)
+          }
+        } else {
+          const guest = loadGuest()
+          if (guest != null) {
+            setData(guest as T)
+          }
         }
       } catch (error) {
         console.error('Error loading tool data:', error)
@@ -47,48 +107,55 @@ export function useProjectToolData<T>(
       }
     }
 
-    loadData()
-  }, [projectId, toolSlug, setData])
+    void loadData()
+  }, [authReady, projectId, toolSlug, setData, authenticated, loadGuest])
 
-  // Save data when it changes (debounced)
   useEffect(() => {
-    if (!projectId || isInitialLoadRef.current) return
+    if (!authReady || isInitialLoadRef.current) return
 
-    // Clear existing timeout
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current)
     }
 
-    // Set new timeout to save data
-    timeoutRef.current = setTimeout(async () => {
-      try {
-        await saveProjectToolData(projectId, toolSlug, data as any)
-      } catch (error) {
-        console.error('Error saving tool data:', error)
-      }
+    timeoutRef.current = setTimeout(() => {
+      void (async () => {
+        try {
+          if (projectId && authenticated) {
+            await saveProjectToolData(projectId, toolSlug, data as object)
+          } else if ((!projectId && !authenticated) || (projectId && !authenticated)) {
+            persistGuest(data)
+          }
+        } catch (error) {
+          console.error('Error saving tool data:', error)
+        }
+      })()
     }, debounceMs)
 
-    // Cleanup timeout on unmount
     return () => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current)
       }
     }
-  }, [data, projectId, toolSlug, debounceMs])
+  }, [data, projectId, toolSlug, debounceMs, authReady, authenticated, persistGuest])
 
-  // Manual save function (useful for immediate saves)
   const saveNow = useCallback(async () => {
-    if (!projectId) return
+    if (!authReady) return
     try {
-      await saveProjectToolData(projectId, toolSlug, data as any)
+      if (projectId && authenticated) {
+        await saveProjectToolData(projectId, toolSlug, data as object)
+      } else if ((!projectId && !authenticated) || (projectId && !authenticated)) {
+        persistGuest(data)
+      }
     } catch (error) {
       console.error('Error saving tool data:', error)
     }
-  }, [projectId, toolSlug, data])
+  }, [authReady, projectId, toolSlug, data, authenticated, persistGuest])
 
   return {
     projectId,
     isInProject: !!projectId,
     saveNow,
+    authenticated,
+    authReady,
   }
 }

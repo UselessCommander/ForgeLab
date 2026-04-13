@@ -131,8 +131,7 @@ function SurveyTemplateContent() {
     setQuestions(data.questions)
   }
 
-  // Automatically save/load data when in a project
-  useProjectToolData('survey-template', surveyData, setSurveyData)
+  const { projectId: surveyProjectId } = useProjectToolData('survey-template', surveyData, setSurveyData)
 
   const handleQuestionImageFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -181,6 +180,7 @@ function SurveyTemplateContent() {
           header_image: surveyImage || null,
           design,
           questions,
+          ...(surveyProjectId ? { projectId: surveyProjectId } : {}),
         }),
       })
       const data = await res.json()

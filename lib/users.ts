@@ -10,6 +10,12 @@ export interface User {
     last_name?: string | null;
     profile_role?: string | null;
     avatar_url?: string | null;
+    stripe_customer_id?: string | null;
+    stripe_subscription_id?: string | null;
+    subscription_status?: string | null;
+    subscription_current_period_end?: string | null;
+    subscription_cancel_at_period_end?: boolean | null;
+    plan_key?: string | null;
     password: string; // Hashed password
     createdAt: string;
 }
@@ -103,6 +109,12 @@ export async function createUser(username: string, password: string, email?: str
             last_name: data.last_name ?? null,
             profile_role: data.profile_role ?? null,
             avatar_url: data.avatar_url ?? null,
+            stripe_customer_id: data.stripe_customer_id ?? null,
+            stripe_subscription_id: data.stripe_subscription_id ?? null,
+            subscription_status: data.subscription_status ?? null,
+            subscription_current_period_end: data.subscription_current_period_end ?? null,
+            subscription_cancel_at_period_end: data.subscription_cancel_at_period_end ?? false,
+            plan_key: data.plan_key ?? 'free',
             password: data.password_hash,
             createdAt: data.created_at
         };
@@ -139,6 +151,12 @@ export async function getUserByUsername(username: string): Promise<User | null> 
             last_name: userData.last_name ?? null,
             profile_role: userData.profile_role ?? null,
             avatar_url: userData.avatar_url ?? null,
+            stripe_customer_id: userData.stripe_customer_id ?? null,
+            stripe_subscription_id: userData.stripe_subscription_id ?? null,
+            subscription_status: userData.subscription_status ?? null,
+            subscription_current_period_end: userData.subscription_current_period_end ?? null,
+            subscription_cancel_at_period_end: userData.subscription_cancel_at_period_end ?? false,
+            plan_key: userData.plan_key ?? 'free',
             password: userData.password_hash,
             createdAt: userData.created_at
         };
@@ -175,6 +193,12 @@ export async function getUserById(id: string): Promise<User | null> {
             last_name: userData.last_name ?? null,
             profile_role: userData.profile_role ?? null,
             avatar_url: userData.avatar_url ?? null,
+            stripe_customer_id: userData.stripe_customer_id ?? null,
+            stripe_subscription_id: userData.stripe_subscription_id ?? null,
+            subscription_status: userData.subscription_status ?? null,
+            subscription_current_period_end: userData.subscription_current_period_end ?? null,
+            subscription_cancel_at_period_end: userData.subscription_cancel_at_period_end ?? false,
+            plan_key: userData.plan_key ?? 'free',
             password: userData.password_hash,
             createdAt: userData.created_at
         };
@@ -243,6 +267,12 @@ export async function getUserByEmail(email: string): Promise<User | null> {
             last_name: userData.last_name ?? null,
             profile_role: userData.profile_role ?? null,
             avatar_url: userData.avatar_url ?? null,
+            stripe_customer_id: userData.stripe_customer_id ?? null,
+            stripe_subscription_id: userData.stripe_subscription_id ?? null,
+            subscription_status: userData.subscription_status ?? null,
+            subscription_current_period_end: userData.subscription_current_period_end ?? null,
+            subscription_cancel_at_period_end: userData.subscription_cancel_at_period_end ?? false,
+            plan_key: userData.plan_key ?? 'free',
             password: userData.password_hash,
             createdAt: userData.created_at
         };

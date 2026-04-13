@@ -10,6 +10,7 @@ import {
   Zap,
   Shield,
   LayoutGrid,
+  BookOpen,
   Rocket,
   CheckCircle2,
   Users,
@@ -179,26 +180,26 @@ export default function LandingPage() {
                   href="/analytics"
                   className="inline-flex items-center gap-2 mt-4 text-sky-600 font-medium hover:text-sky-700"
                 >
-                  Se dashboard
+                  Se demo og forklaring
                   <ArrowRight className="w-4 h-4" />
                 </Link>
               </div>
 
               <div className="group bg-white rounded-2xl p-8 border border-gray-200/80 shadow-sm hover:shadow-lg hover:border-amber-200/60 transition-all duration-300">
                 <div className="w-14 h-14 flex items-center justify-center rounded-xl bg-violet-50 text-violet-600 mb-6 group-hover:bg-violet-100 transition-colors">
-                  <LayoutGrid className="w-7 h-7" />
+                  <BookOpen className="w-7 h-7" />
                 </div>
                 <h3 className="text-xl font-semibold text-gray-900 mb-3">
-                  Flere værktøjer
+                  Værktøjer A–Å
                 </h3>
                 <p className="text-gray-600 leading-relaxed">
-                  SWOT, Business Model Canvas, Gantt, Kompasrose og mere. Alt i ét dashboard.
+                  Wiki-oversigt over alle moduler — egen side. Brug værktøjerne uden login; cloud-gem kræver login i projekt.
                 </p>
                 <Link
-                  href="/vaerktoejer"
+                  href="/vaerktoejer-oversigt"
                   className="inline-flex items-center gap-2 mt-4 text-violet-600 font-medium hover:text-violet-700"
                 >
-                  Udforsk værktøjer
+                  Åbn oversigten
                   <ArrowRight className="w-4 h-4" />
                 </Link>
               </div>
@@ -298,7 +299,15 @@ export default function LandingPage() {
               </div>
             </div>
             <p className="text-center text-sm text-gray-400 mt-6">
-              Bygget med ❤️ — Professionelle værktøjer til alle
+              designed &amp; created by{' '}
+              <Link
+                href="https://www.floweffekt.dk/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gray-500 hover:text-gray-900 underline-offset-2 hover:underline transition-colors"
+              >
+                FlowEffekt
+              </Link>
             </p>
           </div>
         </footer>

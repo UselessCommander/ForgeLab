@@ -1,8 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
-import ForgeLabLogo from '@/components/ForgeLabLogo'
 import { useProjectToolData } from '@/lib/useProjectToolData'
 import { deleteEmptyFieldRow } from '@/lib/deleteRowKeyboard'
 
@@ -80,28 +78,6 @@ export default function GanttChart() {
   return (
     <div className="min-h-screen px-4 py-8 md:py-12 bg-gradient-to-br from-amber-50/50 via-[#fafbfc] to-amber-100/40">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <header className="mb-8">
-          <div className="bg-white rounded-2xl p-6 md:p-10 shadow-sm border border-amber-200/60">
-            <Link 
-              href="/dashboard" 
-              className="inline-flex items-center gap-2 text-gray-700 font-medium mb-6 hover:text-amber-700 transition-colors"
-            >
-              <span>←</span>
-              <span>Tilbage til Dashboard</span>
-            </Link>
-            <div className="flex items-center gap-4 mb-2">
-              <ForgeLabLogo size={48} />
-              <h1 className="text-3xl md:text-4xl font-semibold text-gray-900">
-                Gantt Chart
-              </h1>
-            </div>
-            <p className="text-gray-600">
-              Visualiser projektets tidslinje og opgaver
-            </p>
-          </div>
-        </header>
-
         {/* Tasks List */}
         <div className="bg-white rounded-xl p-6 shadow-lg border-2 border-amber-200/70 mb-6">
           <div className="flex justify-between items-center mb-4">

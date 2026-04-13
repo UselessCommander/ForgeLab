@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, type ReactNode, type CSSProperties } from 'react'
+
 import Link from 'next/link'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
@@ -40,7 +41,6 @@ import AiChatCompanion from '@/components/AiChatCompanion'
 import DoubleDiamondDiagram from '@/components/dashboard/DoubleDiamondDiagram'
 import DesignThinkingDiagram from '@/components/dashboard/DesignThinkingDiagram'
 import GoogleDesignSprintDiagram from '@/components/dashboard/GoogleDesignSprintDiagram'
-import ProjectDocsTab from '@/components/ProjectDocsTab'
 import ProjectSlidesTab from '@/components/ProjectSlidesTab'
 import StickyNoteBodyEditor from '@/components/StickyNoteBodyEditor'
 import StickyRichToolbar from '@/components/StickyRichToolbar'
@@ -54,7 +54,16 @@ import {
   applyInlineStyleToSelection,
   stickyFontStack,
 } from '@/lib/stickyNoteRichText'
-import { LayoutTemplate } from 'lucide-react'
+import {
+  AlertTriangle,
+  FlaskConical,
+  LayoutTemplate,
+  MessageSquare,
+  PartyPopper,
+  SearchX,
+  Settings,
+  Toolbox,
+} from 'lucide-react'
 
 interface ProjectWorkspaceClientProps {
   projectId: string
@@ -231,7 +240,16 @@ function applySectionResize(
 ) {
   return applyRectResize(edge, start, dx, dy, SECTION_MIN_W, SECTION_MIN_H)
 }
-type BoardComment = { id: string; x: number; y: number; text: string; createdAt: number; createdBy: string }
+type BoardComment = {
+  id: string
+  x: number
+  y: number
+  text: string
+  createdAt: number
+  createdBy: string
+  resolved?: boolean
+  resolvedAt?: number
+}
 type FlowConnectorSide = 'left' | 'top' | 'bottom'
 type FlowEdge = { id: string; from: string; to: string; fromSide?: FlowConnectorSide; toSide?: FlowConnectorSide }
 type FlowEdgeDraft = {
@@ -361,6 +379,15 @@ function boardPointerTargetElement(target: EventTarget | null): Element | null {
   if (target == null || !(target instanceof Node)) return null
   return target instanceof Element ? target : target.parentElement
 }
+
+/** Sandt når mousedown på værktøjskortets indhold må starte træk (ikke i input/knap osv.). */
+function boardPointerAllowsToolCardBodyDrag(target: EventTarget | null): boolean {
+  const el = boardPointerTargetElement(target)
+  if (!el) return false
+  if (el.closest('button, a[href], input, textarea, select, option')) return false
+  if (el.closest('[contenteditable="true"]')) return false
+  return true
+}
 const STICKY_NOTE_COLORS = [
   '#F2B0A1',
   '#FFF9C4',
@@ -379,17 +406,6 @@ const CURSOR_SMOOTHING = 0.28
 const CURSOR_SMOOTH_STOP_PX = 0.35
 const CURSOR_COLORS = ['#2563EB', '#7C3AED', '#DB2777', '#059669', '#D97706', '#0891B2', '#4F46E5']
 
-const CARD_COLORS = [
-  { bg: '#FFF9C4', border: '#F9E83A', accent: '#CA9E00' },
-  { bg: '#E0F7FA', border: '#4DD0E1', accent: '#006064' },
-  { bg: '#FCE4EC', border: '#F48FB1', accent: '#880E4F' },
-  { bg: '#F3E5F5', border: '#CE93D8', accent: '#4A148C' },
-  { bg: '#E8F5E9', border: '#81C784', accent: '#1B5E20' },
-  { bg: '#FFF3E0', border: '#FFCC80', accent: '#E65100' },
-  { bg: '#E3F2FD', border: '#90CAF9', accent: '#0D47A1' },
-  { bg: '#F1F8E9', border: '#AED581', accent: '#33691E' },
-]
-
 const FLOW_SHAPE_LIBRARY: Array<{ shape: FlowShape; label: string }> = [
   { shape: 'terminator', label: 'Start / Slut' },
   { shape: 'process', label: 'Proces' },
@@ -399,13 +415,18 @@ const FLOW_SHAPE_LIBRARY: Array<{ shape: FlowShape; label: string }> = [
   { shape: 'database', label: 'Database' },
 ]
 
-const BOARD_EXCLUDED_TOOL_SLUGS = new Set<string>(['kanban', 'gantt-chart'])
-
-function getCardColor(slug: string) {
-  let hash = 0
-  for (let i = 0; i < slug.length; i++) hash = slug.charCodeAt(i) + ((hash << 5) - hash)
-  return CARD_COLORS[Math.abs(hash) % CARD_COLORS.length]
-}
+const BOARD_EXCLUDED_TOOL_SLUGS = new Set<string>([
+  'kanban',
+  'gantt-chart',
+  'survey-template',
+  'card-sorting',
+  'qr-generator',
+])
+const BOARD_ADD_TOOL_EXCLUDED_SLUGS = new Set<string>([
+  'survey-template',
+  'card-sorting',
+  'qr-generator',
+])
 
 function getStableCursorColor(userId: string) {
   if (!userId) return CURSOR_COLORS[0]
@@ -436,13 +457,15 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   /** Skal være defineret før hooks/handlers der refererer til den (fx paste useEffect) */
   const canEdit =
     project != null && (project.role === 'owner' || project.role === 'editor')
-  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<'board' | 'planning' | 'docs' | 'slides'>('board')
+  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<
+    'board' | 'planning' | 'slides' | 'survey' | 'card-sorting' | 'qr'
+  >('board')
   const [planningPane, setPlanningPane] = useState<'kanban' | 'gantt'>('kanban')
   const [showAddTool, setShowAddTool] = useState(false)
   const [addToolSearch, setAddToolSearch] = useState('')
   const [selectedAddToolCategory, setSelectedAddToolCategory] = useState<'all' | string>('all')
   const [showAllAddToolResults, setShowAllAddToolResults] = useState(false)
-  const [showPanel, setShowPanel] = useState<'settings' | null>(null)
+  const [showPanel, setShowPanel] = useState<'settings' | 'comments' | null>(null)
   const [loading, setLoading] = useState(true)
   const [modifying, setModifying] = useState(false)
   const [isOffline, setIsOffline] = useState(false)
@@ -500,6 +523,14 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const [draggingPaletteShape, setDraggingPaletteShape] = useState<FlowShape | null>(null)
   const [edgeDraft, setEdgeDraft] = useState<FlowEdgeDraft | null>(null)
   const dragging = useRef<string | null>(null)
+  const cardDragGroupRef = useRef<{
+    ids: string[]
+    primaryId: string
+    startById: Record<string, { x: number; y: number }>
+  } | null>(null)
+  const cardDragPointerStartRef = useRef<{ x: number; y: number } | null>(null)
+  const cardDragDidMoveRef = useRef(false)
+  const suppressNextCardClickRef = useRef(false)
   const draggingStickyNote = useRef<string | null>(null)
   const stickyEditorRefs = useRef(new Map<string, HTMLDivElement>())
   const stickyToolbarNoteIdRef = useRef<string | null>(null)
@@ -558,6 +589,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const liveCursorSmoothedRef = useRef<Record<string, { x: number; y: number }>>({})
   const liveCursorRafRef = useRef<number | null>(null)
   const sectionDrawModeRef = useRef(false)
+  const analyticsBoardReturnQs = `return=${encodeURIComponent(`/dashboard/projects/${projectId}`)}&project=${encodeURIComponent(projectId)}`
   useEffect(() => {
     sectionDrawModeRef.current = sectionDrawMode
   }, [sectionDrawMode])
@@ -1019,6 +1051,8 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
               text: typeof c.text === 'string' ? c.text : '',
               createdAt: typeof c.createdAt === 'number' ? c.createdAt : Date.now(),
               createdBy: typeof c.createdBy === 'string' ? c.createdBy : currentUsername,
+              resolved: Boolean(c.resolved),
+              resolvedAt: typeof c.resolvedAt === 'number' ? c.resolvedAt : undefined,
             }))
         )
         const images = Array.isArray(raw?.images) ? raw.images : []
@@ -1436,9 +1470,33 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       )
     }
     if (dragging.current) {
+      const ps = cardDragPointerStartRef.current
+      if (ps) {
+        const dx = e.clientX - ps.x
+        const dy = e.clientY - ps.y
+        if (dx * dx + dy * dy > 9) cardDragDidMoveRef.current = true
+      }
       const rawPos = { x: worldPoint.x - dragOffset.current.x, y: worldPoint.y - dragOffset.current.y }
       const newPos = snapPoint(rawPos.x, rawPos.y)
-      setCardPositions(prev => ({ ...prev, [dragging.current!]: newPos }))
+      const g = cardDragGroupRef.current
+      if (g && g.primaryId === dragging.current) {
+        const s0 = g.startById[g.primaryId]
+        if (s0) {
+          const ddx = newPos.x - s0.x
+          const ddy = newPos.y - s0.y
+          setCardPositions(prev => {
+            const next = { ...prev }
+            for (const id of g.ids) {
+              const init = g.startById[id]
+              if (!init) continue
+              next[id] = snapPoint(init.x + ddx, init.y + ddy)
+            }
+            return next
+          })
+        }
+      } else {
+        setCardPositions(prev => ({ ...prev, [dragging.current!]: newPos }))
+      }
     }
     if (draggingStickyNote.current) {
       const noteId = draggingStickyNote.current
@@ -1644,8 +1702,11 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     marqueeIsAdditiveRef.current = false
     setMarqueeSelection(null)
     if (dragging.current) {
-      const slug = dragging.current
+      if (cardDragDidMoveRef.current) suppressNextCardClickRef.current = true
       dragging.current = null
+      cardDragGroupRef.current = null
+      cardDragPointerStartRef.current = null
+      cardDragDidMoveRef.current = false
       setCardPositions(prev => {
         if (saveTimer.current) clearTimeout(saveTimer.current)
         saveTimer.current = setTimeout(() => persistLayout(prev), 800)
@@ -1775,14 +1836,49 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     setSelectedCommentIds([])
     setSelectedImageIds([])
     e.stopPropagation()
+
+    const moveSlugs =
+      selectedCardSlugs.includes(slug) && selectedCardSlugs.length > 0
+        ? selectedCardSlugs.filter(s => !lockedCardSlugs.includes(s))
+        : [slug]
+    if (moveSlugs.length === 0) return
+
+    const startById: Record<string, { x: number; y: number }> = {}
+    for (const id of moveSlugs) {
+      const ti = project?.toolIds.indexOf(id) ?? -1
+      const iidx = ti >= 0 ? ti : 0
+      const p = cardPositions[id] || defaultPos(id, iidx)
+      startById[id] = { x: p.x, y: p.y }
+    }
+
+    const pos = startById[slug]
+    if (!pos) return
+
     const rect = canvasRef.current!.getBoundingClientRect()
-    const pos = cardPositions[slug] || defaultPos(slug, idx)
     const mx = (e.clientX - rect.left - pan.x) / zoom
     const my = (e.clientY - rect.top - pan.y) / zoom
     dragOffset.current = { x: mx - pos.x, y: my - pos.y }
     dragging.current = slug
-    if (!cardPositions[slug]) setCardPositions(p => ({ ...p, [slug]: pos }))
-    setCardZOrder(prev => ({ ...prev, [slug]: ++nextCardZIndexRef.current }))
+    cardDragGroupRef.current = { ids: moveSlugs, primaryId: slug, startById }
+    cardDragPointerStartRef.current = { x: e.clientX, y: e.clientY }
+    cardDragDidMoveRef.current = false
+
+    setCardPositions(p => {
+      const next = { ...p }
+      for (const id of moveSlugs) {
+        if (!next[id]) next[id] = startById[id]
+      }
+      return next
+    })
+    setCardZOrder(prev => {
+      const next = { ...prev }
+      let z = nextCardZIndexRef.current
+      for (const id of moveSlugs) {
+        next[id] = ++z
+      }
+      nextCardZIndexRef.current = z
+      return next
+    })
     e.preventDefault()
   }
 
@@ -2252,11 +2348,14 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     if (!canEdit) return
     e.stopPropagation()
     setContextMenu(null)
-    setSelectedCardSlugs([])
-    setSelectedFlowNodeIds([])
-    setSelectedStickyNoteIds([])
-    setSelectedSectionIds([])
-    setSelectedImageIds([])
+    const additive = e.metaKey || e.ctrlKey || e.shiftKey
+    if (!additive) {
+      setSelectedCardSlugs([])
+      setSelectedFlowNodeIds([])
+      setSelectedStickyNoteIds([])
+      setSelectedSectionIds([])
+      setSelectedImageIds([])
+    }
     const base = boardComments.find(c => c.id === commentId)
     if (!base) return
     const D = BOARD_ALT_DUPLICATE_OFFSET
@@ -2277,7 +2376,10 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       comment = clone
       dragCommentId = clone.id
     } else {
-      setSelectedCommentIds([commentId])
+      setSelectedCommentIds(prev => {
+        if (!additive) return [commentId]
+        return prev.includes(commentId) ? prev : [...prev, commentId]
+      })
     }
     const rect = canvasRef.current!.getBoundingClientRect()
     const mx = (e.clientX - rect.left - pan.x) / zoom
@@ -2567,6 +2669,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       text: '',
       createdAt: Date.now(),
       createdBy: currentUsername,
+      resolved: false,
     }
     setBoardComments(prev => {
       const next = [...prev, comment]
@@ -2607,6 +2710,25 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       return next
     })
     setSelectedCommentIds(prev => prev.filter(id => !idSet.has(id)))
+  }
+
+  const setCommentResolved = (commentId: string, resolved: boolean) => {
+    if (!canEdit) return
+    let updated = false
+    setBoardComments(prev => {
+      const next = prev.map(item => {
+        if (item.id !== commentId) return item
+        updated = true
+        return {
+          ...item,
+          resolved,
+          resolvedAt: resolved ? Date.now() : undefined,
+        }
+      })
+      if (updated) persistFlowchart(flowNodes, flowEdges, stickyNotes, boardSections, next)
+      return next
+    })
+    if (resolved) setSelectedCommentIds(prev => prev.filter(id => id !== commentId))
   }
 
   const removeBoardImagesByIds = (ids: string[]) => {
@@ -2858,6 +2980,8 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
         x: c.x + D,
         y: c.y + D,
         createdAt: Date.now(),
+        resolved: false,
+        resolvedAt: undefined,
       }))
     if (clones.length === 0) return
     const next = [...boardComments, ...clones]
@@ -3148,6 +3272,90 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     }
   }
 
+  const handleAddAllTools = async (toolIds: string[]) => {
+    if (project?.role === 'viewer') return alert('Du har kun læseadgang til dette projekt.')
+    if (modifying || toolIds.length === 0) return
+
+    const uniqueToolIds = Array.from(new Set(toolIds))
+    const currentFramework: FrameworkId = project?.framework === 'none' || !project?.framework ? 'double-diamond' : project.framework
+    const defaultPhases = Object.fromEntries(
+      uniqueToolIds
+        .map(toolId => [toolId, getDefaultPhaseForTool(currentFramework, toolId)] as const)
+        .filter((entry): entry is [string, DoubleDiamondPhase] => Boolean(entry[1]))
+    )
+
+    if (isOffline) {
+      setProject(prev => {
+        if (!prev) return prev
+        const mergedToolIds = Array.from(new Set([...prev.toolIds, ...uniqueToolIds]))
+        return {
+          ...prev,
+          toolIds: mergedToolIds,
+          toolPhases: { ...(prev.toolPhases || {}), ...defaultPhases },
+        }
+      })
+      setShowAddTool(false)
+      return
+    }
+
+    try {
+      setModifying(true)
+      setProject(prev => {
+        if (!prev) return prev
+        const mergedToolIds = Array.from(new Set([...prev.toolIds, ...uniqueToolIds]))
+        return {
+          ...prev,
+          toolIds: mergedToolIds,
+          toolPhases: { ...(prev.toolPhases || {}), ...defaultPhases },
+        }
+      })
+
+      const failed: string[] = []
+      for (const toolId of uniqueToolIds) {
+        const added = await addToolToProject(projectId, toolId)
+        if (!added) failed.push(toolId)
+      }
+
+      const successfulPhaseMap = Object.fromEntries(
+        Object.entries(defaultPhases).filter(([toolId]) => !failed.includes(toolId))
+      ) as Record<string, DoubleDiamondPhase>
+
+      if (Object.keys(successfulPhaseMap).length > 0) {
+        await updateProjectToolPhases(projectId, successfulPhaseMap)
+      }
+
+      if (failed.length > 0) {
+        setProject(prev => {
+          if (!prev) return prev
+          const nextToolPhases = { ...(prev.toolPhases || {}) }
+          failed.forEach(toolId => delete nextToolPhases[toolId])
+          return {
+            ...prev,
+            toolIds: prev.toolIds.filter(id => !failed.includes(id)),
+            toolPhases: nextToolPhases,
+          }
+        })
+        alert(`Tilføjede ${uniqueToolIds.length - failed.length}/${uniqueToolIds.length} værktøjer. ${failed.length} fejlede.`)
+      }
+
+      setShowAddTool(false)
+    } catch {
+      setProject(prev => {
+        if (!prev) return prev
+        const nextToolPhases = { ...(prev.toolPhases || {}) }
+        uniqueToolIds.forEach(toolId => delete nextToolPhases[toolId])
+        return {
+          ...prev,
+          toolIds: prev.toolIds.filter(id => !uniqueToolIds.includes(id)),
+          toolPhases: nextToolPhases,
+        }
+      })
+      alert('Kunne ikke tilføje alle værktøjer. Prøv igen.')
+    } finally {
+      setModifying(false)
+    }
+  }
+
   const handleRemoveTool = async (toolId: string) => {
     setSelectedCardSlugs(prev => prev.filter(slug => slug !== toolId))
     if (project?.role === 'viewer') return alert('Du har kun læseadgang til dette projekt.')
@@ -3273,7 +3481,9 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     return (
       <div data-forge-project-light style={{ ...S.fullscreen, flexDirection: 'column', gap: 12 }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>🔍</div>
+          <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'center' }}>
+            <SearchX size={44} strokeWidth={2.2} color="#9CA3AF" aria-hidden />
+          </div>
           <p style={{ color: '#6B7280', marginBottom: 12, fontSize: 15 }}>Projekt ikke fundet.</p>
           <Link href="/dashboard" style={{ color: '#D97706', fontWeight: 600, textDecoration: 'none', fontSize: 14 }}>
             ← Tilbage til dashboard
@@ -3290,10 +3500,15 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const planningTools = projectTools.filter(({ slug }) => BOARD_EXCLUDED_TOOL_SLUGS.has(slug))
   // In offline/demo mode allow all tools, not just allowed slugs
   const toAdd = VAERKTOEJER.filter(t =>
-    (isOffline || allowed.has(t.slug)) && !project.toolIds.includes(t.slug)
+    (isOffline || allowed.has(t.slug)) &&
+    !project.toolIds.includes(t.slug) &&
+    !BOARD_ADD_TOOL_EXCLUDED_SLUGS.has(t.slug)
   )
   const byKategori = getVaerktoejerGroupedByKategori(
-    t => (isOffline || allowed.has(t.slug)) && !project.toolIds.includes(t.slug)
+    t =>
+      (isOffline || allowed.has(t.slug)) &&
+      !project.toolIds.includes(t.slug) &&
+      !BOARD_ADD_TOOL_EXCLUDED_SLUGS.has(t.slug)
   )
   const categoryMetaBySlug = new Map<string, { id: string; label: string }>()
   byKategori.forEach(({ kategori, tools }) => {
@@ -3372,6 +3587,9 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const visibleFlowEdges = flowEdges.filter(edge => flowNodeMap.has(edge.from) && flowNodeMap.has(edge.to))
   const hasKanbanTool = planningTools.some(tool => tool.slug === 'kanban')
   const hasGanttTool = planningTools.some(tool => tool.slug === 'gantt-chart')
+  const SurveyTemplateComponent = getToolComponent('survey-template')
+  const CardSortingComponent = getToolComponent('card-sorting')
+  const QrGeneratorComponent = getToolComponent('qr-generator')
   const KanbanComponent = getToolComponent('kanban')
   const GanttComponent = getToolComponent('gantt-chart')
   const kanbanReady = Boolean(hasKanbanTool && KanbanComponent)
@@ -3388,6 +3606,16 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const stickyToolbarNote = stickyRichUi
     ? stickyNotes.find(n => n.id === stickyRichUi.noteId)
     : undefined
+
+  const workspaceTopBarOffset = isOffline ? 89 : 56
+  const workspaceContentFrame: CSSProperties = {
+    position: 'fixed',
+    top: workspaceTopBarOffset,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  }
+  const boardToolbarLeft = '50vw'
 
   // ── Render ─────────────────────────────────────────────────────────
   return (
@@ -3406,7 +3634,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           fontSize: 12, color: '#92400E', fontWeight: 500,
         }}>
-          <span>⚠️</span>
+          <AlertTriangle size={14} strokeWidth={2.2} aria-hidden />
           <span>Demo-tilstand — ingen database tilsluttet. Ændringer gemmes ikke.</span>
         </div>
       )}
@@ -3421,7 +3649,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
           </Link>
           <div style={S.projectBadge}>
-            <span style={{ fontSize: 16 }}>⚗️</span>
+            <FlaskConical size={15} strokeWidth={2.2} aria-hidden />
           </div>
           <div style={{ minWidth: 0 }}>
             <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 220 }}>
@@ -3464,39 +3692,6 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           <button
             style={{
               ...S.zoomBtn,
-              minWidth: 112,
-              height: 30,
-              padding: '0 10px',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 6,
-              fontSize: 12,
-              fontWeight: 700,
-              background: activeWorkspaceTab === 'docs' ? '#111827' : 'transparent',
-              color: activeWorkspaceTab === 'docs' ? '#fff' : '#6B7280',
-            }}
-            onClick={() => setActiveWorkspaceTab('docs')}
-          >
-            Docs
-            <span
-              style={{
-                padding: '1px 6px',
-                borderRadius: 999,
-                fontSize: 10,
-                fontWeight: 800,
-                letterSpacing: '0.02em',
-                background: activeWorkspaceTab === 'docs' ? 'rgba(255,255,255,0.2)' : '#FEF3C7',
-                color: activeWorkspaceTab === 'docs' ? '#FDE68A' : '#92400E',
-                border: activeWorkspaceTab === 'docs' ? '1px solid rgba(255,255,255,0.28)' : '1px solid #FCD34D',
-              }}
-            >
-              WIP
-            </span>
-          </button>
-          <button
-            style={{
-              ...S.zoomBtn,
               minWidth: 116,
               height: 30,
               padding: '0 10px',
@@ -3527,6 +3722,67 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
               WIP
             </span>
           </button>
+          <button
+            style={{
+              ...S.zoomBtn,
+              minWidth: 74,
+              fontSize: 12,
+              fontWeight: 700,
+              background: activeWorkspaceTab === 'survey' ? '#111827' : 'transparent',
+              color: activeWorkspaceTab === 'survey' ? '#fff' : '#6B7280',
+            }}
+            onClick={() => setActiveWorkspaceTab('survey')}
+          >
+            Survey
+          </button>
+          <button
+            style={{
+              ...S.zoomBtn,
+              minWidth: 104,
+              fontSize: 12,
+              fontWeight: 700,
+              background: activeWorkspaceTab === 'card-sorting' ? '#111827' : 'transparent',
+              color: activeWorkspaceTab === 'card-sorting' ? '#fff' : '#6B7280',
+            }}
+            onClick={() => setActiveWorkspaceTab('card-sorting')}
+          >
+            Kortsortering
+          </button>
+          <button
+            style={{
+              ...S.zoomBtn,
+              minWidth: 62,
+              fontSize: 12,
+              fontWeight: 700,
+              background: activeWorkspaceTab === 'qr' ? '#111827' : 'transparent',
+              color: activeWorkspaceTab === 'qr' ? '#fff' : '#6B7280',
+            }}
+            onClick={() => setActiveWorkspaceTab('qr')}
+          >
+            QR
+          </button>
+          {activeWorkspaceTab === 'board' && (
+            <Link
+              href={`/analytics?${analyticsBoardReturnQs}`}
+              style={{
+                marginLeft: 6,
+                padding: '0 12px',
+                height: 30,
+                display: 'inline-flex',
+                alignItems: 'center',
+                fontSize: 12,
+                fontWeight: 700,
+                color: '#4F46E5',
+                textDecoration: 'none',
+                borderRadius: 8,
+                border: '1px solid #C7D2FE',
+                background: '#EEF2FF',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Analytics
+            </Link>
+          )}
           {activeWorkspaceTab === 'board' && (
             <>
               <button
@@ -3694,7 +3950,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           <div
             style={{
               position: 'fixed',
-              left: '50%',
+              left: boardToolbarLeft,
               bottom: 20,
               transform: 'translateX(-50%)',
               zIndex: 145,
@@ -3911,6 +4167,53 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                 />
               </svg>
             </button>
+            <button
+              type="button"
+              title="Kommentarer"
+              aria-label="Åbn kommentarpanel"
+              aria-pressed={showPanel === 'comments'}
+              onClick={() => {
+                setShowPanel(p => (p === 'comments' ? null : 'comments'))
+                setHandPanTool(false)
+              }}
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: 11,
+                border: 'none',
+                background: showPanel === 'comments' ? '#A259FF' : 'transparent',
+                color: showPanel === 'comments' ? '#fff' : '#374151',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                transition: 'background 0.15s, color 0.15s',
+                position: 'relative',
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+                <path
+                  d="M4.5 6.5A2.5 2.5 0 0 1 7 4h10a2.5 2.5 0 0 1 2.5 2.5v7A2.5 2.5 0 0 1 17 16H11l-4.2 3.1V16H7a2.5 2.5 0 0 1-2.5-2.5v-7z"
+                  stroke="currentColor"
+                  strokeWidth="1.75"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              {boardComments.some(c => !c.resolved) && (
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: 6,
+                    right: 6,
+                    width: 8,
+                    height: 8,
+                    borderRadius: '999px',
+                    background: showPanel === 'comments' ? '#FDE68A' : '#EF4444',
+                  }}
+                />
+              )}
+            </button>
             <div style={{ width: 1, height: 22, background: '#E5E7EB', alignSelf: 'center', flexShrink: 0, margin: '0 4px' }} />
             <button
               type="button"
@@ -3972,17 +4275,113 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           </div>
         </>
       )}
-      {activeWorkspaceTab === 'docs' ? (
-        <ProjectDocsTab projectId={projectId} canEdit={canEdit} />
-      ) : activeWorkspaceTab === 'slides' ? (
-        <ProjectSlidesTab projectId={projectId} canEdit={canEdit} />
+      {activeWorkspaceTab === 'slides' ? (
+        <ProjectSlidesTab
+          projectId={projectId}
+          canEdit={canEdit}
+          contentInsetLeftPx={0}
+        />
+      ) : activeWorkspaceTab === 'survey' ? (
+      <ToolEmbedProvider projectId={projectId}>
+        <div
+          style={{
+            ...workspaceContentFrame,
+            background: '#EEF2F7',
+            padding: '28px 32px 40px',
+            overflow: 'auto',
+          }}
+        >
+          <div
+            style={{
+              maxWidth: 1100,
+              margin: '0 auto',
+              background: '#fff',
+              border: '1px solid #E5E7EB',
+              borderRadius: 14,
+              boxShadow: '0 12px 40px rgba(15, 23, 42, 0.06)',
+              overflow: 'hidden',
+              minHeight: 'min(72vh, 720px)',
+            }}
+          >
+            {SurveyTemplateComponent ? (
+              <SurveyTemplateComponent />
+            ) : (
+              <div style={{ padding: 24, color: '#6B7280', fontSize: 14 }}>
+                Survey Template er ikke tilgængelig lige nu.
+              </div>
+            )}
+          </div>
+        </div>
+      </ToolEmbedProvider>
+      ) : activeWorkspaceTab === 'card-sorting' ? (
+      <ToolEmbedProvider projectId={projectId}>
+        <div
+          style={{
+            ...workspaceContentFrame,
+            background: '#EEF2F7',
+            padding: '28px 32px 40px',
+            overflow: 'auto',
+          }}
+        >
+          <div
+            style={{
+              maxWidth: 1100,
+              margin: '0 auto',
+              background: '#fff',
+              border: '1px solid #E5E7EB',
+              borderRadius: 14,
+              boxShadow: '0 12px 40px rgba(15, 23, 42, 0.06)',
+              overflow: 'hidden',
+              minHeight: 'min(72vh, 720px)',
+            }}
+          >
+            {CardSortingComponent ? (
+              <CardSortingComponent />
+            ) : (
+              <div style={{ padding: 24, color: '#6B7280', fontSize: 14 }}>
+                Kortsortering er ikke tilgængelig lige nu.
+              </div>
+            )}
+          </div>
+        </div>
+      </ToolEmbedProvider>
+      ) : activeWorkspaceTab === 'qr' ? (
+      <ToolEmbedProvider projectId={projectId}>
+        <div
+          style={{
+            ...workspaceContentFrame,
+            background: '#EEF2F7',
+            padding: '28px 32px 40px',
+            overflow: 'auto',
+          }}
+        >
+          <div
+            style={{
+              maxWidth: 1100,
+              margin: '0 auto',
+              background: '#fff',
+              border: '1px solid #E5E7EB',
+              borderRadius: 14,
+              boxShadow: '0 12px 40px rgba(15, 23, 42, 0.06)',
+              overflow: 'hidden',
+              minHeight: 'min(72vh, 720px)',
+            }}
+          >
+            {QrGeneratorComponent ? (
+              <QrGeneratorComponent />
+            ) : (
+              <div style={{ padding: 24, color: '#6B7280', fontSize: 14 }}>
+                QR Generator er ikke tilgængelig lige nu.
+              </div>
+            )}
+          </div>
+        </div>
+      </ToolEmbedProvider>
       ) : activeWorkspaceTab === 'planning' ? (
       <ToolEmbedProvider projectId={projectId}>
         <div
           style={{
-            position: 'fixed',
-            inset: 0,
-            top: isOffline ? 89 : 56,
+            ...workspaceContentFrame,
             background: '#EEF2F7',
             padding: '28px 32px 40px',
             overflow: 'auto',
@@ -4311,9 +4710,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
         ref={canvasRef}
         className="canvas-bg"
         style={{
-          position: 'fixed',
-          inset: 0,
-          top: isOffline ? 89 : 56,
+          ...workspaceContentFrame,
           cursor: isPanningActive
             ? 'grabbing'
             : isSpacePressed || handPanTool
@@ -4420,7 +4817,9 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
               textAlign: 'center', userSelect: 'none', pointerEvents: 'none',
               width: 320,
             }}>
-              <div style={{ fontSize: 72, marginBottom: 12, filter: 'grayscale(0.3)', opacity: 0.5 }}>🧰</div>
+              <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'center', opacity: 0.5 }}>
+                <Toolbox size={64} strokeWidth={1.7} color="#6B7280" aria-hidden />
+              </div>
               <p style={{ fontSize: 20, fontWeight: 700, color: '#6B7280', margin: 0 }}>Boardet er tomt</p>
               <p style={{ fontSize: 13, color: '#9CA3AF', marginTop: 6 }}>Klik på <strong>værktøjsikonet</strong> i toolbaren øverst for at tilføje</p>
             </div>
@@ -5119,8 +5518,91 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
             )
           })}
 
-          {boardComments.map(comment => {
+          {boardComments.filter(comment => !comment.resolved).map(comment => {
             const isSelected = selectedCommentIds.includes(comment.id)
+            const commentInitial = (comment.createdBy || '?').trim().charAt(0).toUpperCase()
+            const createdAtLabel = new Date(comment.createdAt || Date.now()).toLocaleTimeString('da-DK', {
+              hour: '2-digit',
+              minute: '2-digit',
+            })
+            if (!isSelected) {
+              return (
+                <div
+                  key={comment.id}
+                  onContextMenu={e => openBoardShapeContextMenu(e, 'comment', comment.id)}
+                  onClick={e => {
+                    e.stopPropagation()
+                    const additive = e.metaKey || e.ctrlKey || e.shiftKey
+                    if (!additive) {
+                      setSelectedCommentIds([comment.id])
+                      return
+                    }
+                    setSelectedCommentIds(prev => (prev.includes(comment.id) ? prev : [...prev, comment.id]))
+                  }}
+                  style={{
+                    position: 'absolute',
+                    left: comment.x,
+                    top: comment.y,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 6,
+                    zIndex: 4,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 42,
+                      height: 42,
+                      borderRadius: '999px',
+                      border: '1px solid #E2E8F0',
+                      background: '#FFFFFF',
+                      boxShadow: '0 6px 16px rgba(15,23,42,0.16)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <div
+                      onMouseDown={e => onCommentMouseDown(e, comment.id)}
+                      title={comment.text.trim() ? 'Klik for at åbne kommentar' : 'Tom kommentar'}
+                      style={{
+                        width: 30,
+                        height: 30,
+                        borderRadius: '999px',
+                        background: '#2563EB',
+                        color: '#fff',
+                        display: 'grid',
+                        placeItems: 'center',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        userSelect: 'none',
+                        cursor: canEdit ? 'grab' : 'pointer',
+                      }}
+                    >
+                      {commentInitial}
+                    </div>
+                  </div>
+                  <span
+                    style={{
+                      fontSize: 10,
+                      lineHeight: 1,
+                      color: '#64748B',
+                      fontWeight: 700,
+                      background: 'rgba(255,255,255,0.92)',
+                      border: '1px solid #E2E8F0',
+                      borderRadius: 999,
+                      padding: '3px 6px',
+                      boxShadow: '0 2px 6px rgba(15,23,42,0.1)',
+                      userSelect: 'none',
+                    }}
+                  >
+                    {createdAtLabel}
+                  </span>
+                </div>
+              )
+            }
             return (
               <div
                 key={comment.id}
@@ -5133,12 +5615,17 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                   position: 'absolute',
                   left: comment.x,
                   top: comment.y,
-                  width: 260,
-                  borderRadius: 12,
-                  border: isSelected ? '2px solid #2563EB' : '1px solid #D1D5DB',
+                  width: 300,
+                  borderRadius: 18,
+                  border: isSelected ? '2px solid #2563EB' : '1px solid #E2E8F0',
                   background: '#FFFFFF',
-                  boxShadow: isSelected ? '0 0 0 3px rgba(37,99,235,0.2), 0 8px 20px rgba(0,0,0,0.12)' : '0 8px 18px rgba(0,0,0,0.10)',
+                  boxShadow: isSelected
+                    ? '0 0 0 3px rgba(37,99,235,0.16), 0 16px 40px rgba(15,23,42,0.16)'
+                    : '0 10px 26px rgba(15,23,42,0.14)',
+                  overflow: 'hidden',
                   zIndex: 4,
+                  transformOrigin: '18px 18px',
+                  animation: 'commentOpen 180ms cubic-bezier(0.2, 0.8, 0.2, 1)',
                 }}
               >
                 <div
@@ -5148,38 +5635,111 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     gap: 10,
-                    padding: '8px 10px',
-                    borderBottom: '1px solid #F1F5F9',
+                    padding: '10px 12px 8px',
                     cursor: canEdit ? 'grab' : 'default',
                     userSelect: 'none',
                   }}
                 >
-                  <span style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>
-                    Kommentar · {comment.createdBy}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                    <div
+                      style={{
+                        width: 24,
+                        height: 24,
+                        borderRadius: '999px',
+                        background: '#2563EB',
+                        color: '#FFFFFF',
+                        display: 'grid',
+                        placeItems: 'center',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {commentInitial}
+                    </div>
+                    <span
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: '#334155',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {comment.createdBy}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <button
+                      type="button"
+                      onMouseDown={e => e.stopPropagation()}
+                      onClick={e => {
+                        e.stopPropagation()
+                        setCommentResolved(comment.id, true)
+                      }}
+                      disabled={!canEdit}
+                      title={canEdit ? 'Marker kommentar som løst' : undefined}
+                      style={{
+                        border: '1px solid #BBF7D0',
+                        background: '#ECFDF5',
+                        color: '#166534',
+                        borderRadius: 999,
+                        padding: '2px 8px',
+                        fontSize: 10,
+                        fontWeight: 700,
+                        cursor: canEdit ? 'pointer' : 'not-allowed',
+                        opacity: canEdit ? 1 : 0.6,
+                      }}
+                    >
+                      Løst
+                    </button>
+                    <span style={{ fontSize: 11, color: '#64748B', fontWeight: 600 }}>{createdAtLabel}</span>
+                  </div>
                 </div>
-                <textarea
-                  value={comment.text}
-                  onMouseDown={e => e.stopPropagation()}
-                  onChange={e => {
-                    const nextText = e.target.value
-                    setBoardComments(prev => {
-                      const next = prev.map(item => (item.id === comment.id ? { ...item, text: nextText } : item))
-                      persistFlowchart(flowNodes, flowEdges, stickyNotes, boardSections, next)
-                      return next
-                    })
-                  }}
-                  disabled={!canEdit}
-                  placeholder="Skriv kommentar..."
+                <div style={{ padding: '0 12px 12px' }}>
+                  <textarea
+                    value={comment.text}
+                    onMouseDown={e => e.stopPropagation()}
+                    onChange={e => {
+                      const nextText = e.target.value
+                      setBoardComments(prev => {
+                        const next = prev.map(item => (item.id === comment.id ? { ...item, text: nextText } : item))
+                        persistFlowchart(flowNodes, flowEdges, stickyNotes, boardSections, next)
+                        return next
+                      })
+                    }}
+                    disabled={!canEdit}
+                    placeholder="Skriv kommentar..."
+                    style={{
+                      width: '100%',
+                      minHeight: 92,
+                      padding: '12px 13px',
+                      borderRadius: 12,
+                      border: '1px solid #E2E8F0',
+                      background: '#F8FAFC',
+                      color: '#0F172A',
+                      resize: 'vertical',
+                      outline: 'none',
+                      fontSize: 13,
+                      lineHeight: 1.45,
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+                <div
+                  aria-hidden
                   style={{
-                    width: '100%',
-                    minHeight: 96,
-                    padding: 10,
-                    border: 'none',
-                    resize: 'vertical',
-                    outline: 'none',
-                    fontSize: 13,
-                    boxSizing: 'border-box',
+                    position: 'absolute',
+                    left: 16,
+                    bottom: -10,
+                    width: 20,
+                    height: 20,
+                    background: '#FFFFFF',
+                    borderLeft: isSelected ? '2px solid #2563EB' : '1px solid #E2E8F0',
+                    borderBottom: isSelected ? '2px solid #2563EB' : '1px solid #E2E8F0',
+                    transform: 'rotate(-45deg)',
+                    borderBottomLeftRadius: 3,
                   }}
                 />
               </div>
@@ -5290,8 +5850,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           {/* ── Tool cards ─────────────────────────────── */}
           {boardTools.map(({ slug, tool }, idx) => {
             if (!tool) return null
-            const { Icon } = getToolIcon(slug)
-            const c = getCardColor(slug)
+            const { Icon, bg, text } = getToolIcon(slug)
             const pos = cardPositions[slug] || defaultPos(slug, idx)
             const isDragging = dragging.current === slug
             const isSelected = selectedCardSlugs.includes(slug)
@@ -5307,6 +5866,10 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                 }}
                 onClick={e => {
                   e.stopPropagation()
+                  if (suppressNextCardClickRef.current) {
+                    suppressNextCardClickRef.current = false
+                    return
+                  }
                   const additive = e.metaKey || e.ctrlKey || e.shiftKey
                   toggleCardSelection(slug, additive)
                   if (!additive) {
@@ -5336,63 +5899,59 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                   minHeight: 400,
                   display: 'flex',
                   flexDirection: 'column',
-                  background: c.bg,
-                  border: isSelected ? '2px solid #2563EB' : `2px solid ${c.border}`,
-                  borderRadius: 18,
-                  boxShadow: isDragging
-                    ? '0 24px 48px rgba(0,0,0,0.22), 0 8px 16px rgba(0,0,0,0.1)'
-                    : '0 4px 20px rgba(0,0,0,0.09), 0 1px 4px rgba(0,0,0,0.05)',
-                  resize: 'both', // Gør kortene resizable
+                  background: 'transparent',
+                  border: 'none',
+                  borderRadius: 0,
+                  boxShadow: 'none',
+                  outline: isSelected ? '2px solid #2563EB' : 'none',
+                  outlineOffset: 4,
+                  resize: 'both',
                   overflow: 'hidden',
                   userSelect: 'none',
-                  transition: isDragging ? 'box-shadow 0.1s' : 'box-shadow 0.2s, border-color 0.2s',
-                  transform: isDragging ? 'rotate(-1.5deg) scale(1.03)' : 'none',
+                  transition: 'outline-color 0.2s',
+                  transform: isDragging ? 'translateY(-2px)' : 'none',
                   opacity: isLocked ? 0.88 : 1,
                   zIndex: isDragging ? 1000 : (cardZOrder[slug] || 1),
                 }}
               >
-                {/* Drag handle strip */}
-                {canEdit && (
-                  <div 
-                    data-drag-handle="true"
-                    onMouseDown={e => onCardMouseDown(e, slug, idx)}
-                    style={{
-                    height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    borderBottom: `1px dashed ${c.border}`, cursor: isLocked ? 'not-allowed' : 'grab',
-                    opacity: 0.5,
-                  }}>
-                    <svg width="20" height="8" viewBox="0 0 20 8" fill="none">
-                      {[0,6,12,18].map(x => [0,4].map(y => (
-                        <circle key={`${x}-${y}`} cx={x+2} cy={y+2} r="1.5" fill={c.accent} />
-                      )))}
-                    </svg>
-                  </div>
-                )}
-
-                {/* Header */}
-                <div style={{ padding: '12px 12px 8px', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                  <div style={{
-                    width: 38, height: 38, borderRadius: 12, flexShrink: 0,
-                    background: 'rgba(255,255,255,0.75)',
-                    border: `1.5px solid ${c.border}`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    <Icon style={{ width: 18, height: 18, color: c.accent }} />
+                {/* Header: logo, navn, fase — også træk-håndtag når redigering */}
+                <div
+                  {...(canEdit && !isLocked
+                    ? {
+                        'data-drag-handle': 'true' as const,
+                        onMouseDown: (e: React.MouseEvent) => onCardMouseDown(e, slug, idx),
+                      }
+                    : {})}
+                  style={{
+                    padding: '4px 0 10px',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 10,
+                    cursor: canEdit && !isLocked ? 'grab' : 'default',
+                  }}
+                >
+                  <div
+                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${bg} ${text}`}
+                  >
+                    <Icon style={{ width: 18, height: 18 }} />
                   </div>
 
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <h3 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: c.accent, lineHeight: 1.35 }}>
+                    <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#111827', lineHeight: 1.35 }}>
                       {tool.title}
                     </h3>
                     {phaseLabel && (
-                      <span style={{
-                        display: 'inline-block', marginTop: 3, fontSize: 10, fontWeight: 600,
-                        color: c.accent, opacity: 0.75,
-                        background: 'rgba(255,255,255,0.55)', borderRadius: 5, padding: '1px 7px',
-                        letterSpacing: '0.04em',
-                      }}>
+                      <p
+                        style={{
+                          margin: '4px 0 0',
+                          fontSize: 11,
+                          fontWeight: 600,
+                          color: '#6B7280',
+                          letterSpacing: '0.02em',
+                        }}
+                      >
                         {phaseLabel}
-                      </span>
+                      </p>
                     )}
                   </div>
 
@@ -5403,36 +5962,39 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                       title="Fjern fra projekt"
                       style={{
                         width: 22, height: 22, border: 'none', borderRadius: 7,
-                        background: 'rgba(255,255,255,0.55)',
+                        background: 'transparent',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         cursor: 'pointer', color: '#9CA3AF', flexShrink: 0,
                         transition: 'all 0.15s',
                       }}
-                      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.18)'; e.currentTarget.style.color = '#DC2626' }}
-                      onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.55)'; e.currentTarget.style.color = '#9CA3AF' }}
+                      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.12)'; e.currentTarget.style.color = '#DC2626' }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#9CA3AF' }}
                     >
                       <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
                     </button>
                   )}
                 </div>
 
-                {/* Description - vi reducerer denne eller fjerner den i embed mode */}
-                <p style={{ margin: '0 12px 10px', fontSize: 11.5, color: c.accent, opacity: 0.65, lineHeight: 1.55 }}>
-                  {tool.shortDescription.length > 85 ? tool.shortDescription.slice(0, 85) + '…' : tool.shortDescription}
-                </p>
-
-                {/* Værktøjets indhold fylder resten af kortet */}
+                {/* Værktøjets indhold */}
                 <div 
                   style={{
                     flex: 1,
-                    padding: '0 0 12px 0',
+                    padding: 0,
                     overflowY: 'auto',
                     overflowX: 'auto',
                     pointerEvents: isDragging ? 'none' : 'auto',
                     userSelect: 'auto',
                     position: 'relative',
+                    cursor:
+                      canEdit && !isLocked && isSelected ? 'grab' : 'default',
                   }}
-                  onMouseDown={e => e.stopPropagation()} // Stop dragging from inside tool
+                  onMouseDown={e => {
+                    e.stopPropagation()
+                    if (!canEdit || isLocked) return
+                    if (!isSelected) return
+                    if (!boardPointerAllowsToolCardBodyDrag(e.target)) return
+                    onCardMouseDown(e, slug, idx)
+                  }}
                 >
                   {(() => {
                     const ToolComponent = getToolComponent(slug)
@@ -5440,7 +6002,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                       return <ToolComponent />
                     }
                     return (
-                      <p style={{ margin: '12px', fontSize: 13, color: c.accent, opacity: 0.65 }}>
+                      <p style={{ margin: '12px 0', fontSize: 13, color: '#6B7280' }}>
                         Modul ikke understøttet i lærred-visning endnu.
                       </p>
                     )
@@ -5476,12 +6038,25 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
             boxShadow: '-12px 0 36px rgba(0,0,0,0.14)',
             animation: 'slideIn 0.2s ease',
           }}>
-            <style>{`@keyframes slideIn{from{transform:translateX(20px);opacity:0}to{transform:none;opacity:1}}`}</style>
+            <style>{`
+              @keyframes slideIn { from { transform: translateX(20px); opacity: 0 } to { transform: none; opacity: 1 } }
+              @keyframes commentOpen {
+                0% { opacity: 0; transform: translateY(6px) scale(0.9); filter: blur(0.4px); }
+                100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+              }
+            `}</style>
 
           {/* Panel header */}
           <div style={{ padding: '14px 16px', borderBottom: '1px solid #F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <h2 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#111827' }}>
-              ⚙️ Projektindstillinger
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                {showPanel === 'settings' ? (
+                  <Settings size={15} strokeWidth={2.2} aria-hidden />
+                ) : (
+                  <MessageSquare size={15} strokeWidth={2.2} aria-hidden />
+                )}
+                {showPanel === 'settings' ? 'Projektindstillinger' : 'Kommentarer'}
+              </span>
             </h2>
             <button onClick={() => setShowPanel(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', fontSize: 20, lineHeight: 1, padding: '0 2px' }}>×</button>
           </div>
@@ -5619,6 +6194,132 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                 </Section>
               </>
             )}
+            {showPanel === 'comments' && (
+              <div style={{ display: 'grid', gap: 12 }}>
+                {(() => {
+                  const openComments = boardComments.filter(comment => !comment.resolved)
+                  const resolvedComments = boardComments.filter(comment => comment.resolved)
+                  return (
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: '#334155' }}>
+                          Åbne ({openComments.length})
+                        </p>
+                        {canEdit && (
+                          <button
+                            type="button"
+                            onClick={() => addBoardComment()}
+                            style={{
+                              border: 'none',
+                              borderRadius: 9,
+                              background: '#EEF2FF',
+                              color: '#4338CA',
+                              fontSize: 11,
+                              fontWeight: 700,
+                              padding: '6px 10px',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            + Ny kommentar
+                          </button>
+                        )}
+                      </div>
+                      {openComments.length === 0 ? (
+                        <div style={{ padding: 12, borderRadius: 12, border: '1px solid #E2E8F0', background: '#F8FAFC', fontSize: 12, color: '#64748B' }}>
+                          Ingen åbne kommentarer.
+                        </div>
+                      ) : (
+                        openComments.map(comment => (
+                          <div key={comment.id} style={{ border: '1px solid #E2E8F0', borderRadius: 12, padding: 12, background: '#fff' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  centerViewAt(comment.x + 150, comment.y + 60)
+                                  setSelectedCommentIds([comment.id])
+                                  setShowPanel(null)
+                                }}
+                                style={{ border: 'none', background: 'none', padding: 0, margin: 0, cursor: 'pointer', color: '#0F172A', fontSize: 12, fontWeight: 700 }}
+                              >
+                                {comment.createdBy}
+                              </button>
+                              <span style={{ fontSize: 11, color: '#64748B' }}>
+                                {new Date(comment.createdAt).toLocaleString('da-DK', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+                            <p style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: 12, color: '#334155', lineHeight: 1.5 }}>
+                              {comment.text.trim() || '(Tom kommentar)'}
+                            </p>
+                            {canEdit && (
+                              <div style={{ marginTop: 10, display: 'flex', justifyContent: 'flex-end' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => setCommentResolved(comment.id, true)}
+                                  style={{
+                                    border: '1px solid #BBF7D0',
+                                    borderRadius: 9,
+                                    background: '#ECFDF3',
+                                    color: '#166534',
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    padding: '6px 10px',
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  Løs
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        ))
+                      )}
+                      <div style={{ paddingTop: 6, borderTop: '1px solid #E2E8F0' }}>
+                        <p style={{ margin: '0 0 10px', fontSize: 12, fontWeight: 700, color: '#475569' }}>
+                          Løste ({resolvedComments.length})
+                        </p>
+                        <div style={{ display: 'grid', gap: 8 }}>
+                          {resolvedComments.slice(0, 20).map(comment => (
+                            <div key={comment.id} style={{ border: '1px solid #E2E8F0', borderRadius: 10, padding: '8px 10px', background: '#F8FAFC' }}>
+                              <p style={{ margin: 0, fontSize: 12, color: '#64748B', lineHeight: 1.45 }}>
+                                {comment.text.trim() || '(Tom kommentar)'}
+                              </p>
+                              <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                                <span style={{ fontSize: 11, color: '#94A3B8' }}>
+                                  {comment.createdBy}
+                                </span>
+                                {canEdit && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setCommentResolved(comment.id, false)}
+                                    style={{
+                                      border: 'none',
+                                      borderRadius: 8,
+                                      background: '#E2E8F0',
+                                      color: '#334155',
+                                      fontSize: 11,
+                                      fontWeight: 700,
+                                      padding: '4px 8px',
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    Genåbn
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                          {resolvedComments.length > 20 && (
+                            <p style={{ margin: 0, fontSize: 11, color: '#94A3B8' }}>
+                              Viser 20 af {resolvedComments.length} løste kommentarer.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )
+                })()}
+              </div>
+            )}
           </div>
           </div>
         </>
@@ -5642,7 +6343,27 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
             onClick={e => e.stopPropagation()}
           >
             <div style={{ padding: '18px 20px 14px', borderBottom: '1px solid #F3F4F6' }}>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#111827' }}>+ Tilføj værktøj</h3>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#111827' }}>+ Tilføj værktøj</h3>
+                <button
+                  type="button"
+                  disabled={!canEdit || modifying || filteredAddTools.length === 0}
+                  onClick={() => handleAddAllTools(filteredAddTools.map(tool => tool.slug))}
+                  style={{
+                    border: '1px solid #D1D5DB',
+                    background: !canEdit || modifying || filteredAddTools.length === 0 ? '#F9FAFB' : '#fff',
+                    color: !canEdit || modifying || filteredAddTools.length === 0 ? '#9CA3AF' : '#111827',
+                    borderRadius: 999,
+                    padding: '6px 10px',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: !canEdit || modifying || filteredAddTools.length === 0 ? 'not-allowed' : 'pointer',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Tilføj alle værktøjer
+                </button>
+              </div>
               <p style={{ margin: '3px 0 0', fontSize: 13, color: '#9CA3AF' }}>
                 Find hurtigt det rigtige værktøj med søgning og faser fra valgt framework.
               </p>
@@ -5737,7 +6458,12 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
 
             <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
               {toAdd.length === 0 ? (
-                <p style={{ textAlign: 'center', color: '#9CA3AF', padding: 24 }}>🎉 Alle værktøjer er tilføjet!</p>
+                <div style={{ textAlign: 'center', color: '#9CA3AF', padding: 24 }}>
+                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
+                    <PartyPopper size={18} strokeWidth={2.2} aria-hidden />
+                  </div>
+                  <p style={{ margin: 0 }}>Alle værktøjer er tilføjet!</p>
+                </div>
               ) : filteredAddTools.length === 0 ? (
                 <div style={{ textAlign: 'center', color: '#9CA3AF', padding: 24 }}>
                   <p style={{ margin: 0, fontSize: 14 }}>Ingen værktøjer matcher din søgning.</p>

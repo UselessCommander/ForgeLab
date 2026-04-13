@@ -1,15 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getCurrentUserId } from '@/lib/auth'
-
-const env = (...keys: string[]) => {
-  for (const key of keys) {
-    const value = process.env[key]
-    if (typeof value === 'string' && value.trim()) return value
-  }
-  return ''
-}
-
-const hasEnv = (...keys: string[]) => Boolean(env(...keys))
+import { hasServerEnv as hasEnv, serverEnv as env } from '@/lib/server-env'
 
 export async function GET() {
   const userId = await getCurrentUserId()
@@ -25,7 +16,9 @@ export async function GET() {
       google: env('GOOGLE_MODEL', 'NEXT_PUBLIC_GOOGLE_MODEL') || 'gemini-2.5-flash',
       openai: env('OPENAI_MODEL', 'NEXT_PUBLIC_OPENAI_MODEL') || 'gpt-4o-mini',
       anthropic: env('ANTHROPIC_MODEL', 'NEXT_PUBLIC_ANTHROPIC_MODEL') || 'claude-3-5-sonnet-latest',
-      openrouter: env('OPENROUTER_MODEL', 'NEXT_PUBLIC_OPENROUTER_MODEL') || 'google/gemma-4-31b-it:free',
+      openrouter:
+        env('OPENROUTER_MODEL', 'NEXT_PUBLIC_OPENROUTER_MODEL') ||
+        'nvidia/nemotron-3-super-120b-a12b:free',
       mistral: env('MISTRAL_MODEL', 'NEXT_PUBLIC_MISTRAL_MODEL') || 'mistral-small-latest',
       groq: env('GROQ_MODEL', 'NEXT_PUBLIC_GROQ_MODEL') || 'llama-3.3-70b-versatile',
       kimi: env('KIMI_MODEL', 'NEXT_PUBLIC_KIMI_MODEL') || 'kimi-k2.5',

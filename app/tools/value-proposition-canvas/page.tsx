@@ -277,6 +277,51 @@ export default function ValuePropositionCanvas() {
           </label>
         </div>
 
+        {/* Reference layout (SVG style) */}
+        <div className="mb-8 overflow-x-auto rounded-xl border-[3px] border-black bg-[#eeedf0] p-2">
+          <svg
+            viewBox="0 0 2094 1177"
+            className="mx-auto h-auto min-w-[900px] w-full"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            aria-label="Value Proposition Canvas reference"
+          >
+            <rect width="2094" height="1177" fill="#EEEDF0" />
+            <rect x="140" y="266" width="788" height="820" fill="white" stroke="black" strokeWidth="8" />
+            <circle cx="1546" cy="674" r="408" fill="white" stroke="black" strokeWidth="8" />
+            <path d="M138 263L533 677H968M138 1089L533 677H927" stroke="black" strokeWidth="4" />
+            <path d="M1090 676H1544L1806 358M1544 676L1806 996" stroke="black" strokeWidth="4" />
+            <circle cx="1030" cy="678" r="39" fill="white" stroke="black" strokeWidth="3" />
+            <text x="1010" y="686" fill="black" fontSize="28" fontWeight="700">
+              FIT
+            </text>
+            <text x="322" y="220" fill="black" fontSize="54" fontWeight="700">
+              VALUE MAP
+            </text>
+            <text x="1370" y="220" fill="black" fontSize="54" fontWeight="700">
+              CUSTOMER PROFILE
+            </text>
+            <text x="220" y="470" fill="black" fontSize="34" fontWeight="700">
+              GAIN CREATORS
+            </text>
+            <text x="190" y="690" fill="black" fontSize="34" fontWeight="700">
+              PRODUCTS & SERVICES
+            </text>
+            <text x="600" y="900" fill="black" fontSize="34" fontWeight="700">
+              PAIN RELIEVERS
+            </text>
+            <text x="1440" y="500" fill="black" fontSize="34" fontWeight="700">
+              GAINS
+            </text>
+            <text x="1765" y="690" fill="black" fontSize="34" fontWeight="700">
+              CUSTOMER JOBS
+            </text>
+            <text x="1410" y="905" fill="black" fontSize="34" fontWeight="700">
+              PAINS
+            </text>
+          </svg>
+        </div>
+
         {/* Main canvas: square — connector — circle */}
         <div className="flex flex-col items-center justify-center gap-2 lg:flex-row lg:items-center lg:gap-0">
           {/* Value map (square) */}

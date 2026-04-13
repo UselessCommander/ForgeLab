@@ -1,10 +1,7 @@
 import Link from 'next/link'
 import { BarChart3 } from 'lucide-react'
-import PageShell from '@/components/PageShell'
-import SiteNav from '@/components/SiteNav'
 import AnalyticsCharts from '../AnalyticsCharts'
-import LogoutButton from '@/components/LogoutButton'
-import { getCurrentUserId } from '@/lib/auth'
+import { sanitizeAnalyticsReturnPath } from '@/lib/analytics-return-path'
 
 export const metadata = {
   title: 'QR Analytics | ForgeLab',
@@ -13,70 +10,44 @@ export const metadata = {
 
 type Props = {
   params: Promise<{ qrId: string }>
+  searchParams: Promise<{ return?: string; project?: string }>
 }
 
-export default async function AnalyticsQRPage({ params }: Props) {
+export default async function AnalyticsQRPage({ params, searchParams }: Props) {
   const { qrId } = await params
-  const userId = await getCurrentUserId()
-  const isLoggedIn = !!userId
-
+  const sp = await searchParams
+  const boardReturnPath = sanitizeAnalyticsReturnPath(sp.return ?? null)
+  const listQs = new URLSearchParams()
+  if (boardReturnPath) listQs.set('return', boardReturnPath)
+  if (sp.project) listQs.set('project', sp.project)
+  const analyticsListHref = listQs.toString() ? `/analytics?${listQs.toString()}` : '/analytics'
   return (
-    <PageShell>
-      <SiteNav
-        rightSlot={
-          isLoggedIn ? (
-            <div className="flex items-center gap-3">
-              <Link
-                href="/analytics"
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:text-gray-900 font-medium transition-colors"
-              >
-                ← Alle analytics
-              </Link>
-              <Link
-                href="/dashboard"
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:text-gray-900 font-medium transition-colors"
-              >
-                Dashboard
-              </Link>
-              <LogoutButton />
-            </div>
-          ) : (
-            <Link
-              href="/login"
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-900 text-white rounded-xl font-medium hover:bg-gray-800 transition-colors"
-            >
-              Log ind
-            </Link>
-          )
-        }
-      />
-      <main className="layout-page py-12">
-        <div className="mb-8">
-          <Link
-            href="/analytics"
-            className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 font-medium mb-4"
-          >
-            ← Tilbage til Analytics
-          </Link>
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-sky-100 flex items-center justify-center text-sky-600">
-              <BarChart3 className="w-6 h-6" />
-            </div>
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Analytics for denne QR-kode</h1>
-              <p className="text-gray-600 text-sm font-mono mt-0.5">{qrId}</p>
-            </div>
+    <div className="layout-page py-10 md:py-14 px-4 sm:px-6">
+      <div className="mb-8">
+        <Link
+          href={analyticsListHref}
+          className="mb-4 inline-flex items-center gap-2 font-medium text-gray-600 hover:text-gray-900"
+        >
+          ← Tilbage til Analytics
+        </Link>
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 ring-1 ring-indigo-100">
+            <BarChart3 className="h-6 w-6" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">Analytics for denne QR-kode</h1>
+            <p className="mt-0.5 font-mono text-sm text-gray-600">{qrId}</p>
           </div>
         </div>
+      </div>
 
-        <AnalyticsCharts qrId={qrId} />
+      <AnalyticsCharts qrId={qrId} returnPath={boardReturnPath} projectId={sp.project ?? null} />
 
-        <div className="mt-10">
-          <Link href="/analytics" className="text-gray-500 hover:text-gray-900 font-medium">
-            ← Se alle QR-koder
-          </Link>
-        </div>
-      </main>
-    </PageShell>
+      <div className="mt-10">
+        <Link href={analyticsListHref} className="font-medium text-gray-500 hover:text-gray-900">
+          ← Se alle QR-koder
+        </Link>
+      </div>
+    </div>
   )
 }

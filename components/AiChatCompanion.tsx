@@ -35,11 +35,11 @@ export default function AiChatCompanion({
     openai: ['gpt-4o-mini', 'gpt-4o'],
     anthropic: ['claude-3-5-sonnet-latest', 'claude-3-5-haiku-latest'],
     openrouter: [
-      'google/gemma-4-31b-it:free',
-      'google/gemma-4-26b-a4b-it:free',
-      'openai/gpt-oss-120b:free',
       'nvidia/nemotron-3-super-120b-a12b:free',
-      'openai/gpt-4o-mini',
+      'minimax/minimax-m2.5:free',
+      'openai/gpt-oss-120b:free',
+      'nvidia/nemotron-3-nano-30b-a3b:free',
+      'google/gemma-4-31b-it:free',
     ],
     mistral: ['mistral-small-latest', 'mistral-medium-latest'],
     groq: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768'],
@@ -56,7 +56,17 @@ export default function AiChatCompanion({
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [selectedProvider, setSelectedProvider] = useState<string>('auto')
   const [selectedModel, setSelectedModel] = useState<string>('auto')
+  /** useChat holder transport fra første mount; body() ellers læser gamle provider/model fra closure → API fik altid fx "auto"/Gemini. */
+  const selectedProviderRef = useRef(selectedProvider)
+  const selectedModelRef = useRef(selectedModel)
   const kimiOnlyMode = workspaceTab === 'slides'
+
+  useEffect(() => {
+    selectedProviderRef.current = selectedProvider
+  }, [selectedProvider])
+  useEffect(() => {
+    selectedModelRef.current = selectedModel
+  }, [selectedModel])
 
   const providerSelectKeys = Object.keys(MODEL_OPTIONS).filter(
     key => key !== 'kimi' || workspaceTab === 'slides'
@@ -344,8 +354,8 @@ export default function AiChatCompanion({
           .filter(Boolean)
 
         return {
-          aiProvider: kimiOnlyMode ? 'kimi' : selectedProvider,
-          aiModel: kimiOnlyMode ? 'kimi-k2.5' : selectedModel,
+          aiProvider: kimiOnlyMode ? 'kimi' : selectedProviderRef.current,
+          aiModel: kimiOnlyMode ? 'kimi-k2.5' : selectedModelRef.current,
           context: {
             projectId,
             projectName,
@@ -645,22 +655,28 @@ export default function AiChatCompanion({
     const storedProvider = localStorage.getItem('forgelab.aiProvider')
     const storedModel = localStorage.getItem('forgelab.aiModel')
     if (kimiOnlyMode) {
+      selectedProviderRef.current = 'kimi'
+      selectedModelRef.current = 'kimi-k2.5'
       setSelectedProvider('kimi')
       setSelectedModel('kimi-k2.5')
       return
     }
     if (storedProvider === 'kimi') {
+      selectedProviderRef.current = 'auto'
+      selectedModelRef.current = 'auto'
       setSelectedProvider('auto')
       setSelectedModel('auto')
       return
     }
     if (storedProvider && MODEL_OPTIONS[storedProvider]) {
+      const nextModel =
+        storedModel && MODEL_OPTIONS[storedProvider].includes(storedModel)
+          ? storedModel
+          : MODEL_OPTIONS[storedProvider][0]
+      selectedProviderRef.current = storedProvider
+      selectedModelRef.current = nextModel
       setSelectedProvider(storedProvider)
-      if (storedModel && MODEL_OPTIONS[storedProvider].includes(storedModel)) {
-        setSelectedModel(storedModel)
-      } else {
-        setSelectedModel(MODEL_OPTIONS[storedProvider][0])
-      }
+      setSelectedModel(nextModel)
     }
   }, [kimiOnlyMode])
 
@@ -803,20 +819,60 @@ export default function AiChatCompanion({
     return message.parts.filter((part: any) => part?.type === 'file')
   }
 
-  const getFriendlyErrorMessage = (rawMessage?: string) => {
+  const getFriendlyErrorMessage = (rawMessage?: string, activeProvider?: string) => {
     if (!rawMessage) return 'Der opstod en ukendt fejl. Prøv igen.'
     const lower = rawMessage.toLowerCase()
+    const provider = (activeProvider || '').toLowerCase()
+    const envHint = ' i miljøvariabler (.env.local lokalt eller under Vercel → Environment Variables).'
 
     if (lower.includes('quota') || lower.includes('rate limit') || lower.includes('exceeded your current quota')) {
       return 'Din AI-kvote er opbrugt lige nu. Prøv igen om lidt eller skift til en billigere model.'
     }
 
-    if (lower.includes('api key') || lower.includes('google_generative_ai_api_key')) {
-      return 'API-nøglen mangler eller er ugyldig. Tjek GOOGLE_GENERATIVE_AI_API_KEY i .env.local.'
+    const keyish =
+      lower.includes('api key') ||
+      lower.includes('api_key') ||
+      lower.includes('invalid api') ||
+      lower.includes('incorrect api key')
+
+    const mentionsGoogle =
+      lower.includes('google_generative_ai') ||
+      lower.includes('google_generative') ||
+      lower.includes('generative language') ||
+      lower.includes('gemini') ||
+      (lower.includes('google') && keyish)
+    const mentionsOpenrouter = lower.includes('openrouter')
+
+    if (mentionsOpenrouter || (provider === 'openrouter' && keyish)) {
+      return `OpenRouter: API-nøglen mangler eller er ugyldig. Sæt OPENROUTER_API_KEY${envHint}`
     }
 
-    if (lower.includes('groq') && (lower.includes('api key') || lower.includes('401'))) {
-      return 'Groq API key mangler eller er ugyldig. Tjek GROQ_API_KEY i .env.local.'
+    if (mentionsGoogle || (provider === 'google' && keyish)) {
+      return `Google (Gemini): API-nøglen mangler eller er ugyldig. Sæt GOOGLE_GENERATIVE_AI_API_KEY (eller GOOGLE_API_KEY / GEMINI_API_KEY)${envHint}`
+    }
+
+    if (provider === 'openai' && keyish) {
+      return `OpenAI: API-nøglen mangler eller er ugyldig. Sæt OPENAI_API_KEY${envHint}`
+    }
+
+    if (provider === 'anthropic' && keyish) {
+      return `Anthropic: API-nøglen mangler eller er ugyldig. Sæt ANTHROPIC_API_KEY${envHint}`
+    }
+
+    if (provider === 'mistral' && keyish) {
+      return `Mistral: API-nøglen mangler eller er ugyldig. Sæt MISTRAL_API_KEY${envHint}`
+    }
+
+    if (provider === 'kimi' && keyish) {
+      return `Kimi/Moonshot: API-nøglen mangler eller er ugyldig. Sæt MOONSHOT_API_KEY eller KIMI_API_KEY${envHint}`
+    }
+
+    if (lower.includes('groq') && (keyish || lower.includes('401'))) {
+      return `Groq: API-nøglen mangler eller er ugyldig. Sæt GROQ_API_KEY${envHint}`
+    }
+
+    if (keyish) {
+      return `API-nøglen mangler eller er ugyldig for den valgte provider (${provider || 'ukendt'}). Tjek den tilhørende nøgle${envHint}`
     }
 
     if (lower.includes('failed to fetch') || lower.includes('network')) {
@@ -999,8 +1055,11 @@ export default function AiChatCompanion({
                       }
                       onChange={e => {
                         const provider = e.target.value
+                        const nextModel = MODEL_OPTIONS[provider]?.[0] || ''
+                        selectedProviderRef.current = provider
+                        selectedModelRef.current = nextModel
                         setSelectedProvider(provider)
-                        setSelectedModel(MODEL_OPTIONS[provider]?.[0] || '')
+                        setSelectedModel(nextModel)
                       }}
                       style={{
                         background: 'rgba(255,255,255,0.16)',
@@ -1022,7 +1081,11 @@ export default function AiChatCompanion({
                     </select>
                     <select
                       value={selectedModel}
-                      onChange={e => setSelectedModel(e.target.value)}
+                      onChange={e => {
+                        const m = e.target.value
+                        selectedModelRef.current = m
+                        setSelectedModel(m)
+                      }}
                       style={{
                         background: 'rgba(255,255,255,0.16)',
                         border: '1px solid rgba(255,255,255,0.3)',
@@ -1240,7 +1303,8 @@ export default function AiChatCompanion({
               )}
               {error && (
                 <div style={{ alignSelf: 'flex-start', color: '#B91C1C', fontSize: 12, background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, padding: '8px 10px' }}>
-                  AI-fejl: {getFriendlyErrorMessage(error.message)}
+                  AI-fejl:{' '}
+                  {getFriendlyErrorMessage(error.message, kimiOnlyMode ? 'kimi' : selectedProviderRef.current)}
                 </div>
               )}
               {uploadError && (

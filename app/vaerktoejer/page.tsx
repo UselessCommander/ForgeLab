@@ -1,10 +1,9 @@
 import Link from 'next/link'
-import { LayoutGrid, ArrowRight, LogIn } from 'lucide-react'
+import { LayoutGrid, ArrowRight } from 'lucide-react'
 import PageShell from '@/components/PageShell'
 import SiteNav from '@/components/SiteNav'
 import { getVaerktoejerGroupedByKategori } from '@/lib/vaerktoejer-data'
 import { getToolIcon } from '@/lib/vaerktoejer-icons'
-import { getCurrentUserId } from '@/lib/auth'
 
 export const metadata = {
   title: 'Flere værktøjer | ForgeLab',
@@ -12,29 +11,16 @@ export const metadata = {
 }
 
 export default async function VaerktoejerPage() {
-  const userId = await getCurrentUserId()
-  const isLoggedIn = !!userId
-
   return (
     <PageShell>
       <SiteNav
         rightSlot={
-          isLoggedIn ? (
-            <Link
-              href="/dashboard"
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-900 text-white rounded-xl font-medium hover:bg-gray-800 transition-all duration-200 shadow-sm hover:shadow-md"
-            >
-              Dashboard
-            </Link>
-          ) : (
-            <Link
-              href="/login"
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-900 text-white rounded-xl font-medium hover:bg-gray-800 transition-all duration-200 shadow-sm hover:shadow-md"
-            >
-              <LogIn className="w-4 h-4" />
-              Log ind
-            </Link>
-          )
+          <Link
+            href="/dashboard"
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-900 text-white rounded-xl font-medium hover:bg-gray-800 transition-all duration-200 shadow-sm hover:shadow-md"
+          >
+            Dashboard
+          </Link>
         }
       />
       <main className="layout-page py-16">
@@ -46,7 +32,7 @@ export default async function VaerktoejerPage() {
             Flere værktøjer
           </h1>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            SWOT, Business Model Canvas, Gantt, Kompasrose og mere. Udforsk beskrivelser og bruge værktøjerne fra dit dashboard.
+            SWOT, Business Model Canvas, Gantt, Kompasrose og mere. Udforsk beskrivelser og åbn værktøjerne fra dit dashboard.
           </p>
         </div>
 
@@ -60,7 +46,7 @@ export default async function VaerktoejerPage() {
                   return (
                     <Link
                       key={v.slug}
-                      href={isLoggedIn ? `/tools/${v.slug}` : `/vaerktoejer/${v.slug}`}
+                      href={`/tools/${v.slug}`}
                       className="group bg-white rounded-2xl p-6 border border-gray-200/80 shadow-sm hover:shadow-lg hover:border-amber-200/60 transition-all duration-300 block text-left"
                     >
                       <div className={`inline-flex items-center justify-center w-12 h-12 rounded-xl ${bg} ${text} mb-4 group-hover:scale-105 transition-transform`}>
@@ -73,7 +59,7 @@ export default async function VaerktoejerPage() {
                         {v.shortDescription}
                       </p>
                       <span className="inline-flex items-center gap-2 text-amber-600 font-medium text-sm">
-                        {isLoggedIn ? 'Åbn værktøj' : 'Læs mere'}
+                        Åbn værktøj
                         <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                       </span>
                     </Link>
@@ -84,30 +70,12 @@ export default async function VaerktoejerPage() {
           ))}
         </div>
 
-        {!isLoggedIn && (
-          <div className="mt-12 p-8 bg-white border border-gray-200/80 rounded-2xl shadow-sm text-center">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-amber-50 text-amber-600 mb-4">
-            <LayoutGrid className="w-6 h-6" />
-          </div>
-          <p className="text-gray-600 mb-4">
-            Alle værktøjer er tilgængelige efter login fra dit dashboard.
-          </p>
-          <Link
-            href="/login"
-            className="inline-flex items-center gap-2 px-6 py-3 bg-amber-500 text-white rounded-xl font-semibold hover:bg-amber-600 transition-all duration-200 shadow-lg shadow-amber-500/25"
-          >
-            Log ind for at bruge værktøjerne
-            <ArrowRight className="w-4 h-4" />
-          </Link>
-          </div>
-        )}
-
         <div className="mt-10 text-center">
           <Link href="/" className="text-gray-500 hover:text-gray-900 font-medium inline-flex items-center gap-2 transition-colors">
             ← Tilbage til forsiden
-            </Link>
-          </div>
-        </main>
+          </Link>
+        </div>
+      </main>
     </PageShell>
   )
 }

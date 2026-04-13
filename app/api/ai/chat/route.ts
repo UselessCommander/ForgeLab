@@ -5,17 +5,13 @@ import { anthropic } from '@ai-sdk/anthropic'
 import { mistral } from '@ai-sdk/mistral'
 import { z } from 'zod'
 import { refreshProjectKnowledgeIndex, retrieveProjectKnowledge } from '@/lib/project-rag'
+import { getCurrentUserId } from '@/lib/auth'
+import { getUserById } from '@/lib/users'
+import { hasAiAccessFromSubscription } from '@/lib/subscription'
+import { hasServerEnv as hasEnv, serverEnv as env } from '@/lib/server-env'
 
-export const maxDuration = 30
-const env = (...keys: string[]) => {
-  for (const key of keys) {
-    const value = process.env[key]
-    if (typeof value === 'string' && value.trim()) return value
-  }
-  return ''
-}
-
-const hasEnv = (...keys: string[]) => Boolean(env(...keys))
+/** Max-mode kalder mange modeller parallelt; giv serverless tid nok (Vercel: tjek plan-limits). */
+export const maxDuration = 60
 
 const SUPPORTED_AI_PROVIDERS = [
   'auto',
@@ -37,11 +33,11 @@ const PROVIDER_MODELS: Record<SupportedProvider, string[]> = {
   openai: ['gpt-4o-mini', 'gpt-4o'],
   anthropic: ['claude-3-5-sonnet-latest', 'claude-3-5-haiku-latest'],
   openrouter: [
-    'google/gemma-4-31b-it:free',
-    'google/gemma-4-26b-a4b-it:free',
-    'openai/gpt-oss-120b:free',
     'nvidia/nemotron-3-super-120b-a12b:free',
-    'openai/gpt-4o-mini',
+    'minimax/minimax-m2.5:free',
+    'openai/gpt-oss-120b:free',
+    'nvidia/nemotron-3-nano-30b-a3b:free',
+    'google/gemma-4-31b-it:free',
   ],
   mistral: ['mistral-small-latest', 'mistral-medium-latest'],
   groq: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768'],
@@ -69,8 +65,33 @@ const SUPPORTED_EXACT_MIME_TYPES = [
   'text/csv',
 ]
 
+/** Tillad vilkårlige OpenRouter model-id'er (org/model), ikke kun listen i PROVIDER_MODELS. */
+function isValidOpenRouterModelId(model: string): boolean {
+  const t = model.trim()
+  if (t.length < 3 || t.length > 160 || !t.includes('/')) return false
+  return /^[a-zA-Z0-9./:_-]+$/.test(t)
+}
+
 export async function POST(req: Request) {
   try {
+    const userId = await getCurrentUserId()
+    if (!userId) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+
+    if (userId !== 'admin') {
+      const user = await getUserById(userId)
+      if (!hasAiAccessFromSubscription(user)) {
+        return new Response(
+          JSON.stringify({ error: 'AI kræver et aktivt Pro-abonnement. Opgrader på profilsiden.' }),
+          { status: 402, headers: { 'Content-Type': 'application/json' } }
+        )
+      }
+    }
+
     const { messages, context, aiProvider: requestedProvider, aiModel: requestedModel } = await req.json()
 
     const envProvider = (env('AI_PROVIDER', 'NEXT_PUBLIC_AI_PROVIDER') || 'google').toLowerCase()
@@ -84,7 +105,9 @@ export async function POST(req: Request) {
     const googleModel = env('GOOGLE_MODEL', 'NEXT_PUBLIC_GOOGLE_MODEL') || 'gemini-2.5-flash'
     const openaiModel = env('OPENAI_MODEL', 'NEXT_PUBLIC_OPENAI_MODEL') || 'gpt-4o-mini'
     const anthropicModel = env('ANTHROPIC_MODEL', 'NEXT_PUBLIC_ANTHROPIC_MODEL') || 'claude-3-5-sonnet-latest'
-    const openrouterModel = env('OPENROUTER_MODEL', 'NEXT_PUBLIC_OPENROUTER_MODEL') || 'google/gemma-4-31b-it:free'
+    const openrouterModel =
+      env('OPENROUTER_MODEL', 'NEXT_PUBLIC_OPENROUTER_MODEL') ||
+      'nvidia/nemotron-3-super-120b-a12b:free'
     const mistralModel = env('MISTRAL_MODEL', 'NEXT_PUBLIC_MISTRAL_MODEL') || 'mistral-small-latest'
     const groqModel = env('GROQ_MODEL', 'NEXT_PUBLIC_GROQ_MODEL') || 'llama-3.3-70b-versatile'
     const kimiModel = env('KIMI_MODEL', 'NEXT_PUBLIC_KIMI_MODEL') || 'kimi-k2.5'
@@ -394,24 +417,30 @@ export async function POST(req: Request) {
       return googleModel
     })()
 
-    const selectedModel =
-      requestedModelSafe && PROVIDER_MODELS[aiProvider].includes(requestedModelSafe)
-        ? requestedModelSafe
-        : modelForProvider
+    const selectedModel = (() => {
+      if (!requestedModelSafe) return modelForProvider
+      if (PROVIDER_MODELS[aiProvider].includes(requestedModelSafe)) return requestedModelSafe
+      if (aiProvider === 'openrouter' && isValidOpenRouterModelId(requestedModelSafe)) {
+        return requestedModelSafe.trim()
+      }
+      return modelForProvider
+    })()
 
+    // OpenAI-kompatible proxies (OpenRouter, Groq, Moonshot) understøtter kun Chat Completions.
+    // createOpenAI()(id) bruger ellers Responses API — det giver "Invalid Responses API request" der.
     const directModel =
       aiProvider === 'openai'
         ? openai(selectedModel)
         : aiProvider === 'anthropic'
           ? anthropic(selectedModel)
           : aiProvider === 'openrouter'
-            ? openrouter(selectedModel)
+            ? openrouter.chat(selectedModel)
             : aiProvider === 'mistral'
               ? mistral(selectedModel)
               : aiProvider === 'kimi'
-                ? moonshot!(selectedModel)
+                ? moonshot!.chat(selectedModel)
                 : aiProvider === 'groq'
-                  ? groq(selectedModel)
+                  ? groq.chat(selectedModel)
                   : google(selectedModel)
 
     const tools = {
@@ -573,13 +602,86 @@ export async function POST(req: Request) {
           candidates.push({ provider: 'anthropic', modelId: anthropicModel, model: anthropic(anthropicModel) })
         }
         if (hasEnv('OPENROUTER_API_KEY')) {
-          candidates.push({ provider: 'openrouter', modelId: openrouterModel, model: openrouter(openrouterModel) })
+          candidates.push({
+            provider: 'openrouter',
+            modelId: openrouterModel,
+            model: openrouter.chat(openrouterModel),
+          })
         }
         if (hasEnv('MISTRAL_API_KEY')) {
           candidates.push({ provider: 'mistral', modelId: mistralModel, model: mistral(mistralModel) })
         }
         if (hasEnv('GROQ_API_KEY')) {
-          candidates.push({ provider: 'groq', modelId: groqModel, model: groq(groqModel) })
+          candidates.push({ provider: 'groq', modelId: groqModel, model: groq.chat(groqModel) })
+        }
+      }
+
+      return candidates
+    }
+
+    /** Én entry pr. konkret model-id (alle varianter), til max-ensemble — undtagen kimi-k2. */
+    const buildMaxEnsembleCandidates = () => {
+      const candidates: Array<{ provider: string; modelId: string; model: any }> = []
+      const hasFiles = normalizedMessages.some(
+        msg => Array.isArray(msg.content) && msg.content.some((p: any) => p?.type === 'file')
+      )
+
+      if (hasFiles) {
+        if (hasEnv('GOOGLE_GENERATIVE_AI_API_KEY', 'GOOGLE_API_KEY', 'GEMINI_API_KEY')) {
+          for (const modelId of PROVIDER_MODELS.google) {
+            candidates.push({ provider: 'google', modelId, model: google(modelId) })
+          }
+        }
+        if (hasEnv('ANTHROPIC_API_KEY')) {
+          for (const modelId of PROVIDER_MODELS.anthropic) {
+            candidates.push({ provider: 'anthropic', modelId, model: anthropic(modelId) })
+          }
+        }
+        if (hasEnv('OPENAI_API_KEY')) {
+          for (const modelId of PROVIDER_MODELS.openai) {
+            candidates.push({ provider: 'openai', modelId, model: openai(modelId) })
+          }
+        }
+        return candidates
+      }
+
+      if (hasEnv('OPENAI_API_KEY')) {
+        for (const modelId of PROVIDER_MODELS.openai) {
+          candidates.push({ provider: 'openai', modelId, model: openai(modelId) })
+        }
+      }
+      if (hasEnv('GOOGLE_GENERATIVE_AI_API_KEY', 'GOOGLE_API_KEY', 'GEMINI_API_KEY')) {
+        for (const modelId of PROVIDER_MODELS.google) {
+          candidates.push({ provider: 'google', modelId, model: google(modelId) })
+        }
+      }
+      if (hasEnv('ANTHROPIC_API_KEY')) {
+        for (const modelId of PROVIDER_MODELS.anthropic) {
+          candidates.push({ provider: 'anthropic', modelId, model: anthropic(modelId) })
+        }
+      }
+      if (hasEnv('OPENROUTER_API_KEY')) {
+        for (const modelId of PROVIDER_MODELS.openrouter) {
+          candidates.push({
+            provider: 'openrouter',
+            modelId,
+            model: openrouter.chat(modelId),
+          })
+        }
+      }
+      if (hasEnv('MISTRAL_API_KEY')) {
+        for (const modelId of PROVIDER_MODELS.mistral) {
+          candidates.push({ provider: 'mistral', modelId, model: mistral(modelId) })
+        }
+      }
+      if (hasEnv('GROQ_API_KEY')) {
+        for (const modelId of PROVIDER_MODELS.groq) {
+          candidates.push({ provider: 'groq', modelId, model: groq.chat(modelId) })
+        }
+      }
+      if (moonshot) {
+        for (const modelId of PROVIDER_MODELS.kimi.filter(id => id !== 'kimi-k2')) {
+          candidates.push({ provider: 'kimi', modelId, model: moonshot.chat(modelId) })
         }
       }
 
@@ -601,9 +703,19 @@ export async function POST(req: Request) {
     }
 
     if (aiProvider === 'max') {
-      const selectedCandidates = autoCandidates.slice(0, 3)
+      const maxCandidates = buildMaxEnsembleCandidates()
+      if (maxCandidates.length === 0) {
+        return new Response(
+          JSON.stringify({
+            error:
+              'Max-mode fandt ingen aktive API keys. Tilføj mindst én provider-nøgle (fx OpenAI eller Google).',
+          }),
+          { status: 500, headers: { 'Content-Type': 'application/json' } }
+        )
+      }
+
       const candidateResults = await Promise.all(
-        selectedCandidates.map(async candidate => {
+        maxCandidates.map(async candidate => {
           try {
             const result = await generateText({
               model: candidate.model,
@@ -640,13 +752,17 @@ export async function POST(req: Request) {
         .map((r, idx) => `Svar ${idx + 1} (${r.provider}/${r.modelId}):\n${r.text}`)
         .join('\n\n')
 
-      const fusionModel = selectedCandidates[0].model
-      const fusionIdentity = `${selectedCandidates[0].provider}/${selectedCandidates[0].modelId}`
+      const firstOk = successful[0]
+      const fusionCandidate =
+        maxCandidates.find(c => c.provider === firstOk.provider && c.modelId === firstOk.modelId) ??
+        maxCandidates[0]
+      const fusionModel = fusionCandidate.model
+      const fusionIdentity = `${fusionCandidate.provider}/${fusionCandidate.modelId}`
       const fusionResult = streamText({
         model: fusionModel,
         system: `${withModelIdentity(fusionIdentity)}
 
-Du modtager nu flere modelsvar på samme brugerinput. Din opgave er at fusionere dem til ét bedre svar.
+Du modtager nu flere modelsvar på samme brugerinput (fra et ensemble af modeller). Din opgave er at fusionere dem til ét bedre svar.
 Regler:
 - Vælg den bedste substans på tværs af svarene.
 - Fjern gentagelser og modsætninger.

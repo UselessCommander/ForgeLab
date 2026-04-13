@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { getBaseUrl } from '@/lib/data'
+import { getCurrentUserId } from '@/lib/auth'
+import { canViewProject } from '@/lib/project-access'
 
 function generateSlug(): string {
   return Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6)
@@ -9,7 +11,7 @@ function generateSlug(): string {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { title, description, header_image, design, questions } = body
+    const { title, description, header_image, design, questions, projectId: bodyProjectId } = body
 
     if (!title || !Array.isArray(questions)) {
       return NextResponse.json(
@@ -28,16 +30,31 @@ export async function POST(request: NextRequest) {
       attempts++
     }
 
-    const { data: survey, error } = await supabase
-      .from('surveys')
-      .insert({
-        slug,
-        title: String(title).trim(),
-        description: String(description ?? '').trim(),
-        header_image: header_image || null,
-        design: design && typeof design === 'object' ? design : {},
-        questions,
-      })
+    const ownerUserId = await getCurrentUserId()
+    const insertPayload: Record<string, unknown> = {
+      slug,
+      title: String(title).trim(),
+      description: String(description ?? '').trim(),
+      header_image: header_image || null,
+      design: design && typeof design === 'object' ? design : {},
+      questions,
+    }
+    if (ownerUserId && ownerUserId !== 'admin') {
+      insertPayload.owner_user_id = ownerUserId
+    }
+
+    if (bodyProjectId && typeof bodyProjectId === 'string') {
+      if (!ownerUserId || ownerUserId === 'admin') {
+        return NextResponse.json({ error: 'Log ind for at knytte til projekt' }, { status: 401 })
+      }
+      const allowed = await canViewProject(bodyProjectId, ownerUserId)
+      if (!allowed) {
+        return NextResponse.json({ error: 'Ugyldigt projekt' }, { status: 400 })
+      }
+      insertPayload.project_id = bodyProjectId
+    }
+
+    const { data: survey, error } = await supabase.from('surveys').insert(insertPayload as any)
       .select('id, slug')
       .single()
 

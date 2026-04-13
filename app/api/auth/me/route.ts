@@ -16,6 +16,10 @@ export async function GET() {
         lastName: null,
         profileRole: null,
         avatarUrl: null,
+        planKey: 'pro',
+        subscriptionStatus: 'active',
+        subscriptionCurrentPeriodEnd: null,
+        subscriptionCancelAtPeriodEnd: false,
       })
     }
 
@@ -28,6 +32,10 @@ export async function GET() {
       lastName: (user as any)?.last_name || null,
       profileRole: (user as any)?.profile_role || null,
       avatarUrl: (user as any)?.avatar_url || null,
+      planKey: (user as any)?.plan_key || 'free',
+      subscriptionStatus: (user as any)?.subscription_status || null,
+      subscriptionCurrentPeriodEnd: (user as any)?.subscription_current_period_end || null,
+      subscriptionCancelAtPeriodEnd: Boolean((user as any)?.subscription_cancel_at_period_end),
     })
   }
 

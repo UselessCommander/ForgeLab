@@ -619,68 +619,6 @@
 [data-theme='pink-cherry'] .shadow-xl { box-shadow: 0 20px 25px -5px rgba(219, 39, 119, 0.24), 0 8px 10px -6px rgba(219, 39, 119, 0.16) !important; }
 [data-theme='pink-cherry'] .shadow-black\/40 { --tw-shadow-color: rgba(219, 39, 119, 0.35) !important; }
 
-/* Dark mode overlay (keeps active theme hues, just darkens surfaces) */
-[data-color-mode='dark'] body {
-  color: #e5e7eb;
-  background:
-    radial-gradient(900px 520px at -8% -10%, color-mix(in srgb, var(--forge-bg-spot-1) 75%, #020617), transparent 70%),
-    radial-gradient(800px 460px at 108% -6%, color-mix(in srgb, var(--forge-bg-spot-2) 70%, #020617), transparent 72%),
-    radial-gradient(780px 440px at 50% 112%, color-mix(in srgb, var(--forge-bg-spot-3) 72%, #020617), transparent 74%),
-    color-mix(in srgb, var(--forge-page-bg) 24%, #020617) !important;
-}
-
-[data-color-mode='dark'] .bg-white {
-  background-color: color-mix(in srgb, var(--forge-accent-700) 8%, #131a2a) !important;
-  color: #e5e7eb;
-}
-
-[data-color-mode='dark'] .swiss-panel {
-  background: color-mix(in srgb, var(--forge-accent-700) 7%, #131a2a) !important;
-  border-color: color-mix(in srgb, var(--forge-accent-300) 28%, #243244) !important;
-  color: #e5e7eb;
-}
-
-[data-color-mode='dark'] .border-gray-100,
-[data-color-mode='dark'] .border-gray-200,
-[data-color-mode='dark'] .border-slate-200 {
-  border-color: color-mix(in srgb, var(--forge-accent-300) 24%, #334155) !important;
-}
-
-[data-color-mode='dark'] .text-gray-900 { color: #f3f4f6 !important; }
-[data-color-mode='dark'] .text-gray-800 { color: #e5e7eb !important; }
-[data-color-mode='dark'] .text-gray-700 { color: #d1d5db !important; }
-[data-color-mode='dark'] .text-gray-600 { color: #cbd5e1 !important; }
-[data-color-mode='dark'] .text-gray-500 { color: #94a3b8 !important; }
-[data-color-mode='dark'] .text-slate-900 { color: #f3f4f6 !important; }
-[data-color-mode='dark'] .text-slate-800 { color: #e2e8f0 !important; }
-[data-color-mode='dark'] .text-slate-700 { color: #cbd5e1 !important; }
-[data-color-mode='dark'] .text-neutral-900 { color: #f3f4f6 !important; }
-[data-color-mode='dark'] .text-neutral-800 { color: #e5e7eb !important; }
-
-[data-color-mode='dark'] input,
-[data-color-mode='dark'] select,
-[data-color-mode='dark'] textarea {
-  background-color: color-mix(in srgb, var(--forge-accent-700) 8%, #0f172a) !important;
-  color: #e5e7eb !important;
-  border-color: color-mix(in srgb, var(--forge-accent-300) 28%, #334155) !important;
-}
-
-/* Double Diamond readability in dark mode */
-[data-color-mode='dark'] .dd-top,
-[data-color-mode='dark'] .dd-phase-title,
-[data-color-mode='dark'] .dd-dv,
-[data-color-mode='dark'] .dd-axis {
-  fill: #f8fafc !important;
-}
-
-[data-color-mode='dark'] .dd-phase-sub,
-[data-color-mode='dark'] .dd-small,
-[data-color-mode='dark'] .dd-tiny,
-[data-color-mode='dark'] .dd-rot,
-[data-color-mode='dark'] .dd-foot {
-  fill: #cbd5e1 !important;
-}
-
 /* PageShell now follows active theme background */
 .forgelab-page-shell {
   background: transparent;
@@ -714,18 +652,6 @@
     radial-gradient(780px 420px at 10% -4%, color-mix(in srgb, var(--forge-accent-200) 26%, transparent), transparent 70%),
     radial-gradient(720px 380px at 90% 0%, color-mix(in srgb, var(--forge-accent-300) 18%, transparent), transparent 72%),
     linear-gradient(to bottom, color-mix(in srgb, #ffffff 70%, transparent), transparent 48%, color-mix(in srgb, var(--forge-accent-100) 22%, transparent));
-}
-
-[data-color-mode='dark'] .forgelab-page-grid {
-  background-image:
-    linear-gradient(to right, color-mix(in srgb, var(--forge-accent-300) 26%, #0f172a) 1px, transparent 1px),
-    linear-gradient(to bottom, color-mix(in srgb, var(--forge-accent-300) 26%, #0f172a) 1px, transparent 1px);
-  opacity: 0.24;
-}
-
-[data-color-mode='dark'] .forgelab-site-nav {
-  background: color-mix(in srgb, #0f172a 84%, var(--forge-accent-600)) !important;
-  border-bottom-color: color-mix(in srgb, var(--forge-accent-300) 26%, #334155) !important;
 }
 
 /* ------------------------------------------------------------------
@@ -772,119 +698,8 @@
     0 4px 12px -8px rgba(15, 23, 42, 0.16) !important;
 }
 
-[data-color-mode='dark'] .layout-page .bg-white {
-  background-image: linear-gradient(
-    160deg,
-    color-mix(in srgb, #121a2a 88%, var(--forge-accent-700)) 0%,
-    color-mix(in srgb, #111827 92%, var(--forge-accent-700)) 100%
-  ) !important;
-}
-
-[data-color-mode='dark'] .layout-page .border,
-[data-color-mode='dark'] .layout-page [class*='border-'] {
-  border-color: color-mix(in srgb, var(--forge-accent-300) 30%, #334155) !important;
-}
-
 /* Dashboard typography polish without extra boxes */
 .layout-page h2,
 .layout-page h3 {
   letter-spacing: -0.01em;
-}
-
-[data-color-mode='dark'] .forgelab-page-glow {
-  background:
-    radial-gradient(780px 420px at 10% -4%, color-mix(in srgb, var(--forge-accent-400) 24%, #020617), transparent 72%),
-    radial-gradient(720px 380px at 90% 0%, color-mix(in srgb, var(--forge-accent-500) 18%, #020617), transparent 74%),
-    linear-gradient(to bottom, color-mix(in srgb, #0b1220 82%, transparent), transparent 52%, color-mix(in srgb, var(--forge-accent-700) 14%, transparent));
-}
-
-/* Projekt-workspace: app dark mode gælder ikke for board, værktøjer, docs osv. */
-[data-color-mode='dark'] [data-forge-project-light] {
-  color-scheme: light;
-  color: #111827;
-}
-
-[data-color-mode='dark'] [data-forge-project-light] .bg-white {
-  background-color: #ffffff !important;
-  color: inherit;
-}
-
-[data-color-mode='dark'] [data-forge-project-light] .swiss-panel {
-  background: #ffffff !important;
-  border-color: var(--forge-soft-border, #e5e7eb) !important;
-  color: inherit;
-}
-
-[data-color-mode='dark'] [data-forge-project-light] .border-gray-100 {
-  border-color: #f3f4f6 !important;
-}
-[data-color-mode='dark'] [data-forge-project-light] .border-gray-200 {
-  border-color: #e5e7eb !important;
-}
-[data-color-mode='dark'] [data-forge-project-light] .border-slate-200 {
-  border-color: #e2e8f0 !important;
-}
-
-[data-color-mode='dark'] [data-forge-project-light] .text-gray-900 { color: #111827 !important; }
-[data-color-mode='dark'] [data-forge-project-light] .text-gray-800 { color: #1f2937 !important; }
-[data-color-mode='dark'] [data-forge-project-light] .text-gray-700 { color: #374151 !important; }
-[data-color-mode='dark'] [data-forge-project-light] .text-gray-600 { color: #4b5563 !important; }
-[data-color-mode='dark'] [data-forge-project-light] .text-gray-500 { color: #6b7280 !important; }
-[data-color-mode='dark'] [data-forge-project-light] .text-slate-900 { color: #0f172a !important; }
-[data-color-mode='dark'] [data-forge-project-light] .text-slate-800 { color: #1e293b !important; }
-[data-color-mode='dark'] [data-forge-project-light] .text-slate-700 { color: #334155 !important; }
-[data-color-mode='dark'] [data-forge-project-light] .text-neutral-900 { color: #171717 !important; }
-[data-color-mode='dark'] [data-forge-project-light] .text-neutral-800 { color: #262626 !important; }
-
-[data-color-mode='dark'] [data-forge-project-light] input,
-[data-color-mode='dark'] [data-forge-project-light] select,
-[data-color-mode='dark'] [data-forge-project-light] textarea {
-  background-color: #ffffff !important;
-  color: #111827 !important;
-  border-color: color-mix(in srgb, var(--forge-accent-300) 26%, #d1d5db) !important;
-}
-
-[data-color-mode='dark'] [data-forge-project-light] .dd-top,
-[data-color-mode='dark'] [data-forge-project-light] .dd-phase-title,
-[data-color-mode='dark'] [data-forge-project-light] .dd-dv,
-[data-color-mode='dark'] [data-forge-project-light] .dd-axis,
-[data-color-mode='dark'] [data-forge-project-light] .dd-phase-sub,
-[data-color-mode='dark'] [data-forge-project-light] .dd-small,
-[data-color-mode='dark'] [data-forge-project-light] .dd-tiny,
-[data-color-mode='dark'] [data-forge-project-light] .dd-rot,
-[data-color-mode='dark'] [data-forge-project-light] .dd-foot {
-  fill: revert !important;
-}
-
-[data-color-mode='dark'] [data-forge-project-light] .forgelab-page-grid {
-  background-image:
-    linear-gradient(to right, color-mix(in srgb, var(--forge-accent-300) 24%, #d1d5db) 1px, transparent 1px),
-    linear-gradient(to bottom, color-mix(in srgb, var(--forge-accent-300) 24%, #d1d5db) 1px, transparent 1px);
-  opacity: 0.34;
-}
-
-[data-color-mode='dark'] [data-forge-project-light] .forgelab-site-nav {
-  background: color-mix(in srgb, #ffffff 78%, var(--forge-accent-50)) !important;
-  border-bottom-color: color-mix(in srgb, var(--forge-accent-300) 26%, #d1d5db) !important;
-}
-
-[data-color-mode='dark'] [data-forge-project-light] .layout-page .bg-white {
-  background-image: linear-gradient(
-    155deg,
-    color-mix(in srgb, #ffffff 84%, var(--forge-accent-50)) 0%,
-    #ffffff 52%,
-    color-mix(in srgb, #ffffff 90%, var(--forge-accent-100)) 100%
-  ) !important;
-}
-
-[data-color-mode='dark'] [data-forge-project-light] .layout-page .border,
-[data-color-mode='dark'] [data-forge-project-light] .layout-page [class*='border-'] {
-  border-color: color-mix(in srgb, var(--forge-accent-300) 26%, #d1d5db) !important;
-}
-
-[data-color-mode='dark'] [data-forge-project-light] .forgelab-page-glow {
-  background:
-    radial-gradient(780px 420px at 10% -4%, color-mix(in srgb, var(--forge-accent-200) 26%, transparent), transparent 70%),
-    radial-gradient(720px 380px at 90% 0%, color-mix(in srgb, var(--forge-accent-300) 18%, transparent), transparent 72%),
-    linear-gradient(to bottom, color-mix(in srgb, #ffffff 70%, transparent), transparent 48%, color-mix(in srgb, var(--forge-accent-100) 22%, transparent));
 }

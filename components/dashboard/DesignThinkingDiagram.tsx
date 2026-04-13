@@ -17,7 +17,7 @@ const HOTSPOTS: Array<{ id: DesignThinkingPhase; cx: number; cy: number }> = [
 ]
 
 const DESIGN_THINKING_SVG = `
-<svg width="1000" height="400" viewBox="0 0 1000 400" xmlns="http://www.w3.org/2000/svg">
+<svg style="display:block;width:100%;height:100%" viewBox="0 0 1000 400" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <style>
       .label { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-weight: bold; font-size: 18px; fill: #444; text-anchor: middle; text-transform: uppercase; }
@@ -94,6 +94,8 @@ const DESIGN_THINKING_SVG = `
 </svg>
 `
 
+const BUBBLE_R = 90
+
 export default function DesignThinkingDiagram({
   readOnly = false,
   activeSelection = 'empathize',
@@ -101,33 +103,64 @@ export default function DesignThinkingDiagram({
 }: Props) {
   return (
     <div className="w-full min-w-[800px]">
-      <div className="relative mx-auto w-full max-w-[1000px]">
-        <div className="w-full" dangerouslySetInnerHTML={{ __html: DESIGN_THINKING_SVG }} />
+      <div className="relative mx-auto aspect-[1000/400] w-full max-w-[1000px]">
+        <div
+          className="pointer-events-none absolute inset-0"
+          dangerouslySetInnerHTML={{ __html: DESIGN_THINKING_SVG }}
+        />
 
-        {HOTSPOTS.map((spot) => {
-          const isActive = activeSelection === spot.id
-          return (
-            <button
-              key={spot.id}
-              type="button"
-              aria-label={spot.id}
-              onClick={readOnly ? undefined : () => onSelect?.(spot.id)}
-              className={readOnly ? 'cursor-default' : 'cursor-pointer'}
-              style={{
-                position: 'absolute',
-                left: `${(spot.cx / 1000) * 100}%`,
-                top: `${(spot.cy / 400) * 100}%`,
-                transform: 'translate(-50%, -50%)',
-                width: 180,
-                height: 180,
-                borderRadius: '50%',
-                border: isActive ? '2px solid rgba(20, 184, 166, 0.95)' : '2px solid transparent',
-                boxShadow: isActive ? '0 0 0 3px rgba(20, 184, 166, 0.2)' : 'none',
-                background: 'transparent',
-              }}
-            />
-          )
-        })}
+        {/* Cirkulær markering — samme cx/cy/r som boblerne i viewBox */}
+        <svg
+          className="pointer-events-none absolute inset-0 h-full w-full"
+          viewBox="0 0 1000 400"
+          preserveAspectRatio="xMidYMid meet"
+          aria-hidden
+        >
+          {HOTSPOTS.map(spot => {
+            const isActive = activeSelection === spot.id
+            if (!isActive) return null
+            return (
+              <circle
+                key={spot.id}
+                cx={spot.cx}
+                cy={spot.cy}
+                r={BUBBLE_R}
+                fill="none"
+                stroke="rgba(20, 184, 166, 0.95)"
+                strokeWidth={3}
+                style={{ filter: 'drop-shadow(0 0 5px rgba(20, 184, 166, 0.35))' }}
+              />
+            )
+          })}
+        </svg>
+
+        {HOTSPOTS.map(spot => (
+          <button
+            key={spot.id}
+            type="button"
+            aria-label={spot.id}
+            onClick={readOnly ? undefined : () => onSelect?.(spot.id)}
+            className={readOnly ? 'cursor-default' : 'cursor-pointer'}
+            style={{
+              position: 'absolute',
+              left: `${(spot.cx / 1000) * 100}%`,
+              top: `${(spot.cy / 400) * 100}%`,
+              transform: 'translate(-50%, -50%)',
+              /* 180/1000 af bredde og 180/400 af højde = samme px ved 1000:400 — perfekt cirkel */
+              width: '18%',
+              height: '45%',
+              boxSizing: 'border-box',
+              padding: 0,
+              margin: 0,
+              border: 'none',
+              borderRadius: '50%',
+              background: 'transparent',
+              appearance: 'none',
+              WebkitAppearance: 'none',
+              zIndex: 2,
+            }}
+          />
+        ))}
       </div>
     </div>
   )

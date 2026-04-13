@@ -9,6 +9,8 @@ interface ToolLayoutProps {
   children: React.ReactNode
   /** When true, hide back link and use compact padding (for project workspace embed) */
   embed?: boolean
+  /** In embed mode: ingen hvid baggrund (fx diagrammer på prikket board) */
+  embedTransparent?: boolean
   backHref?: string
   backLabel?: string
 }
@@ -20,8 +22,9 @@ export default function ToolLayout({
   description,
   children,
   embed = false,
-  backHref = '/dashboard',
-  backLabel = 'Tilbage til Dashboard',
+  embedTransparent = false,
+  backHref = '/vaerktoejer-oversigt',
+  backLabel = 'Tilbage til værktøjer',
 }: ToolLayoutProps) {
   const { isEmbed: contextEmbed } = useToolEmbed()
   
@@ -32,7 +35,9 @@ export default function ToolLayout({
 
   if (isEmbed) {
     return (
-      <div className="w-full h-full bg-white flex flex-col flex-1">
+      <div
+        className={`flex h-full w-full flex-1 flex-col ${embedTransparent ? 'bg-transparent' : 'bg-white'}`}
+      >
         {children}
       </div>
     )

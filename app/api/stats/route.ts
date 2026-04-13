@@ -1,9 +1,11 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
-import { readScansForUser, deleteAllQRCodesForUser } from '@/lib/data';
+import { NextRequest, NextResponse } from 'next/server';
+import { readScansForUser, deleteAllQRCodesForUser, getQRCodeById } from '@/lib/data';
 import { getCurrentUserId } from '@/lib/auth';
+import { supabase } from '@/lib/supabase';
+import { canViewProject } from '@/lib/project-access';
 
-// GET all stats for current user
-export async function GET() {
+// GET all stats for current user, eller kun QR-koder gemt i projektets qr-generator
+export async function GET(request: NextRequest) {
     try {
         const userId = await getCurrentUserId();
         
@@ -12,6 +14,46 @@ export async function GET() {
                 { error: 'Ikke autentificeret' },
                 { status: 401 }
             );
+        }
+
+        const projectId = request.nextUrl.searchParams.get('projectId');
+        if (projectId) {
+            const canView = await canViewProject(projectId, userId);
+            if (!canView) {
+                return NextResponse.json({ error: 'Projekt ikke fundet' }, { status: 404 });
+            }
+            const { data: row, error } = await supabase
+                .from('project_tool_data')
+                .select('data')
+                .eq('project_id', projectId)
+                .eq('tool_slug', 'qr-generator')
+                .maybeSingle();
+            if (error) {
+                console.error('stats project qr tool:', error);
+                return NextResponse.json({ error: 'Kunne ikke hente QR-data' }, { status: 500 });
+            }
+            const raw = row?.data as { savedQRCodes?: { qrId?: string | null }[] } | undefined;
+            const ids = Array.from(
+                new Set(
+                    (raw?.savedQRCodes ?? [])
+                        .map((s) => (typeof s?.qrId === 'string' ? s.qrId : null))
+                        .filter((id): id is string => Boolean(id))
+                )
+            );
+            const result: Record<string, unknown> = {};
+            for (const qrId of ids) {
+                const qr = await getQRCodeById(qrId);
+                if (!qr) continue;
+                if (qr.userId !== userId && userId !== 'admin') continue;
+                result[qrId] = {
+                    userId: qr.userId,
+                    count: qr.count,
+                    createdAt: qr.createdAt,
+                    originalUrl: qr.originalUrl,
+                    scans: qr.scans,
+                };
+            }
+            return NextResponse.json(result);
         }
 
         const scans = await readScansForUser(userId);

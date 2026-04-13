@@ -5,6 +5,7 @@ import Link from 'next/link'
 import ForgeLabLogo from '@/components/ForgeLabLogo'
 import { useProjectToolData } from '@/lib/useProjectToolData'
 import { deleteEmptyFieldRow } from '@/lib/deleteRowKeyboard'
+import type { CardSortResponseRecord, CardSortResponseSessionMeta } from '@/lib/card-sorting-analytics'
 
 type SortingMode = 'open' | 'closed' | 'hybrid'
 
@@ -19,22 +20,65 @@ interface Category {
   cards: string[]
 }
 
+type CardSortMeta = {
+  createdAt?: string
+  launchedAt?: string
+}
+
+type CardSortResponse = CardSortResponseRecord
+
+function captureSessionMeta(): CardSortResponseSessionMeta {
+  if (typeof window === 'undefined') {
+    return { instructionsSeen: 0, commentCount: 0 }
+  }
+  const ua = navigator.userAgent
+  let browserName = 'Unknown'
+  let browserVersion = ''
+  const ff = ua.match(/Firefox\/(\d+(\.\d+)?)/)
+  const ch = ua.match(/Chrome\/(\d+(\.\d+)?)/)
+  const sa = ua.match(/Version\/(\d+(\.\d+)?).*Safari/)
+  if (ff) {
+    browserName = 'Firefox'
+    browserVersion = ff[1] ?? ''
+  } else if (ch && !ua.includes('Edg')) {
+    browserName = 'Chrome'
+    browserVersion = ch[1] ?? ''
+  } else if (sa && ua.includes('Safari') && !ua.includes('Chrome')) {
+    browserName = 'Safari'
+    browserVersion = sa[1] ?? ''
+  }
+  const isMac = /Mac OS X|Macintosh/.test(ua)
+  const isWin = /Windows/.test(ua)
+  const deviceType = /Mobile|Android.*Mobile/i.test(ua) ? 'Mobile' : 'Desktop'
+  const vendor = isMac ? 'Apple' : isWin ? 'Microsoft' : '—'
+  const model = isMac ? 'Macintosh' : isWin ? 'PC' : '—'
+  const osName = isMac ? 'OS X' : isWin ? 'Windows' : '—'
+  return {
+    instructionsSeen: 0,
+    commentCount: 0,
+    device: { type: deviceType, vendor, model },
+    os: { name: osName, version: '', codename: '' },
+    browser: { name: browserName, version: browserVersion },
+    screen: { width: window.screen.width, height: window.screen.height },
+  }
+}
+
 export default function CardSorting() {
   const [mode, setMode] = useState<SortingMode>('open')
-  const [cards, setCards] = useState<Card[]>([
-    { id: '1', text: '' }
-  ])
-  const [categories, setCategories] = useState<Category[]>([
-    { id: '1', name: '', cards: [] }
-  ])
+  const [cards, setCards] = useState<Card[]>([{ id: '1', text: '' }])
+  const [categories, setCategories] = useState<Category[]>([{ id: '1', name: '', cards: [] }])
+  const [meta, setMeta] = useState<CardSortMeta>({})
+  const [responses, setResponses] = useState<CardSortResponse[]>([])
   const [draggedCard, setDraggedCard] = useState<string | null>(null)
+  const [participantStartedAt, setParticipantStartedAt] = useState<number | null>(null)
 
-  // Combine mode, cards, and categories into one state object for saving (exclude draggedCard as it's UI-only)
-  const cardSortingData = { mode, cards, categories }
+  const cardSortingData = { mode, cards, categories, meta, responses }
   const setCardSortingData = (data: typeof cardSortingData) => {
     setMode(data.mode)
     setCards(data.cards)
     setCategories(data.categories)
+    setMeta(data.meta && typeof data.meta === 'object' ? data.meta : {})
+    setResponses(Array.isArray(data.responses) ? data.responses : [])
   }
 
   // Automatically save/load data when in a project
@@ -109,6 +153,62 @@ export default function CardSorting() {
     setCategories(categories.map(cat => ({ ...cat, cards: [] })))
   }
 
+  const countActiveCategories = () =>
+    categories.filter((cat) => {
+      if (cat.cards.length === 0) return false
+      if (mode === 'closed') return true
+      return String(cat.name).trim().length > 0
+    }).length
+
+  const publishTest = () => {
+    setMeta((m) => ({
+      ...m,
+      createdAt: m.createdAt || new Date().toISOString(),
+      launchedAt: m.launchedAt || new Date().toISOString(),
+    }))
+  }
+
+  const startParticipantSession = () => {
+    setParticipantStartedAt(Date.now())
+  }
+
+  const finishParticipantSession = (abandoned: boolean) => {
+    const end = Date.now()
+    const start = participantStartedAt ?? end
+    const durationSec = Math.max(0, Math.round((end - start) / 1000))
+    const categoryCount = countActiveCategories()
+    const sortSnapshot = abandoned
+      ? undefined
+      : {
+          mode,
+          categories: categories
+            .filter((cat) => cat.cards.length > 0)
+            .map((cat) => ({
+              id: cat.id,
+              name: cat.name.trim() || 'Untitled',
+              cards: cat.cards.map((cid) => {
+                const c = cards.find((x) => x.id === cid)
+                return { id: cid, text: (c?.text ?? '').trim() || '(empty)' }
+              }),
+            })),
+        }
+    const session = captureSessionMeta()
+    setResponses((prev) => [
+      ...prev,
+      {
+        id: `r-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        startedAt: new Date(start).toISOString(),
+        completedAt: new Date(end).toISOString(),
+        durationSec: abandoned ? 0 : durationSec,
+        abandoned,
+        categoryCount,
+        sortSnapshot,
+        session,
+      },
+    ])
+    setParticipantStartedAt(null)
+  }
+
   return (
     <div className="min-h-screen px-4 py-8 md:py-12 bg-gradient-to-br from-gray-50 to-gray-100">
       <div className="max-w-7xl mx-auto">
@@ -133,6 +233,65 @@ export default function CardSorting() {
             </p>
           </div>
         </header>
+
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 mb-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">Test &amp; analytics</h2>
+          <p className="text-sm text-gray-600 mb-4">
+            Udgiv testen for at sætte lanceringsdato. Brug deltagerflowet for at registrere svar med varighed — de
+            vises under Analytics → Kortsortering.
+          </p>
+          <div className="flex flex-wrap gap-3 items-center">
+            <button
+              type="button"
+              onClick={publishTest}
+              className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700"
+            >
+              {meta.launchedAt ? 'Test allerede udgivet' : 'Udgiv test (sæt lanceret)'}
+            </button>
+            {meta.launchedAt && (
+              <span className="text-xs text-gray-500">
+                Lanceret {new Date(meta.launchedAt).toLocaleString('da-DK')}
+              </span>
+            )}
+          </div>
+          <div className="mt-6 pt-6 border-t border-gray-100">
+            <h3 className="text-sm font-semibold text-gray-900 mb-2">Simuler deltager / registrér svar</h3>
+            <p className="text-xs text-gray-600 mb-3">
+              Start en session, udfør sorteringen, og afslut for at gemme ét svar (varighed + antal kategorier med kort).
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {!participantStartedAt ? (
+                <button
+                  type="button"
+                  onClick={startParticipantSession}
+                  className="px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-800"
+                >
+                  Start deltagersession
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => finishParticipantSession(false)}
+                    className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
+                  >
+                    Afslut og registrer svar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => finishParticipantSession(true)}
+                    className="px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    Forlad (forladt svar)
+                  </button>
+                </>
+              )}
+            </div>
+            {responses.length > 0 && (
+              <p className="mt-3 text-xs text-gray-500">{responses.length} svar gemt i dette projekt.</p>
+            )}
+          </div>
+        </div>
 
         {/* Mode Selection */}
         <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 mb-6">

@@ -6,17 +6,13 @@ import LogoutButton from '@/components/LogoutButton'
 import PageShell from '@/components/PageShell'
 import SiteNav from '@/components/SiteNav'
 import {
-  applyForgeColorMode,
   applyForgeTheme,
-  FORGE_COLOR_MODE_STORAGE_KEY,
   FORGE_THEME_OPTIONS,
-  getStoredForgeColorMode,
   type ForgeTheme,
-  type ForgeColorMode,
   getStoredForgeTheme,
-  storeForgeColorMode,
   storeForgeTheme,
 } from '@/lib/theme'
+import { formatPlanLabel } from '@/lib/subscription'
 
 type MeResponse = {
   username?: string
@@ -25,6 +21,10 @@ type MeResponse = {
   lastName?: string
   profileRole?: string
   avatarUrl?: string | null
+  planKey?: string | null
+  subscriptionStatus?: string | null
+  subscriptionCurrentPeriodEnd?: string | null
+  subscriptionCancelAtPeriodEnd?: boolean
 }
 
 const ROLE_OPTIONS = [
@@ -49,12 +49,13 @@ export default function ProfilePage() {
   const [lastName, setLastName] = useState('')
   const [profileRole, setProfileRole] = useState('')
   const [theme, setTheme] = useState<ForgeTheme>('default')
-  const [colorMode, setColorMode] = useState<ForgeColorMode>('system')
   const [saving, setSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState('')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [avatarUploading, setAvatarUploading] = useState(false)
   const [avatarMessage, setAvatarMessage] = useState('')
+  const [billingLoading, setBillingLoading] = useState(false)
+  const [billingMessage, setBillingMessage] = useState('')
   const avatarInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -73,6 +74,11 @@ export default function ProfilePage() {
           lastName: typeof data?.lastName === 'string' ? data.lastName : '',
           profileRole: typeof data?.profileRole === 'string' ? data.profileRole : '',
           avatarUrl: resolvedAvatar,
+          planKey: typeof data?.planKey === 'string' ? data.planKey : 'free',
+          subscriptionStatus: typeof data?.subscriptionStatus === 'string' ? data.subscriptionStatus : null,
+          subscriptionCurrentPeriodEnd:
+            typeof data?.subscriptionCurrentPeriodEnd === 'string' ? data.subscriptionCurrentPeriodEnd : null,
+          subscriptionCancelAtPeriodEnd: Boolean(data?.subscriptionCancelAtPeriodEnd),
         }
         setMe(next)
         setAvatarUrl(resolvedAvatar)
@@ -80,11 +86,6 @@ export default function ProfilePage() {
         setLastName(next.lastName || '')
         setProfileRole(next.profileRole || '')
         setTheme(getStoredForgeTheme())
-        const mode = getStoredForgeColorMode()
-        if (!window.localStorage.getItem(FORGE_COLOR_MODE_STORAGE_KEY)) {
-          window.localStorage.setItem(FORGE_COLOR_MODE_STORAGE_KEY, 'system')
-        }
-        setColorMode(mode)
       } catch {
         // Keep page usable even if user endpoint fails.
       }
@@ -95,10 +96,6 @@ export default function ProfilePage() {
   useEffect(() => {
     applyForgeTheme(theme)
   }, [theme])
-
-  useEffect(() => {
-    applyForgeColorMode(colorMode)
-  }, [colorMode])
 
   const saveProfile = async () => {
     setSaving(true)
@@ -118,9 +115,7 @@ export default function ProfilePage() {
       setSaveMessage('Profil gemt')
       setMe((prev) => ({ ...prev, firstName, lastName, profileRole }))
       storeForgeTheme(theme)
-      storeForgeColorMode(colorMode)
       applyForgeTheme(theme)
-      applyForgeColorMode(colorMode)
     } catch {
       setSaveMessage('Kunne ikke gemme profil')
     } finally {
@@ -178,6 +173,49 @@ export default function ProfilePage() {
     }
   }
 
+  const openCheckout = async () => {
+    setBillingLoading(true)
+    setBillingMessage('')
+    try {
+      const res = await fetch('/api/billing/checkout', { method: 'POST', credentials: 'include' })
+      const payload = await res.json().catch(() => ({}))
+      if (!res.ok || typeof payload?.url !== 'string') {
+        setBillingMessage(typeof payload?.error === 'string' ? payload.error : 'Kunne ikke starte betaling')
+        return
+      }
+      window.location.assign(payload.url)
+    } catch {
+      setBillingMessage('Kunne ikke starte betaling')
+    } finally {
+      setBillingLoading(false)
+    }
+  }
+
+  const openBillingPortal = async () => {
+    setBillingLoading(true)
+    setBillingMessage('')
+    try {
+      const res = await fetch('/api/billing/portal', { method: 'POST', credentials: 'include' })
+      const payload = await res.json().catch(() => ({}))
+      if (!res.ok || typeof payload?.url !== 'string') {
+        setBillingMessage(typeof payload?.error === 'string' ? payload.error : 'Kunne ikke åbne abonnementsportal')
+        return
+      }
+      window.location.assign(payload.url)
+    } catch {
+      setBillingMessage('Kunne ikke åbne abonnementsportal')
+    } finally {
+      setBillingLoading(false)
+    }
+  }
+
+  const periodEndLabel = me.subscriptionCurrentPeriodEnd
+    ? new Date(me.subscriptionCurrentPeriodEnd).toLocaleDateString('da-DK')
+    : null
+  const planLabel = formatPlanLabel(me.planKey)
+  const subscriptionStatusLabel = me.subscriptionStatus || 'ingen'
+  const isFreePlan = (me.planKey || 'free') === 'free'
+
   return (
     <PageShell>
       <SiteNav
@@ -192,13 +230,14 @@ export default function ProfilePage() {
       />
 
       <div className="layout-page py-10">
-        <div className="mx-auto max-w-2xl">
+        <div className="mx-auto max-w-5xl">
           <h1 className="text-2xl font-semibold text-gray-900">Profil</h1>
-          <p className="mt-1 text-sm text-gray-500">Din konto i ForgeLab.</p>
+          <p className="mt-1 text-sm text-gray-500">Administrer din konto, personlige oplysninger og abonnement.</p>
 
-          <div className="mt-8 rounded-2xl border border-gray-200 bg-white overflow-hidden">
-            <div className="px-5 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center gap-4">
-              <div className="flex items-center gap-4">
+          <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 lg:col-span-1">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Konto</p>
+              <div className="mt-4 flex items-center gap-4">
                 <div className="h-20 w-20 shrink-0 rounded-2xl border border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center">
                   {avatarUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -207,6 +246,26 @@ export default function ProfilePage() {
                     <span className="text-xs text-gray-400 text-center px-2">Intet billede</span>
                   )}
                 </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 truncate">{me.username || '—'}</p>
+                  <p className="text-sm text-gray-500 truncate">{me.email || '—'}</p>
+                </div>
+              </div>
+              <div className="mt-5 space-y-3 border-t border-gray-100 pt-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Brugernavn</p>
+                  <p className="mt-1 text-sm font-medium text-gray-900">{me.username || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Email</p>
+                  <p className="mt-1 text-sm font-medium text-gray-900">{me.email || '—'}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden lg:col-span-2">
+              <div className="px-5 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center gap-4">
+              <div className="flex items-center gap-4">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Profilbillede</p>
                   <p className="mt-1 text-sm text-gray-600">
@@ -244,18 +303,11 @@ export default function ProfilePage() {
             </div>
             {avatarMessage ? <p className="px-5 py-2 text-sm text-red-600 bg-red-50">{avatarMessage}</p> : null}
 
-            <div className="grid grid-cols-1 md:grid-cols-2">
-              <div className="px-5 py-4 border-b border-gray-100 md:border-r">
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Brugernavn</p>
-                <p className="mt-1 text-base font-medium text-gray-900">{me.username || '—'}</p>
-              </div>
-              <div className="px-5 py-4 border-b border-gray-100">
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Email</p>
-                <p className="mt-1 text-base font-medium text-gray-900">{me.email || '—'}</p>
-              </div>
+            <div className="px-5 pt-5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Personlige oplysninger</p>
             </div>
 
-            <div className="px-5 py-4 border-b border-gray-100">
+            <div className="px-5 py-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Fornavn</p>
               <input
                 suppressHydrationWarning
@@ -266,7 +318,7 @@ export default function ProfilePage() {
               />
             </div>
 
-            <div className="px-5 py-4 border-b border-gray-100">
+            <div className="px-5 py-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Efternavn</p>
               <input
                 suppressHydrationWarning
@@ -277,7 +329,7 @@ export default function ProfilePage() {
               />
             </div>
 
-            <div className="px-5 py-4">
+            <div className="px-5 py-4 border-b border-gray-100">
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Rolle</p>
               <select
                 suppressHydrationWarning
@@ -294,7 +346,7 @@ export default function ProfilePage() {
               </select>
             </div>
 
-            <div className="px-5 py-4 border-t border-gray-100">
+            <div className="px-5 py-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Theme</p>
               <select
                 value={theme}
@@ -310,16 +362,40 @@ export default function ProfilePage() {
             </div>
 
             <div className="px-5 py-4 border-t border-gray-100">
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Dark mode</p>
-              <select
-                value={colorMode}
-                onChange={(e) => setColorMode((e.target.value as ForgeColorMode) || 'system')}
-                className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-300"
-              >
-                <option value="system">System standard</option>
-                <option value="light">Lys</option>
-                <option value="dark">Mork</option>
-              </select>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Abonnement</p>
+              <p className="mt-2 text-sm text-gray-700">
+                Plan: <span className="font-medium">{planLabel}</span> - Status:{' '}
+                <span className="font-medium">{subscriptionStatusLabel}</span>
+              </p>
+              {me.subscriptionCancelAtPeriodEnd ? (
+                <p className="mt-2 text-sm text-amber-700">
+                  Dit abonnement er sat til annullering ved periodens udløb
+                  {periodEndLabel ? ` (${periodEndLabel})` : ''}.
+                </p>
+              ) : null}
+              <div className="mt-3 flex flex-wrap gap-2">
+                {isFreePlan ? (
+                  <button
+                    type="button"
+                    disabled={billingLoading}
+                    onClick={openCheckout}
+                    className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-60"
+                  >
+                    {billingLoading ? 'Sender videre...' : 'Opgrader til Pro'}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={billingLoading}
+                    onClick={openBillingPortal}
+                    className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                  >
+                    {billingLoading ? 'Sender videre...' : 'Administrer abonnement'}
+                  </button>
+                )}
+              </div>
+              {billingMessage ? <p className="mt-2 text-sm text-red-600">{billingMessage}</p> : null}
+            </div>
             </div>
           </div>
 
