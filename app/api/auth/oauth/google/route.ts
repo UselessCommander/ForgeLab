@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createUser, getUserByEmail, getUserByUsername } from '@/lib/users'
+import { createUser, getUserByEmail, getUserById, getUserByUsername, userNeedsOnboarding } from '@/lib/users'
 import { setSession } from '@/lib/auth'
 
 function buildBaseUsernameFromEmail(email: string): string {
@@ -53,7 +53,9 @@ export async function POST(request: NextRequest) {
     }
 
     await setSession(user.id, true)
-    return NextResponse.json({ success: true, created, userId: user.id })
+    const fresh = await getUserById(user.id)
+    const needsOnboarding = userNeedsOnboarding(user.id, fresh)
+    return NextResponse.json({ success: true, created, userId: user.id, needsOnboarding })
   } catch (error: any) {
     return NextResponse.json(
       { error: 'Intern server fejl', message: error?.message || 'Ukendt fejl' },

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getCurrentUserId } from '@/lib/auth'
-import { getUserById } from '@/lib/users'
+import { getUserById, userNeedsOnboarding } from '@/lib/users'
 import { supabase } from '@/lib/supabase'
 
 export async function GET() {
@@ -20,6 +20,7 @@ export async function GET() {
         subscriptionStatus: 'active',
         subscriptionCurrentPeriodEnd: null,
         subscriptionCancelAtPeriodEnd: false,
+        needsOnboarding: false,
       })
     }
 
@@ -36,6 +37,7 @@ export async function GET() {
       subscriptionStatus: (user as any)?.subscription_status || null,
       subscriptionCurrentPeriodEnd: (user as any)?.subscription_current_period_end || null,
       subscriptionCancelAtPeriodEnd: Boolean((user as any)?.subscription_cancel_at_period_end),
+      needsOnboarding: userNeedsOnboarding(userId, user),
     })
   }
 

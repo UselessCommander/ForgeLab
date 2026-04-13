@@ -5,7 +5,9 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import ForgeLabLogo from '@/components/ForgeLabLogo'
 import AuthGraphic from '@/components/AuthGraphic'
+import CookieConsent from '@/components/CookieConsent'
 import { supabase } from '@/lib/supabase'
+import { hasFunctionalStorageConsent } from '@/lib/cookie-consent'
 
 function LoginFormInner({
   onSwitchToRegister,
@@ -17,6 +19,7 @@ function LoginFormInner({
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [rememberMe, setRememberMe] = useState(false)
+  const [, setConsentRevision] = useState(0)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [loading, setLoading] = useState(false)
@@ -42,7 +45,7 @@ function LoginFormInner({
         if (!response.ok) return
         const data = await response.json()
         if (!cancelled && data.authenticated) {
-          router.replace('/dashboard')
+          router.replace(data.needsOnboarding ? '/onboarding' : '/dashboard')
         }
       } catch {
         // Ignorer fejl – brugeren kan altid logge ind manuelt
@@ -58,6 +61,7 @@ function LoginFormInner({
 
   useEffect(() => {
     if (typeof window === 'undefined') return
+    if (!hasFunctionalStorageConsent()) return
     try {
       const storedRemember = window.localStorage.getItem('forgelab_remember_me')
       const storedUsername = window.localStorage.getItem('forgelab_remember_username')
@@ -70,6 +74,17 @@ function LoginFormInner({
     } catch {
       // Ignore localStorage errors
     }
+  }, [])
+
+  useEffect(() => {
+    const onConsent = () => {
+      setConsentRevision((n) => n + 1)
+      if (!hasFunctionalStorageConsent()) {
+        setRememberMe(false)
+      }
+    }
+    window.addEventListener('forgelab-consent-updated', onConsent)
+    return () => window.removeEventListener('forgelab-consent-updated', onConsent)
   }, [])
 
   useEffect(() => {
@@ -86,12 +101,17 @@ function LoginFormInner({
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password, rememberMe }),
+        body: JSON.stringify({
+          username,
+          password,
+          rememberMe: rememberMe && hasFunctionalStorageConsent(),
+        }),
       })
       if (response.ok) {
         try {
           if (typeof window !== 'undefined') {
-            if (rememberMe) {
+            const allowRemember = rememberMe && hasFunctionalStorageConsent()
+            if (allowRemember) {
               window.localStorage.setItem('forgelab_remember_me', 'true')
               window.localStorage.setItem('forgelab_remember_username', username)
               document.cookie = `forgelab_remember_me=true; max-age=${60 * 60 * 24 * 365}; path=/`
@@ -104,7 +124,8 @@ function LoginFormInner({
         } catch {
           // Ignore storage errors
         }
-        router.push('/dashboard')
+        const payload = await response.json().catch(() => ({}))
+        router.push(payload?.needsOnboarding ? '/onboarding' : '/dashboard')
       } else {
         const data = await response.json()
         setError(data.error || 'Forkert brugernavn eller password')
@@ -212,17 +233,26 @@ function LoginFormInner({
                   placeholder="Indtast password"
                 />
               </div>
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="rememberMe"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="w-4 h-4 text-amber-600 border-gray-300 rounded focus:ring-amber-500 focus:ring-2"
-                />
-                <label htmlFor="rememberMe" className="ml-2 text-sm text-gray-700 cursor-pointer">
-                  Husk mig i et år
-                </label>
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="rememberMe"
+                    checked={rememberMe}
+                    disabled={!hasFunctionalStorageConsent()}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="w-4 h-4 text-amber-600 border-gray-300 rounded focus:ring-amber-500 focus:ring-2 disabled:opacity-40"
+                  />
+                  <label htmlFor="rememberMe" className="ml-2 text-sm text-gray-700 cursor-pointer">
+                    Husk mig i et år
+                  </label>
+                </div>
+                {!hasFunctionalStorageConsent() && (
+                  <p className="text-xs text-gray-500 pl-6">
+                    Kræver samtykke til valgfri browser-lagring. Vælg &quot;Accepter alle&quot; eller slå til under
+                    cookie-indstillinger på forsiden.
+                  </p>
+                )}
               </div>
               <div className="text-right -mt-1">
                 <button
@@ -489,6 +519,7 @@ export default function AuthPageClient() {
   // Horizontal strip: [LoginForm | Graphic | RegisterForm]
   // Each panel = 50vw. Login: show panels 1+2. Register: show panels 2+3.
   return (
+    <>
     <div className="min-h-screen w-full overflow-hidden">
       <div
         className="flex h-screen transition-transform duration-500 ease-in-out"
@@ -529,5 +560,7 @@ export default function AuthPageClient() {
         </div>
       </div>
     </div>
+    <CookieConsent />
+    </>
   )
 }

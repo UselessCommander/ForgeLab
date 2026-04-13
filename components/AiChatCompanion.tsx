@@ -6,6 +6,7 @@ import { Sparkles, ChevronDown } from 'lucide-react'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
 import { getProjectToolData } from '@/lib/projects'
+import { hasFunctionalStorageConsent } from '@/lib/cookie-consent'
 
 interface AiChatCompanionProps {
   projectId: string
@@ -659,8 +660,6 @@ export default function AiChatCompanion({
   })
 
   useEffect(() => {
-    const storedProvider = localStorage.getItem('forgelab.aiProvider')
-    const storedModel = localStorage.getItem('forgelab.aiModel')
     if (kimiOnlyMode) {
       selectedProviderRef.current = 'kimi'
       selectedModelRef.current = 'kimi-k2.5'
@@ -668,6 +667,9 @@ export default function AiChatCompanion({
       setSelectedModel('kimi-k2.5')
       return
     }
+    if (!hasFunctionalStorageConsent()) return
+    const storedProvider = localStorage.getItem('forgelab.aiProvider')
+    const storedModel = localStorage.getItem('forgelab.aiModel')
     if (storedProvider === 'kimi') {
       selectedProviderRef.current = 'auto'
       selectedModelRef.current = 'auto'
@@ -695,6 +697,7 @@ export default function AiChatCompanion({
 
   useEffect(() => {
     if (kimiOnlyMode) return
+    if (!hasFunctionalStorageConsent()) return
     localStorage.setItem('forgelab.aiProvider', selectedProvider)
     localStorage.setItem('forgelab.aiModel', selectedModel)
   }, [selectedProvider, selectedModel, kimiOnlyMode])

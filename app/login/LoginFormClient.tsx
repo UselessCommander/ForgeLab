@@ -35,7 +35,8 @@ function LoginFormInner() {
       })
 
       if (response.ok) {
-        router.push('/dashboard')
+        const payload = await response.json().catch(() => ({}))
+        router.push(payload?.needsOnboarding ? '/onboarding' : '/dashboard')
       } else {
         const data = await response.json()
         setError(data.error || 'Forkert brugernavn eller password')

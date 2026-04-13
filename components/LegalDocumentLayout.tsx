@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import ForgeLabLogo from '@/components/ForgeLabLogo'
 import CookieConsent from '@/components/CookieConsent'
+import CookieConsentOpenButton from '@/components/CookieConsentOpenButton'
 
 type Props = {
   title: string
@@ -49,10 +50,13 @@ export default function LegalDocumentLayout({ title, lastUpdated, children }: Pr
         </main>
 
         <footer className="border-t border-gray-200/80 bg-white/60 mt-12">
-          <div className="container mx-auto px-6 py-8 text-center text-sm text-gray-500">
+          <div className="container mx-auto px-6 py-8 flex flex-col sm:flex-row items-center justify-center gap-4 text-sm text-gray-500">
             <Link href="/" className="text-gray-600 hover:text-gray-900 font-medium">
               ← Tilbage til forsiden
             </Link>
+            <CookieConsentOpenButton className="text-amber-800 hover:text-amber-950 font-medium underline-offset-2 hover:underline">
+              Cookie-indstillinger
+            </CookieConsentOpenButton>
           </div>
         </footer>
         <CookieConsent />

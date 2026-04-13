@@ -29,6 +29,7 @@ import {
   type GoogleDesignSprintPhase,
 } from '@/lib/frameworks'
 import { getToolIcon } from '@/lib/vaerktoejer-icons'
+import { hasFunctionalStorageConsent } from '@/lib/cookie-consent'
 import { Bell, AlertTriangle } from 'lucide-react'
 
 type FrameworkSelection = DoubleDiamondPhase | GoogleDesignSprintPhase | DesignThinkingPhase | 'hmw'
@@ -130,8 +131,12 @@ export default function DashboardClient() {
       setIsOffline(false)
     } catch (error) {
       console.warn('DB unavailable — demo mode aktiv:', error)
-      const saved = localStorage.getItem('forgelab_demo_projects')
-      setProjects(saved ? JSON.parse(saved) : [])
+      if (hasFunctionalStorageConsent()) {
+        const saved = localStorage.getItem('forgelab_demo_projects')
+        setProjects(saved ? JSON.parse(saved) : [])
+      } else {
+        setProjects([])
+      }
       setIsOffline(true)
     } finally {
       setLoading(false)
@@ -167,6 +172,12 @@ export default function DashboardClient() {
     if (!newName.trim() || creating) return
 
     if (isOffline) {
+      if (!hasFunctionalStorageConsent()) {
+        alert(
+          'Demo-tilstand med lokale projekter kræver samtykke til valgfri browser-lagring. Vælg «Accepter alle» eller slå «Valgfri browser-lagring» til i cookie-banneret (fx fra forsiden), og prøv igen.'
+        )
+        return
+      }
       // Demo mode: create project locally (invites kræver online konto)
       const newProject: Project = {
         id: `demo-${Date.now()}`,
@@ -224,6 +235,10 @@ export default function DashboardClient() {
     if (!confirmed) return
 
     if (isOffline) {
+      if (!hasFunctionalStorageConsent()) {
+        alert('Sletning i demo-tilstand kræver samtykke til valgfri browser-lagring.')
+        return
+      }
       // Demo mode: delete locally
       const updated = projects.filter(p => p.id !== project.id)
       setProjects(updated)
@@ -557,7 +572,11 @@ export default function DashboardClient() {
           fontSize: 12, color: '#92400E', fontWeight: 500,
         }}>
           <AlertTriangle size={14} strokeWidth={2.2} />
-          <span>Demo-tilstand aktiv — ingen database. Projekter gemmes kun i denne browser-session.</span>
+          <span>
+            {hasFunctionalStorageConsent()
+              ? 'Demo-tilstand aktiv — ingen database. Projekter gemmes kun i denne browser (localStorage).'
+              : 'Demo-tilstand aktiv — uden samtykke til valgfri browser-lagring vises ingen gemte demo-projekter, og nye demo-projekter kan ikke oprettes.'}
+          </span>
         </div>
       )}
       <div className="layout-page py-12">

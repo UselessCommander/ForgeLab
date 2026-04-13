@@ -34,8 +34,9 @@ export default function AuthCallbackPage() {
           return
         }
 
+        const payload = await res.json().catch(() => ({}))
         setStatus('Login lykkedes. Sender dig videre...')
-        router.replace('/dashboard')
+        router.replace(payload?.needsOnboarding ? '/onboarding' : '/dashboard')
       } catch {
         router.replace('/login?error=google_auth_failed')
       }

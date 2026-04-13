@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { login, setSession } from '@/lib/auth'
+import { getUserById, userNeedsOnboarding } from '@/lib/users'
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,7 +11,9 @@ export async function POST(request: NextRequest) {
 
     if (result.success && result.userId) {
       await setSession(result.userId, rememberMe === true)
-      return NextResponse.json({ success: true })
+      const user = await getUserById(result.userId)
+      const needsOnboarding = userNeedsOnboarding(result.userId, user)
+      return NextResponse.json({ success: true, needsOnboarding })
     } else {
       return NextResponse.json(
         { error: 'Forkert brugernavn eller password' },

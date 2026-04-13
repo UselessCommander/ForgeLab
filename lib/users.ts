@@ -16,6 +16,8 @@ export interface User {
     subscription_current_period_end?: string | null;
     subscription_cancel_at_period_end?: boolean | null;
     plan_key?: string | null;
+    /** Null/undefined until the post-signup onboarding wizard is completed */
+    onboarding_completed_at?: string | null;
     password: string; // Hashed password
     createdAt: string;
 }
@@ -115,12 +117,36 @@ export async function createUser(username: string, password: string, email?: str
             subscription_current_period_end: data.subscription_current_period_end ?? null,
             subscription_cancel_at_period_end: data.subscription_cancel_at_period_end ?? false,
             plan_key: data.plan_key ?? 'free',
+            onboarding_completed_at: data.onboarding_completed_at ?? null,
             password: data.password_hash,
             createdAt: data.created_at
         };
     } catch (error) {
         console.error('âŒ Fejl ved oprettelse af bruger:', error);
         return null;
+    }
+}
+
+export function userNeedsOnboarding(userId: string | null, user: User | null): boolean {
+    if (!userId || userId === 'admin' || !user) return false
+    return !user.onboarding_completed_at
+}
+
+export async function markUserOnboardingComplete(userId: string): Promise<boolean> {
+    if (userId === 'admin') return true
+    try {
+        const { error } = await supabase
+            .from('users')
+            .update({ onboarding_completed_at: new Date().toISOString() })
+            .eq('id', userId)
+        if (error) {
+            console.error('Fejl ved markering af onboarding fuldført:', error)
+            return false
+        }
+        return true
+    } catch (e) {
+        console.error('Fejl ved markering af onboarding fuldført:', e)
+        return false
     }
 }
 
@@ -157,6 +183,7 @@ export async function getUserByUsername(username: string): Promise<User | null> 
             subscription_current_period_end: userData.subscription_current_period_end ?? null,
             subscription_cancel_at_period_end: userData.subscription_cancel_at_period_end ?? false,
             plan_key: userData.plan_key ?? 'free',
+            onboarding_completed_at: userData.onboarding_completed_at ?? null,
             password: userData.password_hash,
             createdAt: userData.created_at
         };
@@ -199,6 +226,7 @@ export async function getUserById(id: string): Promise<User | null> {
             subscription_current_period_end: userData.subscription_current_period_end ?? null,
             subscription_cancel_at_period_end: userData.subscription_cancel_at_period_end ?? false,
             plan_key: userData.plan_key ?? 'free',
+            onboarding_completed_at: userData.onboarding_completed_at ?? null,
             password: userData.password_hash,
             createdAt: userData.created_at
         };
@@ -273,6 +301,7 @@ export async function getUserByEmail(email: string): Promise<User | null> {
             subscription_current_period_end: userData.subscription_current_period_end ?? null,
             subscription_cancel_at_period_end: userData.subscription_cancel_at_period_end ?? false,
             plan_key: userData.plan_key ?? 'free',
+            onboarding_completed_at: userData.onboarding_completed_at ?? null,
             password: userData.password_hash,
             createdAt: userData.created_at
         };

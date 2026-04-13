@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { FileText, Scale, Shield } from 'lucide-react'
+import CookieConsentOpenButton from '@/components/CookieConsentOpenButton'
 
 /**
  * Kort GDPR-orienteret overblik på forsiden (før login).
@@ -80,6 +81,9 @@ export default function LandingLegalSection() {
         </div>
 
         <div className="mt-10 flex flex-col sm:flex-row flex-wrap items-center justify-center gap-3 sm:gap-4">
+          <CookieConsentOpenButton className="text-sm font-semibold text-amber-800 hover:text-amber-950 underline-offset-2 hover:underline">
+            Cookie-indstillinger
+          </CookieConsentOpenButton>
           <Link
             href="/privatliv"
             className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl border-2 border-gray-200 bg-white text-gray-800 text-sm font-semibold hover:border-amber-300 hover:bg-amber-50/50 transition-colors"

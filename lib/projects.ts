@@ -3,6 +3,7 @@
  * Supports: projects, project_tools, per-project tool state
  */
 import type { FrameworkId, FrameworkPhase } from '@/lib/frameworks'
+import { hasFunctionalStorageConsent } from '@/lib/cookie-consent'
 
 /** Normaliseret placering af ikon på Double Diamond-canvas (0–1 i forhold til viewBox-bredde/højde) */
 export type DdCanvasPosition = { x: number; y: number }
@@ -245,6 +246,7 @@ export async function getProjectToolData(
     if (!response.ok) {
       if (response.status === 404 || response.status === 503 || response.status >= 500) {
         // Fallback to local storage for demo mode
+        if (!hasFunctionalStorageConsent()) return {}
         const saved = localStorage.getItem(`forgelab_demo_tool_${projectId}_${toolSlug}`)
         return saved ? JSON.parse(saved) : {}
       }
@@ -255,6 +257,7 @@ export async function getProjectToolData(
     return result.data || {}
   } catch (error) {
     console.error('Error fetching tool data, falling back to local storage:', error)
+    if (!hasFunctionalStorageConsent()) return {}
     const saved = localStorage.getItem(`forgelab_demo_tool_${projectId}_${toolSlug}`)
     return saved ? JSON.parse(saved) : {}
   }
@@ -279,6 +282,7 @@ export async function saveProjectToolData(
     if (!response.ok) {
       if (response.status === 404 || response.status === 503 || response.status >= 500) {
         // Fallback to local storage for demo mode
+        if (!hasFunctionalStorageConsent()) return false
         localStorage.setItem(`forgelab_demo_tool_${projectId}_${toolSlug}`, JSON.stringify(data))
         return true
       }
@@ -288,6 +292,7 @@ export async function saveProjectToolData(
     return true
   } catch (error) {
     console.error('Error saving tool data, falling back to local storage:', error)
+    if (!hasFunctionalStorageConsent()) return false
     localStorage.setItem(`forgelab_demo_tool_${projectId}_${toolSlug}`, JSON.stringify(data))
     return true
   }

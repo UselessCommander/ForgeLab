@@ -49,8 +49,15 @@ export default function CookiesPage() {
               </tr>
               <tr>
                 <td className="p-3">Valgfri analytics (førsteparts)</td>
-                <td className="p-3">Kun hvis du vælger &quot;Accepter alle&quot; i banneret</td>
+                <td className="p-3">Kun hvis du vælger &quot;Accepter alle&quot; eller slår det til under Indstillinger</td>
                 <td className="p-3">Som angivet ved implementering</td>
+              </tr>
+              <tr>
+                <td className="p-3">Valgfri browser-lagring (localStorage m.m.)</td>
+                <td className="p-3">
+                  Tema, demo-projekter, gæste-værktøjsdata, &quot;Husk mig&quot;, AI-præferencer — kun med samtykke
+                </td>
+                <td className="p-3">Indtil du ændrer valg eller sletter data</td>
               </tr>
             </tbody>
           </table>

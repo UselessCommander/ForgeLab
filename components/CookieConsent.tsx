@@ -23,17 +23,40 @@ function readLegacyAccepted(): boolean {
   return document.cookie.split('; ').some((c) => c.startsWith(`${CONSENT_STORAGE_KEY_LEGACY}=`))
 }
 
+function loadPrefsFromStorage(): { analytics: boolean; functionalStorage: boolean } {
+  if (typeof window === 'undefined') return { analytics: false, functionalStorage: false }
+  try {
+    const v1raw = window.localStorage.getItem(CONSENT_STORAGE_KEY_V1)
+    const p = parseConsentV1(v1raw)
+    if (p) return { analytics: p.analytics, functionalStorage: p.functionalStorage }
+  } catch {
+    // ignore
+  }
+  return { analytics: false, functionalStorage: false }
+}
+
 export default function CookieConsent() {
   const [visible, setVisible] = useState(false)
   const [showDetails, setShowDetails] = useState(false)
   const [analyticsToggle, setAnalyticsToggle] = useState(false)
+  const [functionalToggle, setFunctionalToggle] = useState(false)
+
+  const syncFromStorageAndMaybeHide = useCallback(() => {
+    if (typeof window === 'undefined') return
+    const v1raw = window.localStorage.getItem(CONSENT_STORAGE_KEY_V1)
+    const parsed = parseConsentV1(v1raw)
+    if (parsed) {
+      setAnalyticsToggle(parsed.analytics)
+      setFunctionalToggle(parsed.functionalStorage)
+      return true
+    }
+    return false
+  }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
 
-    const v1raw = window.localStorage.getItem(CONSENT_STORAGE_KEY_V1)
-    const parsed = parseConsentV1(v1raw)
-    if (parsed) {
+    if (syncFromStorageAndMaybeHide()) {
       setVisible(false)
       return
     }
@@ -42,6 +65,7 @@ export default function CookieConsent() {
       const migrated: ConsentPreferencesV1 = {
         ...defaultConsentPreferences(),
         analytics: true,
+        functionalStorage: true,
       }
       persistConsentV1(migrated)
       setVisible(false)
@@ -66,25 +90,50 @@ export default function CookieConsent() {
     }
 
     setVisible(true)
+  }, [syncFromStorageAndMaybeHide])
+
+  useEffect(() => {
+    const onOpen = () => {
+      const prefs = loadPrefsFromStorage()
+      setAnalyticsToggle(prefs.analytics)
+      setFunctionalToggle(prefs.functionalStorage)
+      setShowDetails(true)
+      setVisible(true)
+    }
+    window.addEventListener('forgelab:cookie-consent', onOpen as EventListener)
+    return () => window.removeEventListener('forgelab:cookie-consent', onOpen as EventListener)
   }, [])
 
   const save = useCallback((prefs: ConsentPreferencesV1) => {
     persistConsentV1(prefs)
+    setAnalyticsToggle(prefs.analytics)
+    setFunctionalToggle(prefs.functionalStorage)
     setVisible(false)
     setShowDetails(false)
   }, [])
 
-  const acceptNecessaryOnly = () => {
-    save({ ...defaultConsentPreferences(), analytics: false })
+  /** Afvis alt valgfrit: ingen analytics og ingen localStorage/præference-cookies ud over login-session + samtykke. */
+  const rejectOptional = () => {
+    save({ ...defaultConsentPreferences(), analytics: false, functionalStorage: false })
   }
 
   const acceptAll = () => {
-    save({ ...defaultConsentPreferences(), analytics: true })
+    save({ ...defaultConsentPreferences(), analytics: true, functionalStorage: true })
   }
 
   const saveCustomFromPanel = () => {
-    save({ ...defaultConsentPreferences(), analytics: analyticsToggle })
+    const functional = functionalToggle
+    const analytics = functional && analyticsToggle
+    save({
+      ...defaultConsentPreferences(),
+      analytics,
+      functionalStorage: functional,
+    })
   }
+
+  useEffect(() => {
+    if (!functionalToggle) setAnalyticsToggle(false)
+  }, [functionalToggle])
 
   if (!visible) return null
 
@@ -102,9 +151,13 @@ export default function CookieConsent() {
               Cookies og samtykke
             </p>
             <p id="cookie-consent-desc" className="text-xs sm:text-sm text-gray-600 leading-relaxed">
-              Vi bruger <strong>strengt nødvendige</strong> cookies til login, sikkerhed og at huske dit valg her.
-              Hvis du vælger &quot;Accepter alle&quot;, må vi også sætte <strong>valgfrie førsteparts-cookies</strong> til
-              aggregeret statistik og produktforbedring. Vi bruger ikke tredjeparts marketing-cookies som standard — se{' '}
+              <strong>Log ind</strong> kræver en <strong>nødvendig session-cookie</strong> fra serveren (kan ikke fravælges
+              og gemmes ikke herfra). Vi gemmer dit <strong>samtykkevalg</strong> i en cookie og lokalt, så vi husker
+              det. Hvis du <strong>afviser valgfrie</strong>, bruger vi ikke localStorage til tema, demo-projekter,
+              gæste-værktøjsdata eller &quot;Husk mig&quot; — og ingen valgfri statistik-cookies.
+            </p>
+            <p className="text-xs text-gray-500 mt-2 leading-relaxed">
+              Læs mere i{' '}
               <Link href="/cookies" className="text-amber-700 font-medium hover:underline">
                 cookiepolitikken
               </Link>{' '}
@@ -117,25 +170,41 @@ export default function CookieConsent() {
           </div>
 
           {showDetails && (
-            <div className="rounded-xl border border-amber-200/80 bg-amber-50/50 px-3 py-3 text-sm text-gray-800">
+            <div className="rounded-xl border border-amber-200/80 bg-amber-50/50 px-3 py-3 text-sm text-gray-800 space-y-3">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={functionalToggle}
+                  onChange={(e) => setFunctionalToggle(e.target.checked)}
+                  className="mt-1 rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+                />
+                <span>
+                  <span className="font-medium">Valgfri browser-lagring</span>
+                  <span className="block text-xs text-gray-600 mt-0.5">
+                    Tema, demo-projekter offline, data i værktøjer som gæst, &quot;Husk mig&quot; og AI-modelvalg i
+                    chatten.
+                  </span>
+                </span>
+              </label>
               <label className="flex items-start gap-3 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={analyticsToggle}
                   onChange={(e) => setAnalyticsToggle(e.target.checked)}
-                  className="mt-1 rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+                  disabled={!functionalToggle}
+                  className="mt-1 rounded border-gray-300 text-amber-600 focus:ring-amber-500 disabled:opacity-40"
                 />
                 <span>
                   <span className="font-medium">Valgfri statistik (førsteparts)</span>
                   <span className="block text-xs text-gray-600 mt-0.5">
-                    Hjælper os med at forstå brugen af ForgeLab i aggregeret form. Kan fravælges.
+                    Kræver typisk også browser-lagring til præferencer. Slå først lagring til ovenfor.
                   </span>
                 </span>
               </label>
               <button
                 type="button"
                 onClick={saveCustomFromPanel}
-                className="mt-3 w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-medium hover:bg-gray-800"
+                className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-medium hover:bg-gray-800"
               >
                 Gem valg
               </button>
@@ -146,19 +215,23 @@ export default function CookieConsent() {
             <button
               type="button"
               onClick={() => {
-                setAnalyticsToggle(false)
-                setShowDetails(true)
+                if (!showDetails) {
+                  const p = loadPrefsFromStorage()
+                  setAnalyticsToggle(p.analytics)
+                  setFunctionalToggle(p.functionalStorage)
+                }
+                setShowDetails((v) => !v)
               }}
               className="order-2 sm:order-1 inline-flex items-center justify-center px-4 py-2 rounded-xl border border-gray-200 bg-white text-gray-800 text-sm font-medium hover:bg-gray-50"
             >
-              Indstillinger
+              {showDetails ? 'Skjul indstillinger' : 'Indstillinger'}
             </button>
             <button
               type="button"
-              onClick={acceptNecessaryOnly}
+              onClick={rejectOptional}
               className="order-1 sm:order-2 inline-flex items-center justify-center px-4 py-2 rounded-xl border border-gray-300 bg-white text-gray-900 text-sm font-semibold hover:bg-gray-50"
             >
-              Kun nødvendige
+              Afvis valgfrie
             </button>
             <button
               type="button"

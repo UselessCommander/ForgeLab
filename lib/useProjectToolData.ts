@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { getProjectToolData, saveProjectToolData } from './projects'
 import { useToolEmbed } from '@/components/ToolEmbedContext'
+import { hasFunctionalStorageConsent } from '@/lib/cookie-consent'
 
 const GUEST_STANDALONE_PREFIX = 'forgelab_guest_tool_'
 const GUEST_PROJECT_PREFIX = 'forgelab_guest_project_tool_'
@@ -58,6 +59,7 @@ export function useProjectToolData<T>(
   const persistGuest = useCallback(
     (payload: T) => {
       if (typeof window === 'undefined') return
+      if (!hasFunctionalStorageConsent()) return
       if (projectId && !authenticated) {
         localStorage.setItem(`${GUEST_PROJECT_PREFIX}${projectId}_${toolSlug}`, JSON.stringify(payload))
       } else if (!projectId && !authenticated) {
@@ -69,6 +71,7 @@ export function useProjectToolData<T>(
 
   const loadGuest = useCallback((): T | null => {
     if (typeof window === 'undefined') return null
+    if (!hasFunctionalStorageConsent()) return null
     try {
       if (projectId && !authenticated) {
         const raw = localStorage.getItem(`${GUEST_PROJECT_PREFIX}${projectId}_${toolSlug}`)

@@ -14,6 +14,12 @@ export type ConsentPreferencesV1 = {
   necessary: true
   /** Valgfri førsteparts-statistik (fx aggregeret brug), når vi indlæser det */
   analytics: boolean
+  /**
+   * Valgfri browser-lagring: localStorage og ikke-nødvendige cookies (tema, "husk mig",
+   * gæste-værktøjsdata, demo-projekter, AI-modelvalg). Uden dette: ingen persistering ud over
+   * session-cookie ved login og samtykke-cookie til dette banner.
+   */
+  functionalStorage: boolean
   savedAt: string
 }
 
@@ -22,6 +28,7 @@ export function defaultConsentPreferences(): ConsentPreferencesV1 {
     version: 1,
     necessary: true,
     analytics: false,
+    functionalStorage: false,
     savedAt: new Date().toISOString(),
   }
 }
@@ -31,10 +38,16 @@ export function parseConsentV1(raw: string | null): ConsentPreferencesV1 | null 
   try {
     const parsed = JSON.parse(raw) as Partial<ConsentPreferencesV1>
     if (parsed?.version !== 1 || parsed.necessary !== true) return null
+    const analytics = Boolean(parsed.analytics)
+    const functionalStorage =
+      typeof parsed.functionalStorage === 'boolean'
+        ? parsed.functionalStorage
+        : analytics
     return {
       version: 1,
       necessary: true,
-      analytics: Boolean(parsed.analytics),
+      analytics,
+      functionalStorage,
       savedAt: typeof parsed.savedAt === 'string' ? parsed.savedAt : new Date().toISOString(),
     }
   } catch {
@@ -56,6 +69,20 @@ export function hasAnalyticsConsent(): boolean {
   return false
 }
 
+/** Valgfri localStorage / præference-cookies (tema, demo, gæstedata m.m.). */
+export function hasFunctionalStorageConsent(): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    const v1 = parseConsentV1(window.localStorage.getItem(CONSENT_STORAGE_KEY_V1))
+    if (v1) return v1.functionalStorage
+    const legacy = window.localStorage.getItem(CONSENT_STORAGE_KEY_LEGACY)
+    if (legacy === 'accepted') return true
+  } catch {
+    return false
+  }
+  return false
+}
+
 export function persistConsentV1(prefs: ConsentPreferencesV1): void {
   if (typeof window === 'undefined') return
   const body = JSON.stringify({ ...prefs, savedAt: new Date().toISOString() })
@@ -69,5 +96,10 @@ export function persistConsentV1(prefs: ConsentPreferencesV1): void {
   if (typeof document !== 'undefined') {
     document.cookie = `${CONSENT_COOKIE_V1}=${encodeURIComponent(body)}; max-age=${maxAge}; path=/; SameSite=Lax`
     document.cookie = `${CONSENT_STORAGE_KEY_LEGACY}=; max-age=0; path=/`
+  }
+  try {
+    window.dispatchEvent(new Event('forgelab-consent-updated'))
+  } catch {
+    // ignore
   }
 }

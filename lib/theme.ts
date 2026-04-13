@@ -1,3 +1,5 @@
+import { hasFunctionalStorageConsent } from '@/lib/cookie-consent'
+
 export type ForgeTheme =
   | 'default'
   | 'emerald'
@@ -26,6 +28,7 @@ export function applyForgeTheme(theme: ForgeTheme) {
 
 export function getStoredForgeTheme(): ForgeTheme {
   if (typeof window === 'undefined') return 'default'
+  if (!hasFunctionalStorageConsent()) return 'default'
   const raw = window.localStorage.getItem(FORGE_THEME_STORAGE_KEY)
   if (raw === 'emerald') return 'emerald'
   if (raw === 'chelsea') return 'chelsea'
@@ -38,5 +41,7 @@ export function getStoredForgeTheme(): ForgeTheme {
 
 export function storeForgeTheme(theme: ForgeTheme) {
   if (typeof window === 'undefined') return
+  applyForgeTheme(theme)
+  if (!hasFunctionalStorageConsent()) return
   window.localStorage.setItem(FORGE_THEME_STORAGE_KEY, theme)
 }
