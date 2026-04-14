@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createUser } from '@/lib/users'
+import { setSession } from '@/lib/auth'
+import { createUser, getUserById, userNeedsOnboarding } from '@/lib/users'
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { username, password, email } = body
+    const { username, password, email, rememberMe } = body
 
     if (!username || !password || !email) {
       return NextResponse.json(
@@ -44,9 +45,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    return NextResponse.json({ 
+    await setSession(user.id, rememberMe === true)
+    const fresh = await getUserById(user.id)
+    const needsOnboarding = userNeedsOnboarding(user.id, fresh)
+
+    return NextResponse.json({
       success: true,
-      message: 'Bruger oprettet succesfuldt'
+      needsOnboarding,
     })
   } catch (error: any) {
     return NextResponse.json(

@@ -369,9 +369,22 @@ function RegisterFormInner({
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [rememberMe, setRememberMe] = useState(false)
+  const [, setConsentRevision] = useState(0)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
+
+  useEffect(() => {
+    const onConsent = () => {
+      setConsentRevision((n) => n + 1)
+      if (!hasFunctionalStorageConsent()) {
+        setRememberMe(false)
+      }
+    }
+    window.addEventListener('forgelab-consent-updated', onConsent)
+    return () => window.removeEventListener('forgelab-consent-updated', onConsent)
+  }, [])
 
   const handleGoogleRegister = async () => {
     setError('')
@@ -418,10 +431,33 @@ function RegisterFormInner({
       const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, username, password }),
+        credentials: 'include',
+        body: JSON.stringify({
+          email,
+          username,
+          password,
+          rememberMe: rememberMe && hasFunctionalStorageConsent(),
+        }),
       })
       if (response.ok) {
-        router.push('/login?registered=true')
+        try {
+          if (typeof window !== 'undefined') {
+            const allowRemember = rememberMe && hasFunctionalStorageConsent()
+            if (allowRemember) {
+              window.localStorage.setItem('forgelab_remember_me', 'true')
+              window.localStorage.setItem('forgelab_remember_username', username)
+              document.cookie = `forgelab_remember_me=true; max-age=${60 * 60 * 24 * 365}; path=/`
+            } else {
+              window.localStorage.removeItem('forgelab_remember_me')
+              window.localStorage.removeItem('forgelab_remember_username')
+              document.cookie = 'forgelab_remember_me=; max-age=0; path=/'
+            }
+          }
+        } catch {
+          // Ignore storage errors
+        }
+        const payload = await response.json().catch(() => ({}))
+        router.push(payload?.needsOnboarding ? '/onboarding' : '/dashboard')
       } else {
         const data = await response.json()
         setError(data.error || 'Fejl ved registrering')
@@ -533,6 +569,27 @@ function RegisterFormInner({
               className="w-full px-4 py-3 bg-white/80 border-2 border-gray-200 text-gray-900 placeholder-gray-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition-all hover:border-amber-200"
               placeholder="Bekræft password"
             />
+          </div>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="registerRememberMe"
+                checked={rememberMe}
+                disabled={!hasFunctionalStorageConsent()}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="w-4 h-4 text-amber-600 border-gray-300 rounded focus:ring-amber-500 focus:ring-2 disabled:opacity-40"
+              />
+              <label htmlFor="registerRememberMe" className="ml-2 text-sm text-gray-700 cursor-pointer">
+                Husk mig i et år
+              </label>
+            </div>
+            {!hasFunctionalStorageConsent() && (
+              <p className="text-xs text-gray-500 pl-6">
+                Kræver samtykke til valgfri browser-lagring. Vælg &quot;Accepter alle&quot; eller slå til under
+                cookie-indstillinger på forsiden.
+              </p>
+            )}
           </div>
           <button
             type="submit"

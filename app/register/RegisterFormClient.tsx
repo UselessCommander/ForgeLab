@@ -1,18 +1,32 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { hasFunctionalStorageConsent } from '@/lib/cookie-consent'
 
 export default function RegisterFormClient() {
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [rememberMe, setRememberMe] = useState(false)
+  const [, setConsentRevision] = useState(0)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
+
+  useEffect(() => {
+    const onConsent = () => {
+      setConsentRevision((n) => n + 1)
+      if (!hasFunctionalStorageConsent()) {
+        setRememberMe(false)
+      }
+    }
+    window.addEventListener('forgelab-consent-updated', onConsent)
+    return () => window.removeEventListener('forgelab-consent-updated', onConsent)
+  }, [])
 
   const handleGoogleRegister = async () => {
     setError('')
@@ -65,11 +79,34 @@ export default function RegisterFormClient() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ username, email, password }),
+        credentials: 'include',
+        body: JSON.stringify({
+          username,
+          email,
+          password,
+          rememberMe: rememberMe && hasFunctionalStorageConsent(),
+        }),
       })
 
       if (response.ok) {
-        router.push('/login?registered=true')
+        try {
+          if (typeof window !== 'undefined') {
+            const allowRemember = rememberMe && hasFunctionalStorageConsent()
+            if (allowRemember) {
+              window.localStorage.setItem('forgelab_remember_me', 'true')
+              window.localStorage.setItem('forgelab_remember_username', username)
+              document.cookie = `forgelab_remember_me=true; max-age=${60 * 60 * 24 * 365}; path=/`
+            } else {
+              window.localStorage.removeItem('forgelab_remember_me')
+              window.localStorage.removeItem('forgelab_remember_username')
+              document.cookie = 'forgelab_remember_me=; max-age=0; path=/'
+            }
+          }
+        } catch {
+          // Ignore storage errors
+        }
+        const payload = await response.json().catch(() => ({}))
+        router.push(payload?.needsOnboarding ? '/onboarding' : '/dashboard')
       } else {
         const data = await response.json()
         setError(data.error || 'Fejl ved registrering')
@@ -170,6 +207,27 @@ export default function RegisterFormClient() {
             className="w-full px-4 py-3.5 bg-white/80 border-2 border-gray-200 text-gray-900 placeholder-gray-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 focus:border-amber-400 transition-all duration-300 hover:border-amber-200"
             placeholder="Bekræft password"
           />
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="registerStandaloneRememberMe"
+              checked={rememberMe}
+              disabled={!hasFunctionalStorageConsent()}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              className="w-4 h-4 text-amber-600 border-gray-300 rounded focus:ring-amber-500 focus:ring-2 disabled:opacity-40"
+            />
+            <label htmlFor="registerStandaloneRememberMe" className="ml-2 text-sm text-gray-700 cursor-pointer">
+              Husk mig i et år
+            </label>
+          </div>
+          {!hasFunctionalStorageConsent() && (
+            <p className="text-xs text-gray-500 pl-6">
+              Kræver samtykke til valgfri browser-lagring. Vælg &quot;Accepter alle&quot; under cookies på forsiden.
+            </p>
+          )}
         </div>
 
         <button
