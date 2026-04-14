@@ -373,6 +373,28 @@ function RegisterFormInner({
   const [loading, setLoading] = useState(false)
   const router = useRouter()
 
+  const handleGoogleRegister = async () => {
+    setError('')
+    setLoading(true)
+    try {
+      const redirectTo = `${window.location.origin}/auth/callback`
+      const { error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo,
+          queryParams: { prompt: 'select_account' },
+        },
+      })
+      if (oauthError) {
+        setError('Kunne ikke starte Google-oprettelse. Prøv igen.')
+        setLoading(false)
+      }
+    } catch {
+      setError('Kunne ikke starte Google-oprettelse. Prøv igen.')
+      setLoading(false)
+    }
+  }
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
@@ -435,6 +457,35 @@ function RegisterFormInner({
             Log ind
           </button>
         </p>
+        <div className="space-y-4 mb-6">
+          <button
+            type="button"
+            onClick={handleGoogleRegister}
+            disabled={loading}
+            className="w-full px-6 py-3 bg-white text-gray-800 rounded-xl font-semibold border-2 border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
+          >
+            <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden>
+              <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34.1 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/>
+              <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15 19 12 24 12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34.1 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/>
+              <path fill="#4CAF50" d="M24 44c5.2 0 10-2 13.6-5.3l-6.3-5.3C29.2 35 26.7 36 24 36c-5.3 0-9.7-3.3-11.3-8l-6.6 5.1C9.4 39.6 16.2 44 24 44z"/>
+              <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.4-2.4 4.5-4.6 5.9l.1-.1 6.3 5.3C36.7 39.4 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/>
+            </svg>
+            Opret med Google
+          </button>
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center" aria-hidden>
+              <div className="w-full border-t border-gray-200" />
+            </div>
+            <div className="relative flex justify-center text-xs">
+              <span className="bg-[#fafbfc] px-2 text-gray-500">eller med email</span>
+            </div>
+          </div>
+          {error && (
+            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-red-700 text-sm">{error}</p>
+            </div>
+          )}
+        </div>
         <form onSubmit={handleRegister} className="space-y-5">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
@@ -483,11 +534,6 @@ function RegisterFormInner({
               placeholder="Bekræft password"
             />
           </div>
-          {error && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-red-700 text-sm">{error}</p>
-            </div>
-          )}
           <button
             type="submit"
             disabled={loading}
