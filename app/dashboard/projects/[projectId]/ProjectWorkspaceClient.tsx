@@ -977,15 +977,21 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
         setFlowNodes(
           nodes
             .filter((n: any) => n && typeof n.id === 'string')
-            .map((n: any) => ({
-              id: n.id,
-              x: typeof n.x === 'number' ? n.x : 100,
-              y: typeof n.y === 'number' ? n.y : 100,
-              label: typeof n.label === 'string' && n.label.trim() ? n.label : 'Trin',
-              shape: (['terminator', 'process', 'decision', 'data', 'document', 'database'] as const).includes(n.shape)
+            .map((n: any) => {
+              const shape: FlowShape = (['terminator', 'process', 'decision', 'data', 'document', 'database'] as const).includes(n.shape)
                 ? n.shape
-                : 'process',
-            }))
+                : 'process'
+              const style = getFlowNodeStyle(shape)
+              return {
+                id: n.id,
+                x: typeof n.x === 'number' ? n.x : 100,
+                y: typeof n.y === 'number' ? n.y : 100,
+                width: typeof n.width === 'number' && Number.isFinite(n.width) ? n.width : style.width,
+                height: typeof n.height === 'number' && Number.isFinite(n.height) ? n.height : style.height,
+                label: typeof n.label === 'string' && n.label.trim() ? n.label : 'Trin',
+                shape,
+              }
+            })
         )
         setFlowEdges(
           edges
@@ -2078,6 +2084,8 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       id: `node-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       x: snapped.x - nodeStyle.width / 2,
       y: snapped.y - nodeStyle.height / 2,
+      width: nodeStyle.width,
+      height: nodeStyle.height,
       label: FLOW_SHAPE_LIBRARY.find(s => s.shape === shape)?.label || 'Trin',
       shape,
     }
