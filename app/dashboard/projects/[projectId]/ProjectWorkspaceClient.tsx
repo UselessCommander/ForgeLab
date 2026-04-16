@@ -71,7 +71,7 @@ interface ProjectWorkspaceClientProps {
 
 type CardPosition = { x: number; y: number }
 type FlowShape = 'terminator' | 'process' | 'decision' | 'data' | 'document' | 'database'
-type FlowNode = { id: string; x: number; y: number; label: string; shape: FlowShape }
+type FlowNode = { id: string; x: number; y: number; width: number; height: number; label: string; shape: FlowShape }
 type StickyNote = {
   id: string
   x: number
@@ -250,7 +250,7 @@ type BoardComment = {
   resolved?: boolean
   resolvedAt?: number
 }
-type FlowConnectorSide = 'left' | 'top' | 'bottom'
+type FlowConnectorSide = 'left' | 'top' | 'right' | 'bottom'
 type FlowEdge = { id: string; from: string; to: string; fromSide?: FlowConnectorSide; toSide?: FlowConnectorSide }
 type FlowEdgeDraft = {
   fromNodeId: string
@@ -2185,11 +2185,8 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     onStickyNoteMouseDown(e, noteId)
   }
 
-  const onStickyNoteMouseDown = (e: React.MouseEvent, noteId: string) => {
-    if (!canEdit) return
-    e.stopPropagation()
+  const selectStickyNote = (noteId: string, additive: boolean) => {
     setContextMenu(null)
-    const additive = e.metaKey || e.ctrlKey || e.shiftKey
     if (!additive) {
       setSelectedCardSlugs([])
       setSelectedFlowNodeIds([])
@@ -2197,6 +2194,18 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       setSelectedCommentIds([])
       setSelectedImageIds([])
     }
+    setSelectedStickyNoteIds(prev => {
+      if (!additive) return [noteId]
+      if (prev.includes(noteId)) return prev.filter(id => id !== noteId)
+      return [...prev, noteId]
+    })
+  }
+
+  const onStickyNoteMouseDown = (e: React.MouseEvent, noteId: string) => {
+    if (!canEdit) return
+    e.stopPropagation()
+    const additive = e.metaKey || e.ctrlKey || e.shiftKey
+    selectStickyNote(noteId, additive)
     const prevS = selectedStickyNoteIds
     const nextSel = !additive
       ? [noteId]
@@ -3179,7 +3188,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     for (let i = flowNodes.length - 1; i >= 0; i--) {
       const node = flowNodes[i]
       if (excludeNodeId && node.id === excludeNodeId) continue
-      const sides: FlowConnectorSide[] = ['left', 'top', 'bottom']
+      const sides: FlowConnectorSide[] = ['left', 'top', 'right', 'bottom']
       for (const side of sides) {
         const anchor = getFlowNodeAnchor(node, side)
         const distance = Math.hypot(anchor.x - x, anchor.y - y)
@@ -5250,6 +5259,27 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                       />
                       <button
                         type="button"
+                        onMouseDown={e => startEdgeDrag(e, node.id, 'right')}
+                        title="Træk pil fra højre"
+                        style={{
+                          position: 'absolute',
+                          right: -7,
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          width: 14,
+                          height: 14,
+                          borderRadius: '50%',
+                          border: '2px solid #fff',
+                          background: '#F59E0B',
+                          cursor: 'crosshair',
+                          boxShadow: '0 2px 7px rgba(0,0,0,0.22)',
+                          opacity: showConnectors ? 1 : 0,
+                          pointerEvents: showConnectors ? 'auto' : 'none',
+                          transition: 'opacity 120ms ease',
+                        }}
+                      />
+                      <button
+                        type="button"
                         onMouseDown={e => startEdgeDrag(e, node.id, 'bottom')}
                         title="Træk pil fra bund"
                         style={{
@@ -5484,6 +5514,8 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                   text={note.text}
                   format={noteFormat}
                   disabled={!canEdit}
+                  isSelected={isSelected}
+                  onRequestSelect={selectStickyNote}
                   onCommitHtml={commitStickyHtml}
                   registerEditor={registerStickyEditor}
                 />
@@ -6910,11 +6942,13 @@ function getFlowNodeAnchor(node: FlowNode, side: 'left' | 'top' | 'bottom' | 'ri
 function getClosestTargetSide(node: FlowNode, point: { x: number; y: number }): FlowConnectorSide {
   const left = getFlowNodeAnchor(node, 'left')
   const top = getFlowNodeAnchor(node, 'top')
+  const right = getFlowNodeAnchor(node, 'right')
   const bottom = getFlowNodeAnchor(node, 'bottom')
 
   const distances = [
     { side: 'left' as FlowConnectorSide, d: Math.hypot(point.x - left.x, point.y - left.y) },
     { side: 'top' as FlowConnectorSide, d: Math.hypot(point.x - top.x, point.y - top.y) },
+    { side: 'right' as FlowConnectorSide, d: Math.hypot(point.x - right.x, point.y - right.y) },
     { side: 'bottom' as FlowConnectorSide, d: Math.hypot(point.x - bottom.x, point.y - bottom.y) },
   ]
   distances.sort((a, b) => a.d - b.d)

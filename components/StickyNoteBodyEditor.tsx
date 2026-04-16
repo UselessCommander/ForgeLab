@@ -13,6 +13,8 @@ type Props = {
   text: string
   format: StickyNoteFormat
   disabled: boolean
+  isSelected: boolean
+  onRequestSelect: (id: string, additive: boolean) => void
   onCommitHtml: (id: string, html: string) => void
   registerEditor: (id: string, el: HTMLDivElement | null) => void
 }
@@ -22,6 +24,8 @@ export default function StickyNoteBodyEditor({
   text,
   format,
   disabled,
+  isSelected,
+  onRequestSelect,
   onCommitHtml,
   registerEditor,
 }: Props) {
@@ -71,7 +75,14 @@ export default function StickyNoteBodyEditor({
         WebkitUserSelect: 'text',
       }}
       onMouseDown={e => {
-        if (!disabled) e.stopPropagation()
+        if (disabled) return
+        e.stopPropagation()
+        if (!isSelected) {
+          // First click should only select the sticky, not jump into edit mode.
+          const additive = e.metaKey || e.ctrlKey || e.shiftKey
+          onRequestSelect(noteId, additive)
+          e.preventDefault()
+        }
       }}
       onPointerDown={e => {
         if (!disabled) e.stopPropagation()

@@ -1,8 +1,6 @@
 import Link from 'next/link'
 import ForgeLabLogo from '@/components/ForgeLabLogo'
 import CookieConsent from '@/components/CookieConsent'
-import LandingLegalSection from '@/components/LandingLegalSection'
-import CookieConsentOpenButton from '@/components/CookieConsentOpenButton'
 import {
   QrCode,
   BarChart3,
@@ -209,8 +207,6 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <LandingLegalSection />
-
         {/* Why ForgeLab */}
         <section className="container mx-auto px-6 py-20">
           <div className="max-w-4xl mx-auto">
@@ -301,17 +297,14 @@ export default function LandingPage() {
                   Opret Bruger
                 </Link>
                 <Link href="/privatliv" className="hover:text-gray-900 transition-colors">
-                  Privatliv
+                  Privatlivspolitik
                 </Link>
                 <Link href="/vilkar" className="hover:text-gray-900 transition-colors">
-                  Vilkår
+                  Brugervilkår
                 </Link>
                 <Link href="/cookies" className="hover:text-gray-900 transition-colors">
-                  Cookies
+                  Cookiepolitik
                 </Link>
-                <CookieConsentOpenButton className="text-sm text-gray-500 hover:text-gray-900 transition-colors">
-                  Cookie-indstillinger
-                </CookieConsentOpenButton>
               </div>
             </div>
             <p className="text-center text-sm text-gray-400 mt-6">
