@@ -76,16 +76,21 @@ export default function StickyNoteBodyEditor({
       }}
       onMouseDown={e => {
         if (disabled) return
-        e.stopPropagation()
         if (!isSelected) {
-          // First click should only select the sticky, not jump into edit mode.
+          // Første klik: vælg sticky'en, men lad ikke tekstmarkør/drag starte endnu.
+          e.stopPropagation()
           const additive = e.metaKey || e.ctrlKey || e.shiftKey
           onRequestSelect(noteId, additive)
           e.preventDefault()
         }
       }}
       onPointerDown={e => {
-        if (!disabled) e.stopPropagation()
+        if (disabled) return
+        // Når sticky'en ikke er valgt endnu, skal klik kun ramme selection-logikken ovenfor.
+        // Når den ER valgt, skal pointeren gerne boble op, så man kan trække den.
+        if (!isSelected) {
+          e.stopPropagation()
+        }
       }}
       onInput={() => {
         const el = elRef.current
