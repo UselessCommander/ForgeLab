@@ -8226,8 +8226,8 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                     }}
                   />
                 ) : (
-                  <div style={{ width: '100%', height: 304, overflow: 'hidden', display: 'flex', justifyContent: 'center' }}>
-                    <div style={{ transform: 'scale(0.5)', transformOrigin: 'top center', width: 1200, height: 650 }}>
+                  <div style={{ width: '100%', height: 168, overflow: 'hidden', display: 'flex', justifyContent: 'center' }}>
+                    <div style={{ transform: 'scale(0.26)', transformOrigin: 'top center', width: 1200, height: 650 }}>
                       <DoubleDiamondDiagram
                         activeSelection={selectedPhaseForDiagram as DoubleDiamondPhase}
                         onSelect={selection => {
