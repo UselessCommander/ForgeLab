@@ -55,6 +55,7 @@ import {
   applyInlineStyleToSelection,
   stickyFontStack,
 } from '@/lib/stickyNoteRichText'
+import { extractMentionUserIdsFromText, htmlToPlainText } from '@/lib/mentions'
 import {
   AlertTriangle,
   FlaskConical,
@@ -373,6 +374,21 @@ type BoardClipboardPayload = {
   freeTexts: BoardFreeText[]
 }
 
+type BoardUndoSnapshot = {
+  toolIds: string[]
+  toolPhases: NonNullable<Project['toolPhases']>
+  cardPositions: Record<string, CardPosition>
+  cardZOrder: Record<string, number>
+  lockedCardSlugs: string[]
+  flowNodes: FlowNode[]
+  flowEdges: FlowEdge[]
+  stickyNotes: StickyNote[]
+  sections: BoardSection[]
+  comments: BoardComment[]
+  images: BoardImage[]
+  freeTexts: BoardFreeText[]
+}
+
 const FLOWCHART_TOOL_SLUG = 'project-board-flowchart'
 const BOARD_CLIPBOARD_MIME = 'application/x-forgelab-board-items'
 /** Standard sticky-størrelse når width/height ikke er sat */
@@ -574,6 +590,10 @@ function getFreeTextSize(ft: Pick<BoardFreeText, 'width' | 'height'>) {
 function clampFreeTextFontSizePx(px: number): number {
   if (!Number.isFinite(px)) return FREE_TEXT_FONT_SIZE_DEFAULT
   return Math.min(FREE_TEXT_FONT_SIZE_MAX, Math.max(FREE_TEXT_FONT_SIZE_MIN, Math.round(px)))
+}
+
+function cloneBoardUndoSnapshot(snapshot: BoardUndoSnapshot): BoardUndoSnapshot {
+  return JSON.parse(JSON.stringify(snapshot)) as BoardUndoSnapshot
 }
 
 function getFreeTextFontSizePx(ft: Pick<BoardFreeText, 'fontSizePx'>): number {
@@ -805,6 +825,12 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const flowNodeExportRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const boardClipboardRef = useRef<BoardClipboardPayload | null>(null)
   const boardPasteCountRef = useRef(0)
+  const boardUndoPastRef = useRef<BoardUndoSnapshot[]>([])
+  const boardUndoFutureRef = useRef<BoardUndoSnapshot[]>([])
+  const boardUndoLastSnapshotRef = useRef<BoardUndoSnapshot | null>(null)
+  const boardUndoIsApplyingRef = useRef(false)
+  const boardUndoReadyRef = useRef(false)
+  const BOARD_UNDO_LIMIT = 250
   const boardImageFileInputRef = useRef<HTMLInputElement | null>(null)
   const pendingImageWorldRef = useRef<{ x: number; y: number } | null>(null)
   const isMarqueeSelecting = useRef(false)
@@ -827,6 +853,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const liveCursorSmoothedRef = useRef<Record<string, { x: number; y: number }>>({})
   const liveCursorRafRef = useRef<number | null>(null)
   const sectionDrawModeRef = useRef(false)
+  const sentMentionKeysRef = useRef<Set<string>>(new Set())
   const analyticsBoardReturnQs = `return=${encodeURIComponent(`/dashboard/projects/${projectId}`)}&project=${encodeURIComponent(projectId)}`
   useEffect(() => {
     sectionDrawModeRef.current = sectionDrawMode
@@ -836,6 +863,42 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     loadProject()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId])
+
+  useEffect(() => {
+    sentMentionKeysRef.current = new Set()
+  }, [projectId])
+
+  const notifyMentions = useCallback(
+    async (sourceType: 'comment' | 'board', sourceId: string, text: string) => {
+      if (!projectId || !currentUserId) return
+      const plainText = text.trim()
+      if (!plainText) return
+      const mentionedUserIds = extractMentionUserIdsFromText(plainText, members, currentUserId)
+      if (mentionedUserIds.length === 0) return
+
+      const mentionSignature = `${sourceType}:${sourceId}:${mentionedUserIds.sort().join(',')}:${plainText}`
+      if (sentMentionKeysRef.current.has(mentionSignature)) return
+      sentMentionKeysRef.current.add(mentionSignature)
+
+      try {
+        await fetch(`/api/projects/${projectId}/mentions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            sourceType,
+            sourceId,
+            mentionText: plainText.slice(0, 1200),
+            mentionContext: plainText.slice(0, 220),
+            mentionedUserIds,
+          }),
+        })
+      } catch (error) {
+        console.warn('Kunne ikke sende mentions:', error)
+      }
+    },
+    [currentUserId, members, projectId]
+  )
 
   useEffect(() => {
     const loadCurrentUser = async () => {
@@ -1422,6 +1485,33 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     }
   }, [projectId, currentUsername])
 
+  useEffect(() => {
+    if (activeWorkspaceTab !== 'board') return
+    if (!canEdit) return
+
+    for (const comment of boardComments) {
+      if (comment.resolved) continue
+      void notifyMentions('comment', comment.id, comment.text || '')
+    }
+    for (const freeText of boardFreeTexts) {
+      void notifyMentions('board', freeText.id, freeText.text || '')
+    }
+    for (const sticky of stickyNotes) {
+      void notifyMentions('board', sticky.id, htmlToPlainText(sticky.text || ''))
+    }
+    for (const node of flowNodes) {
+      void notifyMentions('board', node.id, htmlToPlainText(node.label || ''))
+    }
+  }, [
+    activeWorkspaceTab,
+    boardComments,
+    boardFreeTexts,
+    canEdit,
+    flowNodes,
+    notifyMentions,
+    stickyNotes,
+  ])
+
   const persistFlowchart = useCallback(
     (
       nextNodes: FlowNode[],
@@ -1739,6 +1829,136 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     },
     [project, projectId]
   )
+
+  const createBoardUndoSnapshot = useCallback((): BoardUndoSnapshot => {
+    const safeToolPhases = project?.toolPhases || {}
+    return {
+      toolIds: [...(project?.toolIds || [])],
+      toolPhases: { ...safeToolPhases },
+      cardPositions: { ...cardPositions },
+      cardZOrder: { ...cardZOrder },
+      lockedCardSlugs: [...lockedCardSlugs],
+      flowNodes: flowNodes.map(n => ({ ...n })),
+      flowEdges: flowEdges.map(e => ({ ...e })),
+      stickyNotes: stickyNotes.map(n => ({ ...n })),
+      sections: boardSections.map(s => ({ ...s })),
+      comments: boardComments.map(c => ({ ...c })),
+      images: boardImages.map(i => ({ ...i })),
+      freeTexts: boardFreeTexts.map(t => ({ ...t })),
+    }
+  }, [
+    project?.toolIds,
+    project?.toolPhases,
+    cardPositions,
+    cardZOrder,
+    lockedCardSlugs,
+    flowNodes,
+    flowEdges,
+    stickyNotes,
+    boardSections,
+    boardComments,
+    boardImages,
+    boardFreeTexts,
+  ])
+
+  const applyBoardUndoSnapshot = useCallback(
+    (snapshot: BoardUndoSnapshot) => {
+      const toolSet = new Set(snapshot.toolIds)
+      boardUndoIsApplyingRef.current = true
+      setProject(prev =>
+        prev
+          ? {
+              ...prev,
+              toolIds: [...snapshot.toolIds],
+              toolPhases: { ...snapshot.toolPhases },
+            }
+          : prev
+      )
+      setCardPositions({ ...snapshot.cardPositions })
+      setCardZOrder({ ...snapshot.cardZOrder })
+      setLockedCardSlugs(snapshot.lockedCardSlugs.filter(slug => toolSet.has(slug)))
+      setFlowNodes(snapshot.flowNodes.map(n => ({ ...n })))
+      setFlowEdges(snapshot.flowEdges.map(e => ({ ...e })))
+      setStickyNotes(snapshot.stickyNotes.map(n => ({ ...n })))
+      setBoardSections(snapshot.sections.map(s => ({ ...s })))
+      setBoardComments(snapshot.comments.map(c => ({ ...c })))
+      setBoardImages(snapshot.images.map(i => ({ ...i })))
+      setBoardFreeTexts(snapshot.freeTexts.map(t => ({ ...t })))
+      setSelectedCardSlugs([])
+      setSelectedFlowNodeIds([])
+      setSelectedFlowNodeId(null)
+      setSelectedStickyNoteIds([])
+      setSelectedSectionIds([])
+      setSelectedCommentIds([])
+      setSelectedImageIds([])
+      setSelectedFreeTextIds([])
+      setRichToolbarUi(null)
+      setLinkingFromNodeId(null)
+      setEdgeDraft(null)
+      persistLayout(snapshot.cardPositions)
+      persistFlowchart(
+        snapshot.flowNodes,
+        snapshot.flowEdges,
+        snapshot.stickyNotes,
+        snapshot.sections,
+        snapshot.comments,
+        snapshot.images,
+        snapshot.freeTexts
+      )
+      if (!isOffline) {
+        updateProject(projectId, {
+          toolIds: snapshot.toolIds,
+          toolPhases: snapshot.toolPhases,
+        }).catch(console.error)
+      }
+      window.requestAnimationFrame(() => {
+        boardUndoIsApplyingRef.current = false
+      })
+    },
+    [isOffline, persistFlowchart, persistLayout, projectId]
+  )
+
+  const handleBoardUndo = useCallback(() => {
+    if (!canEdit) return
+    const previous = boardUndoPastRef.current[boardUndoPastRef.current.length - 1]
+    if (!previous) return
+    const current = createBoardUndoSnapshot()
+    boardUndoPastRef.current = boardUndoPastRef.current.slice(0, -1)
+    boardUndoFutureRef.current = [...boardUndoFutureRef.current, cloneBoardUndoSnapshot(current)]
+    applyBoardUndoSnapshot(cloneBoardUndoSnapshot(previous))
+    boardUndoLastSnapshotRef.current = cloneBoardUndoSnapshot(previous)
+  }, [applyBoardUndoSnapshot, canEdit, createBoardUndoSnapshot])
+
+  const handleBoardRedo = useCallback(() => {
+    if (!canEdit) return
+    const next = boardUndoFutureRef.current[boardUndoFutureRef.current.length - 1]
+    if (!next) return
+    const current = createBoardUndoSnapshot()
+    boardUndoFutureRef.current = boardUndoFutureRef.current.slice(0, -1)
+    boardUndoPastRef.current = [...boardUndoPastRef.current, cloneBoardUndoSnapshot(current)]
+    applyBoardUndoSnapshot(cloneBoardUndoSnapshot(next))
+    boardUndoLastSnapshotRef.current = cloneBoardUndoSnapshot(next)
+  }, [applyBoardUndoSnapshot, canEdit, createBoardUndoSnapshot])
+
+  useEffect(() => {
+    if (activeWorkspaceTab !== 'board' || !project) return
+    const snapshot = createBoardUndoSnapshot()
+    const last = boardUndoLastSnapshotRef.current
+    if (!boardUndoReadyRef.current || !last) {
+      boardUndoReadyRef.current = true
+      boardUndoLastSnapshotRef.current = cloneBoardUndoSnapshot(snapshot)
+      return
+    }
+    const changed = JSON.stringify(snapshot) !== JSON.stringify(last)
+    if (!changed) return
+    if (!boardUndoIsApplyingRef.current) {
+      const past = [...boardUndoPastRef.current, cloneBoardUndoSnapshot(last)]
+      boardUndoPastRef.current =
+        past.length > BOARD_UNDO_LIMIT ? past.slice(past.length - BOARD_UNDO_LIMIT) : past
+      boardUndoFutureRef.current = []
+    }
+    boardUndoLastSnapshotRef.current = cloneBoardUndoSnapshot(snapshot)
+  }, [activeWorkspaceTab, project, createBoardUndoSnapshot])
 
   // ── Canvas event handlers ──────────────────────────────────────────
   const onCanvasMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -4292,6 +4512,96 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     window.addEventListener('paste', onPaste)
     return () => window.removeEventListener('paste', onPaste)
   }, [project?.role, activeWorkspaceTab, pan.x, pan.y, zoom, pasteBoardClipboard])
+
+  useEffect(() => {
+    if (activeWorkspaceTab !== 'board') return
+    const onBoardShortcuts = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey)) return
+      const target = event.target as HTMLElement | null
+      const isTypingTarget =
+        target?.tagName === 'INPUT' ||
+        target?.tagName === 'TEXTAREA' ||
+        target?.isContentEditable
+      const key = event.key.toLowerCase()
+
+      if ((key === 'z' || key === 'y') && canEdit && !isTypingTarget) {
+        event.preventDefault()
+        const isRedo = (key === 'z' && event.shiftKey) || key === 'y'
+        if (isRedo) handleBoardRedo()
+        else handleBoardUndo()
+        return
+      }
+
+      if (key === 'f' && !isTypingTarget) {
+        event.preventDefault()
+        setShowAddTool(true)
+        return
+      }
+
+      if (key === 'a' && !isTypingTarget) {
+        event.preventDefault()
+        setSelectedCardSlugs(project?.toolIds || [])
+        setSelectedFlowNodeIds(flowNodes.map(n => n.id))
+        setSelectedFlowNodeId(null)
+        setSelectedStickyNoteIds(stickyNotes.map(n => n.id))
+        setSelectedSectionIds(boardSections.map(s => s.id))
+        setSelectedCommentIds(boardComments.map(c => c.id))
+        setSelectedImageIds(boardImages.map(i => i.id))
+        setSelectedFreeTextIds(boardFreeTexts.map(t => t.id))
+        return
+      }
+
+      if (key === 'x' && canEdit && !isTypingTarget) {
+        const payload = snapshotBoardSelectionToClipboard()
+        if (!payload) return
+        event.preventDefault()
+        boardClipboardRef.current = payload
+        boardPasteCountRef.current = 0
+        if (selectedFlowNodeIds.length > 0) {
+          removeFlowNodesByIds(selectedFlowNodeIds)
+        }
+        if (selectedCardSlugs.length > 0) {
+          void removeToolCardsByIds(selectedCardSlugs)
+        }
+        if (selectedStickyNoteIds.length > 0) {
+          removeStickyNotesByIds(selectedStickyNoteIds)
+        }
+        if (selectedSectionIds.length > 0) {
+          removeSectionsByIds(selectedSectionIds)
+        }
+        if (selectedCommentIds.length > 0) {
+          removeCommentsByIds(selectedCommentIds)
+        }
+        if (selectedImageIds.length > 0) {
+          removeBoardImagesByIds(selectedImageIds)
+        }
+        if (selectedFreeTextIds.length > 0) {
+          removeFreeTextsByIds(selectedFreeTextIds)
+        }
+      }
+    }
+    window.addEventListener('keydown', onBoardShortcuts)
+    return () => window.removeEventListener('keydown', onBoardShortcuts)
+  }, [
+    activeWorkspaceTab,
+    canEdit,
+    project?.toolIds,
+    flowNodes,
+    stickyNotes,
+    boardSections,
+    boardComments,
+    boardImages,
+    boardFreeTexts,
+    selectedFlowNodeIds,
+    selectedCardSlugs,
+    selectedStickyNoteIds,
+    selectedSectionIds,
+    selectedCommentIds,
+    selectedImageIds,
+    selectedFreeTextIds,
+    handleBoardUndo,
+    handleBoardRedo,
+  ])
 
   const removeToolCardsByIds = async (toolIds: string[]) => {
     if (toolIds.length === 0) return

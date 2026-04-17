@@ -43,6 +43,19 @@ type ProjectInviteNotification = {
   invitedByName: string
 }
 
+type ProjectMentionNotification = {
+  id: string
+  projectId: string
+  projectName: string
+  sourceType: 'comment' | 'board'
+  sourceId: string
+  mentionedAt: string
+  readAt: string | null
+  mentionedByName: string
+  mentionText: string
+  mentionContext: string
+}
+
 function parseInviteEmailList(raw: string): string[] {
   const parts = raw.split(/[\n,;]+/)
   const seen = new Set<string>()
@@ -74,10 +87,12 @@ export default function DashboardClient() {
   const [isOffline, setIsOffline] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
   const [inviteNotifications, setInviteNotifications] = useState<ProjectInviteNotification[]>([])
+  const [mentionNotifications, setMentionNotifications] = useState<ProjectMentionNotification[]>([])
 
   useEffect(() => {
     loadProjects()
     loadInviteNotifications()
+    loadMentionNotifications()
     loadCurrentUser()
   }, [])
 
@@ -85,6 +100,7 @@ export default function DashboardClient() {
     // Keep bell notifications fresh without manual reload.
     const refresh = () => {
       void loadInviteNotifications()
+      void loadMentionNotifications()
     }
     const interval = window.setInterval(refresh, 15000)
     const onFocus = () => refresh()
@@ -155,6 +171,21 @@ export default function DashboardClient() {
       setInviteNotifications(items)
     } catch (error) {
       console.warn('Kunne ikke indlæse invitation-notifikationer:', error)
+    }
+  }
+
+  const loadMentionNotifications = async () => {
+    try {
+      const res = await fetch('/api/notifications/project-mentions', {
+        credentials: 'include',
+        cache: 'no-store',
+      })
+      if (!res.ok) return
+      const payload = await res.json()
+      const items = Array.isArray(payload?.items) ? payload.items : []
+      setMentionNotifications(items)
+    } catch (error) {
+      console.warn('Kunne ikke indlæse mention-notifikationer:', error)
     }
   }
 
@@ -284,6 +315,12 @@ export default function DashboardClient() {
   )
   const unreadInvites = inviteProjects.filter((p) => !p.readAt)
   const unreadInviteCount = unreadInvites.length
+  const mentionProjects = [...mentionNotifications].sort(
+    (a, b) => new Date(b.mentionedAt).getTime() - new Date(a.mentionedAt).getTime()
+  )
+  const unreadMentions = mentionProjects.filter((m) => !m.readAt)
+  const unreadMentionCount = unreadMentions.length
+  const unreadNotificationCount = unreadInviteCount + unreadMentionCount
 
   const markInvitesAsSeen = async (ids?: string[]) => {
     if (unreadInviteCount === 0) return
@@ -306,11 +343,33 @@ export default function DashboardClient() {
     }
   }
 
+  const markMentionsAsSeen = async (ids?: string[]) => {
+    if (unreadMentionCount === 0) return
+    try {
+      await fetch('/api/notifications/project-mentions', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(ids && ids.length > 0 ? { ids } : { markAll: true }),
+      })
+      setMentionNotifications((prev) =>
+        prev.map((mention) =>
+          !mention.readAt && (!ids || ids.length === 0 || ids.includes(mention.id))
+            ? { ...mention, readAt: new Date().toISOString() }
+            : mention
+        )
+      )
+    } catch (error) {
+      console.warn('Kunne ikke markere mentions som læst:', error)
+    }
+  }
+
   const openNotifications = () => {
     setShowNotifications((prev) => {
       const next = !prev
-      if (!prev && next && unreadInviteCount > 0) {
-        void markInvitesAsSeen()
+      if (!prev && next) {
+        if (unreadInviteCount > 0) void markInvitesAsSeen()
+        if (unreadMentionCount > 0) void markMentionsAsSeen()
       }
       return next
     })
@@ -502,27 +561,60 @@ export default function DashboardClient() {
                 type="button"
                 onClick={openNotifications}
                 className="relative inline-flex items-center justify-center w-10 h-10 rounded-xl border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition-colors"
-                title="Invitationer"
-                aria-label="Invitationer"
+                title="Notifikationer"
+                aria-label="Notifikationer"
               >
                 <Bell size={17} strokeWidth={2.2} />
-                {unreadInviteCount > 0 && (
+                {unreadNotificationCount > 0 && (
                   <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold leading-[18px] text-center">
-                    {unreadInviteCount > 9 ? '9+' : unreadInviteCount}
+                    {unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}
                   </span>
                 )}
               </button>
               {showNotifications && (
                 <div className="absolute right-0 mt-2 w-80 rounded-2xl border border-gray-200 bg-white shadow-xl z-50 overflow-hidden">
                   <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-                    <p className="text-sm font-semibold text-gray-900">Invitationer</p>
-                    <span className="text-xs text-gray-500">{inviteProjects.length}</span>
+                    <p className="text-sm font-semibold text-gray-900">Notifikationer</p>
+                    <span className="text-xs text-gray-500">{inviteProjects.length + mentionProjects.length}</span>
                   </div>
                   <div className="max-h-80 overflow-y-auto">
-                    {inviteProjects.length === 0 ? (
-                      <div className="px-4 py-6 text-sm text-gray-500">Ingen invitationer endnu.</div>
+                    {inviteProjects.length === 0 && mentionProjects.length === 0 ? (
+                      <div className="px-4 py-6 text-sm text-gray-500">Ingen notifikationer endnu.</div>
                     ) : (
-                      inviteProjects.map((project) => {
+                      <>
+                      {mentionProjects.map((mention) => {
+                        const isUnread = !mention.readAt
+                        const preview = (mention.mentionContext || mention.mentionText || '').trim()
+                        return (
+                          <Link
+                            key={mention.id}
+                            href={`/dashboard/projects/${mention.projectId}`}
+                            onClick={() => {
+                              void markMentionsAsSeen([mention.id])
+                              setShowNotifications(false)
+                            }}
+                            className={`block px-4 py-3 border-b transition-colors ${
+                              isUnread ? 'bg-blue-50/60 hover:bg-blue-50' : 'bg-white hover:bg-gray-50'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-gray-900 truncate">{mention.projectName}</p>
+                                <p className="text-xs text-gray-600 mt-0.5">
+                                  {mention.mentionedByName} nævnte dig i {mention.sourceType === 'comment' ? 'en kommentar' : 'board-tekst'}.
+                                </p>
+                                {preview ? (
+                                  <p className="text-xs text-gray-500 mt-1 truncate">{preview}</p>
+                                ) : null}
+                              </div>
+                              {isUnread && (
+                                <span className="mt-1 inline-block w-2.5 h-2.5 rounded-full bg-blue-500" />
+                              )}
+                            </div>
+                          </Link>
+                        )
+                      })}
+                      {inviteProjects.map((project) => {
                         const isUnread = !project.readAt
                         return (
                           <Link
@@ -549,7 +641,8 @@ export default function DashboardClient() {
                             </div>
                           </Link>
                         )
-                      })
+                      })}
+                      </>
                     )}
                   </div>
                 </div>
