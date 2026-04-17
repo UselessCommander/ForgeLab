@@ -639,6 +639,57 @@
   opacity: 0.88;
 }
 
+.forge-sticky-note-input ul,
+.forge-sticky-note-input ol {
+  margin: 0.35em 0;
+  padding-left: 1.35em;
+  padding-inline-start: 1.35em;
+  list-style-position: outside;
+}
+/* Tailwind preflight sætter list-style: none på ul/ol — gendan markører */
+.forge-sticky-note-input ul {
+  list-style-type: disc;
+}
+.forge-sticky-note-input ol {
+  list-style-type: decimal;
+}
+.forge-sticky-note-input li {
+  display: list-item;
+  margin: 0.12em 0;
+}
+.forge-sticky-note-input ul ul {
+  list-style-type: circle;
+}
+.forge-sticky-note-input ol ol {
+  list-style-type: lower-alpha;
+}
+
+/* Flowchart-form: lister i rich text */
+[data-flow-editor] ul,
+[data-flow-editor] ol {
+  margin: 0.3em 0;
+  padding-left: 1.25em;
+  padding-inline-start: 1.25em;
+  text-align: left;
+  list-style-position: outside;
+}
+[data-flow-editor] ul {
+  list-style-type: disc;
+}
+[data-flow-editor] ol {
+  list-style-type: decimal;
+}
+[data-flow-editor] li {
+  display: list-item;
+  margin: 0.1em 0;
+}
+[data-flow-editor] ul ul {
+  list-style-type: circle;
+}
+[data-flow-editor] ol ol {
+  list-style-type: lower-alpha;
+}
+
 .forgelab-page-grid {
   background-image:
     linear-gradient(to right, color-mix(in srgb, var(--forge-accent-300) 24%, #d1d5db) 1px, transparent 1px),

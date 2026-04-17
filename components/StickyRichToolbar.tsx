@@ -20,6 +20,10 @@ type Props = {
   onSetFormat: (patch: Partial<StickyNoteFormat>) => void
   onFontSizePx: (px: number) => void
   onRunCommand: (fn: () => void) => void
+  /** Fx flowchart: anden aria-label og farve-knaptekst */
+  toolbarAriaLabel?: string
+  colorButtonTitle?: string
+  colorButtonAriaLabel?: string
 }
 
 const TOOLBAR_H = 40
@@ -57,6 +61,9 @@ export default function StickyRichToolbar({
   onSetFormat,
   onFontSizePx,
   onRunCommand,
+  toolbarAriaLabel = 'Sticky note formatering',
+  colorButtonTitle = 'Sticky-farve',
+  colorButtonAriaLabel = 'Vælg sticky-farve',
 }: Props) {
   const [mounted, setMounted] = useState(false)
   const [colorOpen, setColorOpen] = useState(false)
@@ -66,7 +73,7 @@ export default function StickyRichToolbar({
 
   if (!mounted || !visible || !anchor) return null
 
-  const barW = 520
+  const barW = 580
   let left = anchor.left + anchor.width / 2 - barW / 2
   left = Math.max(12, Math.min(left, window.innerWidth - barW - 12))
   let top = anchor.top - TOOLBAR_H - GAP
@@ -75,7 +82,7 @@ export default function StickyRichToolbar({
   const bar = (
     <div
       role="toolbar"
-      aria-label="Sticky note formatering"
+      aria-label={toolbarAriaLabel}
       style={{
         position: 'fixed',
         left,
@@ -92,13 +99,16 @@ export default function StickyRichToolbar({
         boxShadow: '0 8px 28px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.06)',
         fontFamily: 'ui-sans-serif, system-ui, sans-serif',
       }}
-      onMouseDown={e => e.preventDefault()}
+      onMouseDown={e => {
+        if ((e.target as HTMLElement).closest('select')) return
+        e.preventDefault()
+      }}
     >
       <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 4 }}>
         <button
           type="button"
-          title="Sticky-farve"
-          aria-label="Vælg sticky-farve"
+          title={colorButtonTitle}
+          aria-label={colorButtonAriaLabel}
           style={{
             width: 26,
             height: 26,
@@ -168,7 +178,6 @@ export default function StickyRichToolbar({
           aria-label="Skrifttype"
           value={format.fontFamily}
           onChange={e => onSetFormat({ fontFamily: e.target.value as StickyFontFamilyId })}
-          onMouseDown={e => e.preventDefault()}
           style={{
             position: 'absolute',
             left: 0,
@@ -191,7 +200,6 @@ export default function StickyRichToolbar({
           aria-label="Skriftstørrelse"
           value={format.fontSizePx}
           onChange={e => onFontSizePx(Number(e.target.value))}
-          onMouseDown={e => e.preventDefault()}
           style={{
             width: '100%',
             appearance: 'none',
@@ -269,13 +277,62 @@ export default function StickyRichToolbar({
       >
         🔗
       </button>
+
+      <div style={{ width: 1, height: 22, background: 'rgba(255,255,255,0.12)', flexShrink: 0 }} />
+
       <button
         type="button"
         title="Punktliste"
-        style={{ ...btnBase, minWidth: 30 }}
+        aria-label="Punktliste"
+        style={{ ...btnBase, minWidth: 32, padding: '4px 6px' }}
         onClick={() => onRunCommand(() => document.execCommand('insertUnorderedList', false))}
       >
-        ≡
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          <circle cx="5" cy="6" r="1.5" fill="currentColor" stroke="none" />
+          <circle cx="5" cy="12" r="1.5" fill="currentColor" stroke="none" />
+          <circle cx="5" cy="18" r="1.5" fill="currentColor" stroke="none" />
+          <path d="M10 6h11M10 12h11M10 18h11" />
+        </svg>
+      </button>
+      <button
+        type="button"
+        title="Nummereret liste"
+        aria-label="Nummereret liste"
+        style={{ ...btnBase, minWidth: 32, padding: '4px 6px' }}
+        onClick={() => onRunCommand(() => document.execCommand('insertOrderedList', false))}
+      >
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          <text x="3" y="8.5" fontSize="6.5" fill="currentColor" stroke="none" fontWeight="700" fontFamily="system-ui, sans-serif">
+            1
+          </text>
+          <text x="3" y="14.5" fontSize="6.5" fill="currentColor" stroke="none" fontWeight="700" fontFamily="system-ui, sans-serif">
+            2
+          </text>
+          <text x="3" y="20.5" fontSize="6.5" fill="currentColor" stroke="none" fontWeight="700" fontFamily="system-ui, sans-serif">
+            3
+          </text>
+          <path d="M11 6h10M11 12h10M11 18h10" />
+        </svg>
       </button>
     </div>
   )

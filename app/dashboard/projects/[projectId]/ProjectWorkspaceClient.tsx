@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, type ReactNode, type CSSProperties } from 'react'
+import { flushSync } from 'react-dom'
 
 import Link from 'next/link'
 import html2canvas from 'html2canvas'
@@ -71,7 +72,51 @@ interface ProjectWorkspaceClientProps {
 
 type CardPosition = { x: number; y: number }
 type FlowShape = 'terminator' | 'process' | 'decision' | 'data' | 'document' | 'database'
-type FlowNode = { id: string; x: number; y: number; width: number; height: number; label: string; shape: FlowShape }
+type FlowNode = {
+  id: string
+  x: number
+  y: number
+  width: number
+  height: number
+  /** HTML som sticky notes; ren tekst migreres ved visning */
+  label: string
+  shape: FlowShape
+  /** Fill inde i figuren — typiske flowchart-pasteller */
+  fillColor?: string
+  format?: StickyNoteFormat
+}
+
+/** ISO/visio-lignende lyse diagramfarver til flow-former */
+const FLOWCHART_SHAPE_COLORS = [
+  '#FFFFFF',
+  '#E3F2FD',
+  '#FFF9C4',
+  '#E8F5E9',
+  '#FFEBEE',
+  '#F3E5F5',
+  '#E0F7FA',
+  '#FFF3E0',
+  '#ECEFF1',
+  '#FCE4EC',
+] as const
+
+type RichToolbarUiState =
+  | {
+      kind: 'sticky'
+      noteId: string
+      rect: { left: number; top: number; width: number; height: number }
+      bold: boolean
+      italic: boolean
+      strike: boolean
+    }
+  | {
+      kind: 'flow'
+      nodeId: string
+      rect: { left: number; top: number; width: number; height: number }
+      bold: boolean
+      italic: boolean
+      strike: boolean
+    }
 type StickyNote = {
   id: string
   x: number
@@ -250,6 +295,17 @@ type BoardComment = {
   resolved?: boolean
   resolvedAt?: number
 }
+/** Frit placerbart tekstfelt på boardet (lige som sticky, men uden sticky-styling) */
+type BoardFreeText = {
+  id: string
+  x: number
+  y: number
+  width: number
+  height: number
+  text: string
+  /** Skriftstørrelse i px (8–128) */
+  fontSizePx?: number
+}
 type FlowConnectorSide = 'left' | 'top' | 'right' | 'bottom'
 type FlowEdge = { id: string; from: string; to: string; fromSide?: FlowConnectorSide; toSide?: FlowConnectorSide }
 type FlowEdgeDraft = {
@@ -282,7 +338,7 @@ type BoardContextMenu =
       type: 'boardShape'
       x: number
       y: number
-      shapeKind: 'flow' | 'sticky' | 'section' | 'comment' | 'image'
+      shapeKind: 'flow' | 'sticky' | 'section' | 'comment' | 'image' | 'freeText'
       id: string
     }
 
@@ -301,6 +357,17 @@ const STICKY_NOTE_MIN_H = 100
 const STICKY_CLONE_GAP = 16
 /** Alt/Option + træk: samme offset som kontekstmenu-duplikering */
 const BOARD_ALT_DUPLICATE_OFFSET = 28
+/** Når sticky er valgt: træk fra tekstområdet først efter så mange px bevægelse (så klik stadig sætter markør). */
+const STICKY_EDITOR_DRAG_THRESHOLD_PX = 6
+const FLOW_NODE_MIN_W = 72
+const FLOW_NODE_MIN_H = 36
+const FREE_TEXT_DEFAULT_W = 192
+const FREE_TEXT_DEFAULT_H = 72
+const FREE_TEXT_MIN_W = 96
+const FREE_TEXT_MIN_H = 48
+const FREE_TEXT_FONT_SIZE_MIN = 8
+const FREE_TEXT_FONT_SIZE_MAX = 128
+const FREE_TEXT_FONT_SIZE_DEFAULT = 14
 
 function snapStickyDimensionToGrid(px: number, grid: number, min: number): number {
   return Math.max(min, Math.round(px / grid) * grid)
@@ -357,12 +424,139 @@ function applyStickyResizeWithGrid(
   }
 }
 
+/** Flowchart-form: resize med snap til board-gitter (samme logik som sticky notes). */
+function applyFlowNodeResizeWithGrid(
+  edge: SectionResizeEdge,
+  start: { x: number; y: number; w: number; h: number },
+  dx: number,
+  dy: number,
+  grid: number,
+  lockAspect: boolean
+): { x: number; y: number; w: number; h: number } {
+  const raw = lockAspect
+    ? applyAspectLockedRectResize(edge, start, dx, dy, FLOW_NODE_MIN_W, FLOW_NODE_MIN_H)
+    : applyRectResize(edge, start, dx, dy, FLOW_NODE_MIN_W, FLOW_NODE_MIN_H)
+  const snapW = (px: number) => snapStickyDimensionToGrid(px, grid, FLOW_NODE_MIN_W)
+  const snapH = (px: number) => snapStickyDimensionToGrid(px, grid, FLOW_NODE_MIN_H)
+
+  const sx = start.x
+  const sy = start.y
+  const right = sx + start.w
+  const bottom = sy + start.h
+
+  let gw = raw.w
+  let gh = raw.h
+  if (edge === 'e' || edge === 'w' || edge === 'nw' || edge === 'ne' || edge === 'sw' || edge === 'se') {
+    gw = snapW(raw.w)
+  }
+  if (edge === 's' || edge === 'n' || edge === 'nw' || edge === 'ne' || edge === 'sw' || edge === 'se') {
+    gh = snapH(raw.h)
+  }
+
+  switch (edge) {
+    case 'e':
+      return { x: sx, y: sy, w: gw, h: gh }
+    case 's':
+      return { x: sx, y: sy, w: gw, h: gh }
+    case 'w':
+      return { x: right - gw, y: sy, w: gw, h: gh }
+    case 'n':
+      return { x: sx, y: bottom - gh, w: gw, h: gh }
+    case 'se':
+      return { x: sx, y: sy, w: gw, h: gh }
+    case 'nw':
+      return { x: right - gw, y: bottom - gh, w: gw, h: gh }
+    case 'ne':
+      return { x: sx, y: bottom - gh, w: gw, h: gh }
+    case 'sw':
+      return { x: right - gw, y: sy, w: gw, h: gh }
+    default:
+      return { x: raw.x, y: raw.y, w: gw, h: gh }
+  }
+}
+
+/** Fritekst-felter: resize med gitter-snap */
+function applyFreeTextResizeWithGrid(
+  edge: SectionResizeEdge,
+  start: { x: number; y: number; w: number; h: number },
+  dx: number,
+  dy: number,
+  grid: number,
+  lockAspect: boolean
+): { x: number; y: number; w: number; h: number } {
+  const raw = lockAspect
+    ? applyAspectLockedRectResize(edge, start, dx, dy, FREE_TEXT_MIN_W, FREE_TEXT_MIN_H)
+    : applyRectResize(edge, start, dx, dy, FREE_TEXT_MIN_W, FREE_TEXT_MIN_H)
+  const snapW = (px: number) => snapStickyDimensionToGrid(px, grid, FREE_TEXT_MIN_W)
+  const snapH = (px: number) => snapStickyDimensionToGrid(px, grid, FREE_TEXT_MIN_H)
+
+  const sx = start.x
+  const sy = start.y
+  const right = sx + start.w
+  const bottom = sy + start.h
+
+  let gw = raw.w
+  let gh = raw.h
+  if (edge === 'e' || edge === 'w' || edge === 'nw' || edge === 'ne' || edge === 'sw' || edge === 'se') {
+    gw = snapW(raw.w)
+  }
+  if (edge === 's' || edge === 'n' || edge === 'nw' || edge === 'ne' || edge === 'sw' || edge === 'se') {
+    gh = snapH(raw.h)
+  }
+
+  switch (edge) {
+    case 'e':
+      return { x: sx, y: sy, w: gw, h: gh }
+    case 's':
+      return { x: sx, y: sy, w: gw, h: gh }
+    case 'w':
+      return { x: right - gw, y: sy, w: gw, h: gh }
+    case 'n':
+      return { x: sx, y: bottom - gh, w: gw, h: gh }
+    case 'se':
+      return { x: sx, y: sy, w: gw, h: gh }
+    case 'nw':
+      return { x: right - gw, y: bottom - gh, w: gw, h: gh }
+    case 'ne':
+      return { x: sx, y: bottom - gh, w: gw, h: gh }
+    case 'sw':
+      return { x: right - gw, y: sy, w: gw, h: gh }
+    default:
+      return { x: raw.x, y: raw.y, w: gw, h: gh }
+  }
+}
+
 function getStickyNoteSize(note: Pick<StickyNote, 'width' | 'height'>) {
   const w =
     typeof note.width === 'number' && note.width >= STICKY_NOTE_MIN_W ? note.width : STICKY_NOTE_SIZE
   const h =
     typeof note.height === 'number' && note.height >= STICKY_NOTE_MIN_H ? note.height : STICKY_NOTE_SIZE
   return { w, h }
+}
+
+function getFreeTextSize(ft: Pick<BoardFreeText, 'width' | 'height'>) {
+  const w =
+    typeof ft.width === 'number' && Number.isFinite(ft.width) && ft.width >= FREE_TEXT_MIN_W
+      ? ft.width
+      : FREE_TEXT_DEFAULT_W
+  const h =
+    typeof ft.height === 'number' && Number.isFinite(ft.height) && ft.height >= FREE_TEXT_MIN_H
+      ? ft.height
+      : FREE_TEXT_DEFAULT_H
+  return { w, h }
+}
+
+function clampFreeTextFontSizePx(px: number): number {
+  if (!Number.isFinite(px)) return FREE_TEXT_FONT_SIZE_DEFAULT
+  return Math.min(FREE_TEXT_FONT_SIZE_MAX, Math.max(FREE_TEXT_FONT_SIZE_MIN, Math.round(px)))
+}
+
+function getFreeTextFontSizePx(ft: Pick<BoardFreeText, 'fontSizePx'>): number {
+  return clampFreeTextFontSizePx(
+    typeof ft.fontSizePx === 'number' && Number.isFinite(ft.fontSizePx)
+      ? ft.fontSizePx
+      : FREE_TEXT_FONT_SIZE_DEFAULT
+  )
 }
 
 function applyStickyNoteResize(
@@ -489,13 +683,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const [activeSectionDragId, setActiveSectionDragId] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<BoardContextMenu | null>(null)
   const [marqueeSelection, setMarqueeSelection] = useState<MarqueeSelection | null>(null)
-  const [stickyRichUi, setStickyRichUi] = useState<{
-    noteId: string
-    rect: { left: number; top: number; width: number; height: number }
-    bold: boolean
-    italic: boolean
-    strike: boolean
-  } | null>(null)
+  const [richToolbarUi, setRichToolbarUi] = useState<RichToolbarUiState | null>(null)
   const canvasRef = useRef<HTMLDivElement>(null)
   const isPointerOverCanvasRef = useRef(false)
   const isPanning = useRef(false)
@@ -508,12 +696,14 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const [stickyNotes, setStickyNotes] = useState<StickyNote[]>([])
   const [boardSections, setBoardSections] = useState<BoardSection[]>([])
   const [boardComments, setBoardComments] = useState<BoardComment[]>([])
+  const [boardFreeTexts, setBoardFreeTexts] = useState<BoardFreeText[]>([])
   const [boardImages, setBoardImages] = useState<BoardImage[]>([])
   const [selectedCardSlugs, setSelectedCardSlugs] = useState<string[]>([])
   const [selectedFlowNodeIds, setSelectedFlowNodeIds] = useState<string[]>([])
   const [selectedStickyNoteIds, setSelectedStickyNoteIds] = useState<string[]>([])
   const [selectedSectionIds, setSelectedSectionIds] = useState<string[]>([])
   const [selectedCommentIds, setSelectedCommentIds] = useState<string[]>([])
+  const [selectedFreeTextIds, setSelectedFreeTextIds] = useState<string[]>([])
   const [selectedImageIds, setSelectedImageIds] = useState<string[]>([])
   const [lockedCardSlugs, setLockedCardSlugs] = useState<string[]>([])
   const [cardZOrder, setCardZOrder] = useState<Record<string, number>>({})
@@ -533,7 +723,8 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const suppressNextCardClickRef = useRef(false)
   const draggingStickyNote = useRef<string | null>(null)
   const stickyEditorRefs = useRef(new Map<string, HTMLDivElement>())
-  const stickyToolbarNoteIdRef = useRef<string | null>(null)
+  const flowNodeEditorRefs = useRef(new Map<string, HTMLDivElement>())
+  const richToolbarTargetRef = useRef<{ kind: 'sticky' | 'flow'; id: string } | null>(null)
   const draggingBoardSection = useRef<string | null>(null)
   const sectionResizeRef = useRef<{
     id: string
@@ -542,6 +733,18 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     start: { x: number; y: number; w: number; h: number }
   } | null>(null)
   const stickyResizeRef = useRef<{
+    id: string
+    edge: SectionResizeEdge
+    startWorld: { x: number; y: number }
+    start: { x: number; y: number; w: number; h: number }
+  } | null>(null)
+  const flowResizeRef = useRef<{
+    id: string
+    edge: SectionResizeEdge
+    startWorld: { x: number; y: number }
+    start: { x: number; y: number; w: number; h: number }
+  } | null>(null)
+  const freeTextResizeRef = useRef<{
     id: string
     edge: SectionResizeEdge
     startWorld: { x: number; y: number }
@@ -562,7 +765,13 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     primaryId: string
     startById: Record<string, { x: number; y: number }>
   } | null>(null)
+  const freeTextDragGroupRef = useRef<{
+    ids: string[]
+    primaryId: string
+    startById: Record<string, { x: number; y: number }>
+  } | null>(null)
   const draggingBoardComment = useRef<string | null>(null)
+  const draggingBoardFreeText = useRef<string | null>(null)
   const draggingBoardImage = useRef<string | null>(null)
   const sectionExportRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const boardImageRefs = useRef<Record<string, HTMLDivElement | null>>({})
@@ -982,14 +1191,22 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                 ? n.shape
                 : 'process'
               const style = getFlowNodeStyle(shape)
+              const rawLabel = typeof n.label === 'string' && n.label.trim() ? n.label : 'Trin'
+              const labelHtml = migratePlainStickyTextToHtml(rawLabel)
+              const fill =
+                typeof n.fillColor === 'string' && n.fillColor.trim().startsWith('#')
+                  ? n.fillColor.trim()
+                  : '#FFFFFF'
               return {
                 id: n.id,
                 x: typeof n.x === 'number' ? n.x : 100,
                 y: typeof n.y === 'number' ? n.y : 100,
                 width: typeof n.width === 'number' && Number.isFinite(n.width) ? n.width : style.width,
                 height: typeof n.height === 'number' && Number.isFinite(n.height) ? n.height : style.height,
-                label: typeof n.label === 'string' && n.label.trim() ? n.label : 'Trin',
+                label: labelHtml,
                 shape,
+                fillColor: fill,
+                format: mergeStickyFormat(parseStickyFormat(n.format), {}),
               }
             })
         )
@@ -1074,6 +1291,26 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
               src: im.src,
             }))
         )
+        const freeTextsRaw = Array.isArray(raw?.freeTexts) ? raw.freeTexts : []
+        setBoardFreeTexts(
+          freeTextsRaw
+            .filter((ft: any) => ft && typeof ft.id === 'string')
+            .map((ft: any) => {
+              const rawW = typeof ft.width === 'number' && Number.isFinite(ft.width) ? ft.width : FREE_TEXT_DEFAULT_W
+              const rawH = typeof ft.height === 'number' && Number.isFinite(ft.height) ? ft.height : FREE_TEXT_DEFAULT_H
+              const rawFs =
+                typeof ft.fontSizePx === 'number' && Number.isFinite(ft.fontSizePx) ? ft.fontSizePx : FREE_TEXT_FONT_SIZE_DEFAULT
+              return {
+                id: ft.id,
+                x: typeof ft.x === 'number' ? ft.x : 160,
+                y: typeof ft.y === 'number' ? ft.y : 160,
+                width: Math.max(FREE_TEXT_MIN_W, rawW),
+                height: Math.max(FREE_TEXT_MIN_H, rawH),
+                text: typeof ft.text === 'string' ? ft.text : '',
+                fontSizePx: clampFreeTextFontSizePx(rawFs),
+              }
+            })
+        )
       } catch {
         // ignore load errors and start with empty flowchart
       }
@@ -1091,7 +1328,8 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       nextStickyNotes: StickyNote[] = stickyNotes,
       nextSections: BoardSection[] = boardSections,
       nextComments: BoardComment[] = boardComments,
-      nextImages: BoardImage[] = boardImages
+      nextImages: BoardImage[] = boardImages,
+      nextFreeTexts: BoardFreeText[] = boardFreeTexts
     ) => {
       if (flowSaveTimer.current) clearTimeout(flowSaveTimer.current)
       flowSaveTimer.current = setTimeout(() => {
@@ -1102,21 +1340,45 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           sections: nextSections,
           comments: nextComments,
           images: nextImages,
+          freeTexts: nextFreeTexts,
           updatedAt: Date.now(),
         }).catch(console.error)
       }, 400)
     },
-    [projectId, stickyNotes, boardSections, boardComments, boardImages]
+    [projectId, stickyNotes, boardSections, boardComments, boardImages, boardFreeTexts]
   )
 
   useEffect(() => {
-    stickyToolbarNoteIdRef.current = stickyRichUi?.noteId ?? null
-  }, [stickyRichUi?.noteId])
+    if (!richToolbarUi) {
+      richToolbarTargetRef.current = null
+      return
+    }
+    richToolbarTargetRef.current =
+      richToolbarUi.kind === 'sticky'
+        ? { kind: 'sticky', id: richToolbarUi.noteId }
+        : { kind: 'flow', id: richToolbarUi.nodeId }
+  }, [richToolbarUi])
 
   const registerStickyEditor = useCallback((id: string, el: HTMLDivElement | null) => {
     if (el) stickyEditorRefs.current.set(id, el)
     else stickyEditorRefs.current.delete(id)
   }, [])
+
+  const registerFlowNodeEditor = useCallback((id: string, el: HTMLDivElement | null) => {
+    if (el) flowNodeEditorRefs.current.set(id, el)
+    else flowNodeEditorRefs.current.delete(id)
+  }, [])
+
+  const commitFlowNodeHtml = useCallback(
+    (id: string, html: string) => {
+      setFlowNodes(prev => {
+        const next = prev.map(n => (n.id === id ? { ...n, label: html } : n))
+        persistFlowchart(next, flowEdges, stickyNotes, boardSections, boardComments)
+        return next
+      })
+    },
+    [flowEdges, stickyNotes, boardSections, boardComments, persistFlowchart]
+  )
 
   const commitStickyHtml = useCallback(
     (id: string, html: string) => {
@@ -1131,22 +1393,31 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
 
   const handleToolbarSetNoteColor = useCallback(
     (c: string) => {
-      const id = stickyToolbarNoteIdRef.current
-      if (!id) return
-      setStickyNotes(prev => {
-        const next = prev.map(n => (n.id === id ? { ...n, color: c } : n))
-        persistFlowchart(flowNodes, flowEdges, next, boardSections, boardComments)
-        return next
-      })
+      const t = richToolbarTargetRef.current
+      if (!t) return
+      if (t.kind === 'sticky') {
+        setStickyNotes(prev => {
+          const next = prev.map(n => (n.id === t.id ? { ...n, color: c } : n))
+          persistFlowchart(flowNodes, flowEdges, next, boardSections, boardComments)
+          return next
+        })
+      } else {
+        setFlowNodes(prev => {
+          const next = prev.map(n => (n.id === t.id ? { ...n, fillColor: c } : n))
+          persistFlowchart(next, flowEdges, stickyNotes, boardSections, boardComments)
+          return next
+        })
+      }
     },
-    [flowNodes, flowEdges, boardSections, boardComments, persistFlowchart]
+    [flowNodes, flowEdges, stickyNotes, boardSections, boardComments, persistFlowchart]
   )
 
   const handleToolbarSetFormat = useCallback(
     (patch: Partial<StickyNoteFormat>) => {
-      const id = stickyToolbarNoteIdRef.current
-      if (!id) return
-      const el = stickyEditorRefs.current.get(id)
+      const t = richToolbarTargetRef.current
+      if (!t) return
+      const el =
+        t.kind === 'sticky' ? stickyEditorRefs.current.get(t.id) : flowNodeEditorRefs.current.get(t.id)
       el?.focus()
       if (patch.fontFamily && el) {
         const sel = window.getSelection()
@@ -1154,24 +1425,37 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           applyInlineStyleToSelection(el, { fontFamily: stickyFontStack(patch.fontFamily) })
         }
       }
-      setStickyNotes(prev => {
-        const next = prev.map(n => {
-          if (n.id !== id) return n
-          const html = el ? sanitizeStickyHtml(el.innerHTML) : n.text
-          return { ...n, format: mergeStickyFormat(n.format, patch), text: html }
+      if (t.kind === 'sticky') {
+        setStickyNotes(prev => {
+          const next = prev.map(n => {
+            if (n.id !== t.id) return n
+            const html = el ? sanitizeStickyHtml(el.innerHTML) : n.text
+            return { ...n, format: mergeStickyFormat(n.format, patch), text: html }
+          })
+          persistFlowchart(flowNodes, flowEdges, next, boardSections, boardComments)
+          return next
         })
-        persistFlowchart(flowNodes, flowEdges, next, boardSections, boardComments)
-        return next
-      })
+      } else {
+        setFlowNodes(prev => {
+          const next = prev.map(n => {
+            if (n.id !== t.id) return n
+            const html = el ? sanitizeStickyHtml(el.innerHTML) : n.label
+            return { ...n, format: mergeStickyFormat(n.format, patch), label: html }
+          })
+          persistFlowchart(next, flowEdges, stickyNotes, boardSections, boardComments)
+          return next
+        })
+      }
     },
-    [flowNodes, flowEdges, boardSections, boardComments, persistFlowchart]
+    [flowNodes, flowEdges, stickyNotes, boardSections, boardComments, persistFlowchart]
   )
 
   const handleToolbarFontSize = useCallback(
     (px: number) => {
-      const id = stickyToolbarNoteIdRef.current
-      if (!id) return
-      const el = stickyEditorRefs.current.get(id)
+      const t = richToolbarTargetRef.current
+      if (!t) return
+      const el =
+        t.kind === 'sticky' ? stickyEditorRefs.current.get(t.id) : flowNodeEditorRefs.current.get(t.id)
       el?.focus()
       if (el) {
         const sel = window.getSelection()
@@ -1179,76 +1463,102 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           applyInlineStyleToSelection(el, { fontSize: `${px}px` })
         }
       }
-      setStickyNotes(prev => {
-        const next = prev.map(n => {
-          if (n.id !== id) return n
-          const html = el ? sanitizeStickyHtml(el.innerHTML) : n.text
-          return { ...n, format: mergeStickyFormat(n.format, { fontSizePx: px }), text: html }
+      if (t.kind === 'sticky') {
+        setStickyNotes(prev => {
+          const next = prev.map(n => {
+            if (n.id !== t.id) return n
+            const html = el ? sanitizeStickyHtml(el.innerHTML) : n.text
+            return { ...n, format: mergeStickyFormat(n.format, { fontSizePx: px }), text: html }
+          })
+          persistFlowchart(flowNodes, flowEdges, next, boardSections, boardComments)
+          return next
         })
-        persistFlowchart(flowNodes, flowEdges, next, boardSections, boardComments)
-        return next
-      })
+      } else {
+        setFlowNodes(prev => {
+          const next = prev.map(n => {
+            if (n.id !== t.id) return n
+            const html = el ? sanitizeStickyHtml(el.innerHTML) : n.label
+            return { ...n, format: mergeStickyFormat(n.format, { fontSizePx: px }), label: html }
+          })
+          persistFlowchart(next, flowEdges, stickyNotes, boardSections, boardComments)
+          return next
+        })
+      }
     },
-    [flowNodes, flowEdges, boardSections, boardComments, persistFlowchart]
+    [flowNodes, flowEdges, stickyNotes, boardSections, boardComments, persistFlowchart]
   )
 
   const runStickyRichCommand = useCallback(
     (fn: () => void) => {
-      const id = stickyToolbarNoteIdRef.current
-      if (!id) return
-      const el = stickyEditorRefs.current.get(id)
+      const t = richToolbarTargetRef.current
+      if (!t) return
+      const el =
+        t.kind === 'sticky' ? stickyEditorRefs.current.get(t.id) : flowNodeEditorRefs.current.get(t.id)
       el?.focus()
       window.requestAnimationFrame(() => {
         fn()
-        const ed = stickyEditorRefs.current.get(id)
+        const ed =
+          t.kind === 'sticky' ? stickyEditorRefs.current.get(t.id) : flowNodeEditorRefs.current.get(t.id)
         if (ed) {
           const html = sanitizeStickyHtml(ed.innerHTML)
-          setStickyNotes(prev => {
-            const sel = window.getSelection()
-            let next = prev.map(n => (n.id === id ? { ...n, text: html } : n))
-            if (sel?.isCollapsed && ed.contains(sel.anchorNode)) {
-              next = next.map(n =>
-                n.id === id
-                  ? {
-                      ...n,
-                      format: mergeStickyFormat(n.format, {
-                        bold: document.queryCommandState('bold'),
-                        italic: document.queryCommandState('italic'),
-                      }),
-                    }
-                  : n
-              )
-            }
-            persistFlowchart(flowNodes, flowEdges, next, boardSections, boardComments)
-            return next
-          })
+          if (t.kind === 'sticky') {
+            setStickyNotes(prev => {
+              const next = prev.map(n => (n.id === t.id ? { ...n, text: html } : n))
+              persistFlowchart(flowNodes, flowEdges, next, boardSections, boardComments)
+              return next
+            })
+          } else {
+            setFlowNodes(prev => {
+              const next = prev.map(n => (n.id === t.id ? { ...n, label: html } : n))
+              persistFlowchart(next, flowEdges, stickyNotes, boardSections, boardComments)
+              return next
+            })
+          }
         }
-        setStickyRichUi(u =>
-          u && u.noteId === id
-            ? {
-                ...u,
-                bold: document.queryCommandState('bold'),
-                italic: document.queryCommandState('italic'),
-                strike: document.queryCommandState('strikeThrough'),
-              }
-            : u
-        )
+        setRichToolbarUi(u => {
+          if (!u) return u
+          if (u.kind === 'sticky' && t.kind === 'sticky' && u.noteId === t.id) {
+            return {
+              ...u,
+              bold: document.queryCommandState('bold'),
+              italic: document.queryCommandState('italic'),
+              strike: document.queryCommandState('strikeThrough'),
+            }
+          }
+          if (u.kind === 'flow' && t.kind === 'flow' && u.nodeId === t.id) {
+            return {
+              ...u,
+              bold: document.queryCommandState('bold'),
+              italic: document.queryCommandState('italic'),
+              strike: document.queryCommandState('strikeThrough'),
+            }
+          }
+          return u
+        })
       })
     },
-    [flowNodes, flowEdges, boardSections, boardComments, persistFlowchart]
+    [flowNodes, flowEdges, stickyNotes, boardSections, boardComments, persistFlowchart]
   )
 
   useEffect(() => {
     const editable = project?.role === 'owner' || project?.role === 'editor'
     if (!editable) {
-      setStickyRichUi(null)
+      setRichToolbarUi(null)
       return
     }
     const measure = () => {
       const ae = document.activeElement as HTMLElement | null
-      const id = ae?.getAttribute('data-sticky-editor')
-      if (!id || !stickyEditorRefs.current.has(id)) {
-        setStickyRichUi(null)
+      const stickyId = ae?.getAttribute('data-sticky-editor')
+      const flowId = ae?.getAttribute('data-flow-editor')
+      const id = stickyId || flowId
+      const kind = stickyId ? ('sticky' as const) : flowId ? ('flow' as const) : null
+      if (
+        !id ||
+        !kind ||
+        (kind === 'sticky' && !stickyEditorRefs.current.has(id)) ||
+        (kind === 'flow' && !flowNodeEditorRefs.current.has(id))
+      ) {
+        setRichToolbarUi(null)
         return
       }
       const sel = window.getSelection()
@@ -1287,13 +1597,25 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
         width = Math.max(er.width - 28, 40)
         height = 22
       }
-      setStickyRichUi({
-        noteId: id,
-        rect: { left, top, width, height },
-        bold: document.queryCommandState('bold'),
-        italic: document.queryCommandState('italic'),
-        strike: document.queryCommandState('strikeThrough'),
-      })
+      setRichToolbarUi(
+        kind === 'sticky'
+          ? {
+              kind: 'sticky',
+              noteId: id,
+              rect: { left, top, width, height },
+              bold: document.queryCommandState('bold'),
+              italic: document.queryCommandState('italic'),
+              strike: document.queryCommandState('strikeThrough'),
+            }
+          : {
+              kind: 'flow',
+              nodeId: id,
+              rect: { left, top, width, height },
+              bold: document.queryCommandState('bold'),
+              italic: document.queryCommandState('italic'),
+              strike: document.queryCommandState('strikeThrough'),
+            }
+      )
     }
     document.addEventListener('selectionchange', measure)
     document.addEventListener('keyup', measure)
@@ -1337,13 +1659,14 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       } catch {
         /* ignore */
       }
-      setStickyRichUi(null)
+      setRichToolbarUi(null)
       setLinkingFromNodeId(null)
       setEdgeDraft(null)
     }
 
     setSelectedFlowNodeId(null)
     setSelectedFlowNodeIds([])
+    setSelectedFreeTextIds([])
     const middleMousePan = e.button === 1
     const leftMousePan = e.button === 0 && isSpacePressed
 
@@ -1385,6 +1708,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
         setSelectedSectionIds([])
         setSelectedCommentIds([])
         setSelectedImageIds([])
+        setSelectedFreeTextIds([])
         setSelectedFlowNodeId(null)
         e.preventDefault()
         return
@@ -1410,6 +1734,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
         setSelectedSectionIds([])
         setSelectedCommentIds([])
         setSelectedImageIds([])
+        setSelectedFreeTextIds([])
       }
       e.preventDefault()
       return
@@ -1449,6 +1774,34 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       setStickyNotes(prev =>
         prev.map(n =>
           n.id === r.id ? { ...n, x: next.x, y: next.y, width: next.w, height: next.h } : n
+        )
+      )
+      return
+    }
+
+    if (flowResizeRef.current) {
+      const r = flowResizeRef.current
+      const wp = getCanvasWorldPoint(e.clientX, e.clientY)
+      const dx = wp.x - r.startWorld.x
+      const dy = wp.y - r.startWorld.y
+      const next = applyFlowNodeResizeWithGrid(r.edge, r.start, dx, dy, GRID_SIZE, e.shiftKey)
+      setFlowNodes(prev =>
+        prev.map(n =>
+          n.id === r.id ? { ...n, x: next.x, y: next.y, width: next.w, height: next.h } : n
+        )
+      )
+      return
+    }
+
+    if (freeTextResizeRef.current) {
+      const r = freeTextResizeRef.current
+      const wp = getCanvasWorldPoint(e.clientX, e.clientY)
+      const dx = wp.x - r.startWorld.x
+      const dy = wp.y - r.startWorld.y
+      const next = applyFreeTextResizeWithGrid(r.edge, r.start, dx, dy, GRID_SIZE, e.shiftKey)
+      setBoardFreeTexts(prev =>
+        prev.map(t =>
+          t.id === r.id ? { ...t, x: next.x, y: next.y, width: next.w, height: next.h } : t
         )
       )
       return
@@ -1562,6 +1915,29 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       const newPos = snapPoint(rawPos.x, rawPos.y)
       setBoardComments(prev => prev.map(comment => (comment.id === commentId ? { ...comment, x: newPos.x, y: newPos.y } : comment)))
     }
+    if (draggingBoardFreeText.current) {
+      const ftId = draggingBoardFreeText.current
+      const rawPos = { x: worldPoint.x - dragOffset.current.x, y: worldPoint.y - dragOffset.current.y }
+      const newPos = snapPoint(rawPos.x, rawPos.y)
+      const g = freeTextDragGroupRef.current
+      if (g && g.primaryId === ftId) {
+        const s0 = g.startById[ftId]
+        const dx = newPos.x - s0.x
+        const dy = newPos.y - s0.y
+        setBoardFreeTexts(prev =>
+          prev.map(t => {
+            if (!g.ids.includes(t.id)) return t
+            const init = g.startById[t.id]
+            if (!init) return t
+            return { ...t, ...snapPoint(init.x + dx, init.y + dy) }
+          })
+        )
+      } else {
+        setBoardFreeTexts(prev =>
+          prev.map(t => (t.id === ftId ? { ...t, x: newPos.x, y: newPos.y } : t))
+        )
+      }
+    }
     if (draggingFlowNode.current) {
       const nodeId = draggingFlowNode.current
       const rawPos = {
@@ -1647,13 +2023,13 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
         .map(({ slug }) => slug)
       const selectedFlowNodeIdsFromBox = flowNodes
         .map(node => {
-          const style = getFlowNodeStyle(node.shape)
+          const dim = getFlowNodeDimensions(node)
           return {
             id: node.id,
             minX: node.x,
             minY: node.y,
-            maxX: node.x + style.width,
-            maxY: node.y + style.height,
+            maxX: node.x + dim.width,
+            maxY: node.y + dim.height,
           }
         })
         .filter(nodeBox => (
@@ -1683,6 +2059,25 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
         ))
         .map(box => box.id)
 
+      const selectedFreeTextIdsFromBox = boardFreeTexts
+        .map(ft => {
+          const { w, h } = getFreeTextSize(ft)
+          return {
+            id: ft.id,
+            minX: ft.x,
+            minY: ft.y,
+            maxX: ft.x + w,
+            maxY: ft.y + h,
+          }
+        })
+        .filter(box => (
+          box.maxX >= minX &&
+          box.minX <= maxX &&
+          box.maxY >= minY &&
+          box.minY <= maxY
+        ))
+        .map(box => box.id)
+
       if (Math.abs(maxX - minX) < epsilon && Math.abs(maxY - minY) < epsilon) {
         if (!marqueeIsAdditiveRef.current) {
           setSelectedCardSlugs([])
@@ -1691,17 +2086,20 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           setSelectedSectionIds([])
           setSelectedCommentIds([])
           setSelectedImageIds([])
+          setSelectedFreeTextIds([])
           setSelectedFlowNodeId(null)
         }
       } else if (marqueeIsAdditiveRef.current) {
         setSelectedCardSlugs(prev => Array.from(new Set([...prev, ...selectedCardSlugsFromBox])))
         setSelectedFlowNodeIds(prev => Array.from(new Set([...prev, ...selectedFlowNodeIdsFromBox])))
         setSelectedStickyNoteIds(prev => Array.from(new Set([...prev, ...selectedStickyNoteIdsFromBox])))
+        setSelectedFreeTextIds(prev => Array.from(new Set([...prev, ...selectedFreeTextIdsFromBox])))
       } else {
         setSelectedCardSlugs(selectedCardSlugsFromBox)
         setSelectedFlowNodeIds(selectedFlowNodeIdsFromBox)
         setSelectedFlowNodeId(selectedFlowNodeIdsFromBox[0] || null)
         setSelectedStickyNoteIds(selectedStickyNoteIdsFromBox)
+        setSelectedFreeTextIds(selectedFreeTextIdsFromBox)
       }
     }
     isMarqueeSelecting.current = false
@@ -1765,6 +2163,36 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
         return next
       })
     }
+    if (flowResizeRef.current) {
+      const resizedId = flowResizeRef.current.id
+      flowResizeRef.current = null
+      setFlowNodes(prev => {
+        const next = prev.map(n => {
+          if (n.id !== resizedId) return n
+          const w = snapStickyDimensionToGrid(n.width, GRID_SIZE, FLOW_NODE_MIN_W)
+          const h = snapStickyDimensionToGrid(n.height, GRID_SIZE, FLOW_NODE_MIN_H)
+          const pos = snapPoint(n.x, n.y)
+          return { ...n, x: pos.x, y: pos.y, width: w, height: h }
+        })
+        persistFlowchart(next, flowEdges)
+        return next
+      })
+    }
+    if (freeTextResizeRef.current) {
+      const resizedId = freeTextResizeRef.current.id
+      freeTextResizeRef.current = null
+      setBoardFreeTexts(prev => {
+        const next = prev.map(t => {
+          if (t.id !== resizedId) return t
+          const w = snapStickyDimensionToGrid(t.width, GRID_SIZE, FREE_TEXT_MIN_W)
+          const h = snapStickyDimensionToGrid(t.height, GRID_SIZE, FREE_TEXT_MIN_H)
+          const pos = snapPoint(t.x, t.y)
+          return { ...t, x: pos.x, y: pos.y, width: w, height: h }
+        })
+        persistFlowchart(flowNodes, flowEdges, stickyNotes, boardSections, boardComments, boardImages, next)
+        return next
+      })
+    }
     if (draggingBoardSection.current) {
       draggingBoardSection.current = null
       setActiveSectionDragId(null)
@@ -1782,6 +2210,11 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       draggingBoardComment.current = null
       persistFlowchart(flowNodes, flowEdges, stickyNotes, boardSections, boardComments)
     }
+    if (draggingBoardFreeText.current) {
+      draggingBoardFreeText.current = null
+      freeTextDragGroupRef.current = null
+      persistFlowchart(flowNodes, flowEdges, stickyNotes, boardSections, boardComments, boardImages)
+    }
     if (edgeDraft) {
       const worldPoint = e ? getCanvasWorldPoint(e.clientX, e.clientY) : { x: edgeDraft.currentX, y: edgeDraft.currentY }
       const hit = getConnectorHitAtWorldPoint(worldPoint.x, worldPoint.y, edgeDraft.fromNodeId)
@@ -1793,10 +2226,28 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           fromSide: edgeDraft.fromSide,
           toSide: hit.side,
         }
+        let nodesForPersist: FlowNode[] = flowNodes
+        flushSync(() => {
+          setFlowNodes(prevNodes => {
+            const fromNode = prevNodes.find(n => n.id === edge.from)
+            const toNode = prevNodes.find(n => n.id === edge.to)
+            if (!fromNode || !toNode) {
+              nodesForPersist = prevNodes
+              return prevNodes
+            }
+            const raw = alignFlowTargetToSource(fromNode, toNode, edge.fromSide!, edge.toSide!)
+            const snapped = snapPoint(raw.x, raw.y)
+            const next = prevNodes.map(n =>
+              n.id === toNode.id ? { ...n, x: snapped.x, y: snapped.y } : n
+            )
+            nodesForPersist = next
+            return next
+          })
+        })
         setFlowEdges(prev => {
           const exists = prev.some(item => item.from === edge.from && item.to === edge.to)
           const next = exists ? prev : [...prev, edge]
-          persistFlowchart(flowNodes, next)
+          persistFlowchart(nodesForPersist, next)
           return next
         })
       }
@@ -1841,6 +2292,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     setSelectedSectionIds([])
     setSelectedCommentIds([])
     setSelectedImageIds([])
+    setSelectedFreeTextIds([])
     e.stopPropagation()
 
     const moveSlugs =
@@ -1943,7 +2395,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
 
   const openBoardShapeContextMenu = (
     e: React.MouseEvent,
-    shapeKind: 'flow' | 'sticky' | 'section' | 'comment' | 'image',
+    shapeKind: 'flow' | 'sticky' | 'section' | 'comment' | 'image' | 'freeText',
     id: string
   ) => {
     if (!canEdit) return
@@ -1960,6 +2412,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       if (shapeKind !== 'section') setSelectedSectionIds([])
       if (shapeKind !== 'comment') setSelectedCommentIds([])
       if (shapeKind !== 'image') setSelectedImageIds([])
+      if (shapeKind !== 'freeText') setSelectedFreeTextIds([])
     }
     if (shapeKind === 'flow') {
       setSelectedFlowNodeIds(prev => mergeBoardIdSelection(prev, id, additive))
@@ -1970,6 +2423,8 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       setSelectedSectionIds(prev => mergeBoardIdSelection(prev, id, additive))
     } else if (shapeKind === 'image') {
       setSelectedImageIds(prev => mergeBoardIdSelection(prev, id, additive))
+    } else if (shapeKind === 'freeText') {
+      setSelectedFreeTextIds(prev => mergeBoardIdSelection(prev, id, additive))
     } else {
       setSelectedCommentIds(prev => mergeBoardIdSelection(prev, id, additive))
     }
@@ -2080,14 +2535,17 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     const centerY = at ? at.y : rect ? (rect.height / 2 - pan.y) / zoom : 160
     const nodeStyle = getFlowNodeStyle(shape)
     const snapped = snapPoint(centerX, centerY)
+    const lib = FLOW_SHAPE_LIBRARY.find(s => s.shape === shape)
     const newNode: FlowNode = {
       id: `node-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       x: snapped.x - nodeStyle.width / 2,
       y: snapped.y - nodeStyle.height / 2,
       width: nodeStyle.width,
       height: nodeStyle.height,
-      label: FLOW_SHAPE_LIBRARY.find(s => s.shape === shape)?.label || 'Trin',
+      label: lib ? migratePlainStickyTextToHtml(lib.label) : migratePlainStickyTextToHtml('Trin'),
       shape,
+      fillColor: '#FFFFFF',
+      format: { ...DEFAULT_STICKY_NOTE_FORMAT },
     }
     setFlowNodes(prev => {
       const next = [...prev, newNode]
@@ -2106,6 +2564,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       setSelectedSectionIds([])
       setSelectedCommentIds([])
       setSelectedImageIds([])
+      setSelectedFreeTextIds([])
     }
     const prevF = selectedFlowNodeIds
     const nextFlowSel = !additive
@@ -2179,40 +2638,28 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     e.preventDefault()
   }
 
-  const onStickyNoteCardMouseDown = (e: React.MouseEvent, noteId: string) => {
+  const onFlowNodeCardMouseDown = (e: React.MouseEvent, nodeId: string) => {
     const el = boardPointerTargetElement(e.target)
+    // Træk må ikke starte fra tekstfeltet — så kan contenteditable få fokus og man kan skrive.
+    // Træk fra tom padding, kant eller footer-område omkring editoren.
     if (
       el &&
-      (el.tagName === 'TEXTAREA' ||
-        el.closest('button') ||
-        el.closest('[data-sticky-editor]') ||
-        el.closest('[data-sticky-resize]'))
+      (el.hasAttribute('data-flow-editor') ||
+        el.closest('[data-flow-editor]') ||
+        el.closest('[data-flow-resize]') ||
+        el.closest('button'))
     ) {
       return
     }
-    onStickyNoteMouseDown(e, noteId)
+    onFlowNodeMouseDown(e, nodeId)
   }
 
-  const selectStickyNote = (noteId: string, additive: boolean) => {
-    setContextMenu(null)
-    if (!additive) {
-      setSelectedCardSlugs([])
-      setSelectedFlowNodeIds([])
-      setSelectedSectionIds([])
-      setSelectedCommentIds([])
-      setSelectedImageIds([])
-    }
-    setSelectedStickyNoteIds(prev => {
-      if (!additive) return [noteId]
-      if (prev.includes(noteId)) return prev.filter(id => id !== noteId)
-      return [...prev, noteId]
-    })
-  }
-
-  const onStickyNoteMouseDown = (e: React.MouseEvent, noteId: string) => {
+  const runStickyNoteDragStart = (
+    noteId: string,
+    source: Pick<MouseEvent, 'clientX' | 'clientY' | 'altKey' | 'metaKey' | 'ctrlKey' | 'shiftKey'>
+  ) => {
     if (!canEdit) return
-    e.stopPropagation()
-    const additive = e.metaKey || e.ctrlKey || e.shiftKey
+    const additive = source.metaKey || source.ctrlKey || source.shiftKey
     selectStickyNote(noteId, additive)
     const prevS = selectedStickyNoteIds
     const nextSel = !additive
@@ -2226,7 +2673,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     let primaryDragId = noteId
     let dragNote: StickyNote | undefined
 
-    if (e.altKey && moveIds.length > 0) {
+    if (source.altKey && moveIds.length > 0) {
       const pairs: { oldId: string; clone: StickyNote }[] = []
       let i = 0
       for (const oldId of moveIds) {
@@ -2278,10 +2725,98 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
 
     if (!dragNote) return
     const rect = canvasRef.current!.getBoundingClientRect()
-    const mx = (e.clientX - rect.left - pan.x) / zoom
-    const my = (e.clientY - rect.top - pan.y) / zoom
+    const mx = (source.clientX - rect.left - pan.x) / zoom
+    const my = (source.clientY - rect.top - pan.y) / zoom
     dragOffset.current = { x: mx - dragNote.x, y: my - dragNote.y }
     draggingStickyNote.current = primaryDragId
+  }
+
+  const onStickyNoteCardMouseDown = (e: React.MouseEvent, noteId: string) => {
+    if (!canEdit) return
+    const el = boardPointerTargetElement(e.target)
+    if (el && (el.closest('button') || el.closest('[data-sticky-resize]'))) {
+      return
+    }
+    const onStickyEditor = Boolean(el?.closest('[data-sticky-editor]'))
+    const stickyIsSelected = selectedStickyNoteIds.includes(noteId)
+
+    if (onStickyEditor && stickyIsSelected) {
+      e.stopPropagation()
+      const startX = e.clientX
+      const startY = e.clientY
+      const th = STICKY_EDITOR_DRAG_THRESHOLD_PX
+      const th2 = th * th
+      const onMove = (ev: PointerEvent) => {
+        const dx = ev.clientX - startX
+        const dy = ev.clientY - startY
+        if (dx * dx + dy * dy <= th2) return
+        window.removeEventListener('pointermove', onMove)
+        window.removeEventListener('pointerup', onUp)
+        ev.preventDefault()
+        try {
+          const ae = document.activeElement as HTMLElement | null
+          if (ae && ae.closest('[data-sticky-editor]')) ae.blur()
+        } catch {
+          /* ignore */
+        }
+        try {
+          window.getSelection()?.removeAllRanges()
+        } catch {
+          /* ignore */
+        }
+        runStickyNoteDragStart(noteId, ev)
+      }
+      const onUp = () => {
+        window.removeEventListener('pointermove', onMove)
+        window.removeEventListener('pointerup', onUp)
+      }
+      window.addEventListener('pointermove', onMove)
+      window.addEventListener('pointerup', onUp)
+      return
+    }
+
+    onStickyNoteMouseDown(e, noteId)
+  }
+
+  const selectStickyNote = (noteId: string, additive: boolean) => {
+    setContextMenu(null)
+    if (!additive) {
+      setSelectedCardSlugs([])
+      setSelectedFlowNodeIds([])
+      setSelectedSectionIds([])
+      setSelectedCommentIds([])
+      setSelectedImageIds([])
+      setSelectedFreeTextIds([])
+    }
+    setSelectedStickyNoteIds(prev => {
+      if (!additive) return [noteId]
+      if (prev.includes(noteId)) return prev.filter(id => id !== noteId)
+      return [...prev, noteId]
+    })
+  }
+
+  const selectFlowNodeForEditor = (nodeId: string, additive: boolean) => {
+    setContextMenu(null)
+    if (!additive) {
+      setSelectedCardSlugs([])
+      setSelectedStickyNoteIds([])
+      setSelectedSectionIds([])
+      setSelectedCommentIds([])
+      setSelectedImageIds([])
+      setSelectedFreeTextIds([])
+    }
+    setSelectedFlowNodeIds(prev => {
+      if (!additive) return [nodeId]
+      if (prev.includes(nodeId)) return prev.filter(id => id !== nodeId)
+      return [...prev, nodeId]
+    })
+    setSelectedFlowNodeId(nodeId)
+  }
+
+  const onStickyNoteMouseDown = (e: React.MouseEvent, noteId: string) => {
+    if (!canEdit) return
+    e.stopPropagation()
+    runStickyNoteDragStart(noteId, e)
     e.preventDefault()
   }
 
@@ -2304,6 +2839,26 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     setSelectedStickyNoteIds(prev => (prev.includes(noteId) ? prev : [noteId]))
   }
 
+  const onFlowNodeResizeMouseDown = (e: React.MouseEvent, nodeId: string, edge: SectionResizeEdge) => {
+    if (!canEdit) return
+    e.stopPropagation()
+    e.preventDefault()
+    const node = flowNodes.find(n => n.id === nodeId)
+    if (!node) return
+    const dim = getFlowNodeDimensions(node)
+    const rect = canvasRef.current!.getBoundingClientRect()
+    const wx = (e.clientX - rect.left - pan.x) / zoom
+    const wy = (e.clientY - rect.top - pan.y) / zoom
+    flowResizeRef.current = {
+      id: nodeId,
+      edge,
+      startWorld: { x: wx, y: wy },
+      start: { x: node.x, y: node.y, w: dim.width, h: dim.height },
+    }
+    setSelectedFlowNodeIds(prev => (prev.includes(nodeId) ? prev : [nodeId]))
+    setSelectedFlowNodeId(nodeId)
+  }
+
   const onSectionMouseDown = (e: React.MouseEvent, sectionId: string) => {
     if (!canEdit) return
     e.stopPropagation()
@@ -2313,6 +2868,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     setSelectedStickyNoteIds([])
     setSelectedCommentIds([])
     setSelectedImageIds([])
+    setSelectedFreeTextIds([])
     const base = boardSections.find(s => s.id === sectionId)
     if (!base) return
     const D = BOARD_ALT_DUPLICATE_OFFSET
@@ -2372,6 +2928,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       setSelectedStickyNoteIds([])
       setSelectedSectionIds([])
       setSelectedImageIds([])
+      setSelectedFreeTextIds([])
     }
     const base = boardComments.find(c => c.id === commentId)
     if (!base) return
@@ -2406,6 +2963,193 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     e.preventDefault()
   }
 
+  const onFreeTextResizeMouseDown = (e: React.MouseEvent, freeTextId: string, edge: SectionResizeEdge) => {
+    if (!canEdit) return
+    e.stopPropagation()
+    e.preventDefault()
+    const ft = boardFreeTexts.find(t => t.id === freeTextId)
+    if (!ft) return
+    const { w, h } = getFreeTextSize(ft)
+    const rect = canvasRef.current!.getBoundingClientRect()
+    const wx = (e.clientX - rect.left - pan.x) / zoom
+    const wy = (e.clientY - rect.top - pan.y) / zoom
+    freeTextResizeRef.current = {
+      id: freeTextId,
+      edge,
+      startWorld: { x: wx, y: wy },
+      start: { x: ft.x, y: ft.y, w, h },
+    }
+    setSelectedFreeTextIds(prev => (prev.includes(freeTextId) ? prev : [freeTextId]))
+  }
+
+  const runFreeTextDragStart = (
+    freeTextId: string,
+    source: Pick<MouseEvent, 'clientX' | 'clientY' | 'altKey' | 'metaKey' | 'ctrlKey' | 'shiftKey'>
+  ) => {
+    if (!canEdit) return
+    const additive = source.metaKey || source.ctrlKey || source.shiftKey
+    setContextMenu(null)
+    if (!additive) {
+      setSelectedCardSlugs([])
+      setSelectedFlowNodeIds([])
+      setSelectedFlowNodeId(null)
+      setSelectedStickyNoteIds([])
+      setSelectedSectionIds([])
+      setSelectedCommentIds([])
+      setSelectedImageIds([])
+    }
+    const prevS = selectedFreeTextIds
+    const nextSel = !additive
+      ? [freeTextId]
+      : prevS.includes(freeTextId)
+        ? prevS.filter(id => id !== freeTextId)
+        : [...prevS, freeTextId]
+    let moveIds = nextSel.includes(freeTextId) ? nextSel : [freeTextId]
+
+    const D = BOARD_ALT_DUPLICATE_OFFSET
+    let primaryDragId = freeTextId
+    let dragFt: BoardFreeText | undefined
+
+    if (source.altKey && moveIds.length > 0) {
+      const pairs: { oldId: string; clone: BoardFreeText }[] = []
+      let i = 0
+      for (const oldId of moveIds) {
+        const n = boardFreeTexts.find(nn => nn.id === oldId)
+        if (!n) continue
+        pairs.push({
+          oldId,
+          clone: {
+            ...n,
+            id: `ftext-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 7)}`,
+            x: n.x + D,
+            y: n.y + D,
+          },
+        })
+        i++
+      }
+      if (pairs.length === 0) return
+      const idMap = new Map(pairs.map(p => [p.oldId, p.clone.id]))
+      const mapped = idMap.get(freeTextId)
+      if (!mapped) return
+      primaryDragId = mapped
+      const clones = pairs.map(p => p.clone)
+      moveIds = clones.map(c => c.id)
+      dragFt = clones.find(c => c.id === primaryDragId)
+      setBoardFreeTexts(prev => {
+        const next = [...prev, ...clones]
+        persistFlowchart(flowNodes, flowEdges, stickyNotes, boardSections, boardComments, boardImages, next)
+        return next
+      })
+      setSelectedFreeTextIds(moveIds)
+      const startById: Record<string, { x: number; y: number }> = {}
+      for (const c of clones) startById[c.id] = { x: c.x, y: c.y }
+      freeTextDragGroupRef.current = { ids: moveIds, primaryId: primaryDragId, startById }
+    } else {
+      setSelectedFreeTextIds(prev => {
+        if (!additive) return [freeTextId]
+        if (prev.includes(freeTextId)) return prev.filter(id => id !== freeTextId)
+        return [...prev, freeTextId]
+      })
+      dragFt = boardFreeTexts.find(n => n.id === freeTextId)
+      const startById: Record<string, { x: number; y: number }> = {}
+      for (const id of moveIds) {
+        const n = boardFreeTexts.find(nn => nn.id === id)
+        if (n) startById[id] = { x: n.x, y: n.y }
+      }
+      freeTextDragGroupRef.current = { ids: moveIds, primaryId: freeTextId, startById }
+    }
+
+    if (!dragFt) return
+    const rect = canvasRef.current!.getBoundingClientRect()
+    const mx = (source.clientX - rect.left - pan.x) / zoom
+    const my = (source.clientY - rect.top - pan.y) / zoom
+    dragOffset.current = { x: mx - dragFt.x, y: my - dragFt.y }
+    draggingBoardFreeText.current = primaryDragId
+  }
+
+  const onFreeTextMouseDown = (e: React.MouseEvent, freeTextId: string) => {
+    if (!canEdit) return
+    e.stopPropagation()
+    runFreeTextDragStart(freeTextId, e)
+    e.preventDefault()
+  }
+
+  /**
+   * Som sticky: hele tekstfeltet flyttes efter lille musebevægelse; ellers klik = fokus/markering.
+   */
+  const onFreeTextCardMouseDown = (e: React.MouseEvent, freeTextId: string) => {
+    if (!canEdit) return
+    const el = boardPointerTargetElement(e.target)
+    if (
+      el &&
+      (el.tagName === 'SELECT' || el.closest('[data-free-text-resize]') || el.closest('button'))
+    ) {
+      return
+    }
+
+    const onTextarea = el?.tagName === 'TEXTAREA'
+
+    if (onTextarea) {
+      e.stopPropagation()
+      let dragStarted = false
+      const startX = e.clientX
+      const startY = e.clientY
+      const th = STICKY_EDITOR_DRAG_THRESHOLD_PX
+      const th2 = th * th
+      const onMove = (ev: PointerEvent) => {
+        if (dragStarted) return
+        const dx = ev.clientX - startX
+        const dy = ev.clientY - startY
+        if (dx * dx + dy * dy <= th2) return
+        dragStarted = true
+        window.removeEventListener('pointermove', onMove)
+        window.removeEventListener('pointerup', onUp)
+        ev.preventDefault()
+        try {
+          const ae = document.activeElement as HTMLTextAreaElement | null
+          if (ae?.tagName === 'TEXTAREA' && ae.dataset.freeTextId === freeTextId) {
+            ae.blur()
+          }
+        } catch {
+          /* ignore */
+        }
+        try {
+          window.getSelection()?.removeAllRanges()
+        } catch {
+          /* ignore */
+        }
+        runFreeTextDragStart(freeTextId, ev)
+      }
+      const onUp = () => {
+        window.removeEventListener('pointermove', onMove)
+        window.removeEventListener('pointerup', onUp)
+        if (!dragStarted) {
+          const additive = e.metaKey || e.ctrlKey || e.shiftKey
+          setContextMenu(null)
+          if (!additive) {
+            setSelectedCardSlugs([])
+            setSelectedFlowNodeIds([])
+            setSelectedFlowNodeId(null)
+            setSelectedStickyNoteIds([])
+            setSelectedSectionIds([])
+            setSelectedCommentIds([])
+            setSelectedImageIds([])
+          }
+          setSelectedFreeTextIds(prev => {
+            if (!additive) return [freeTextId]
+            if (prev.includes(freeTextId)) return prev.filter(id => id !== freeTextId)
+            return [...prev, freeTextId]
+          })
+        }
+      }
+      window.addEventListener('pointermove', onMove)
+      window.addEventListener('pointerup', onUp)
+      return
+    }
+
+    onFreeTextMouseDown(e, freeTextId)
+  }
+
   const onBoardImageMouseDown = (e: React.MouseEvent, imageId: string) => {
     if (!canEdit) return
     e.stopPropagation()
@@ -2418,6 +3162,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       setSelectedStickyNoteIds([])
       setSelectedSectionIds([])
       setSelectedCommentIds([])
+      setSelectedFreeTextIds([])
     }
     const prevI = selectedImageIds
     const nextSel = !additive
@@ -2515,15 +3260,48 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       setLinkingFromNodeId(null)
       return
     }
+    const fromId = linkingFromNodeId
+    let nodesForPersist: FlowNode[] = flowNodes
+    let fromSide: FlowConnectorSide = 'bottom'
+    let toSide: FlowConnectorSide = 'top'
+    let ok = true
+    flushSync(() => {
+      setFlowNodes(prev => {
+        const fromNode = prev.find(n => n.id === fromId)
+        const toNode = prev.find(n => n.id === nodeId)
+        if (!fromNode || !toNode) {
+          ok = false
+          nodesForPersist = prev
+          return prev
+        }
+        const dFrom = getFlowNodeDimensions(fromNode)
+        const dTo = getFlowNodeDimensions(toNode)
+        const fromCenter = { x: fromNode.x + dFrom.width / 2, y: fromNode.y + dFrom.height / 2 }
+        const toCenter = { x: toNode.x + dTo.width / 2, y: toNode.y + dTo.height / 2 }
+        fromSide = getClosestTargetSide(fromNode, toCenter)
+        toSide = getClosestTargetSide(toNode, fromCenter)
+        const raw = alignFlowTargetToSource(fromNode, toNode, fromSide, toSide)
+        const snapped = snapPoint(raw.x, raw.y)
+        const next = prev.map(n => (n.id === nodeId ? { ...n, x: snapped.x, y: snapped.y } : n))
+        nodesForPersist = next
+        return next
+      })
+    })
+    if (!ok) {
+      setLinkingFromNodeId(null)
+      return
+    }
     const edge: FlowEdge = {
       id: `edge-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      from: linkingFromNodeId,
+      from: fromId,
       to: nodeId,
+      fromSide,
+      toSide,
     }
     setFlowEdges(prev => {
       const exists = prev.some(e => e.from === edge.from && e.to === edge.to)
       const next = exists ? prev : [...prev, edge]
-      persistFlowchart(flowNodes, next)
+      persistFlowchart(nodesForPersist, next)
       return next
     })
     setLinkingFromNodeId(null)
@@ -2696,6 +3474,36 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     setSelectedCommentIds([comment.id])
   }
 
+  const addBoardFreeText = (at?: { x: number; y: number }) => {
+    if (!canEdit) return
+    const rect = canvasRef.current?.getBoundingClientRect()
+    const centerX = at ? at.x : rect ? (rect.width / 2 - pan.x) / zoom : 240
+    const centerY = at ? at.y : rect ? (rect.height / 2 - pan.y) / zoom : 240
+    const pos = snapPoint(centerX - FREE_TEXT_DEFAULT_W / 2, centerY - FREE_TEXT_DEFAULT_H / 2)
+    const item: BoardFreeText = {
+      id: `ftext-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      x: pos.x,
+      y: pos.y,
+      width: FREE_TEXT_DEFAULT_W,
+      height: FREE_TEXT_DEFAULT_H,
+      text: '',
+      fontSizePx: FREE_TEXT_FONT_SIZE_DEFAULT,
+    }
+    setBoardFreeTexts(prev => {
+      const next = [...prev, item]
+      persistFlowchart(flowNodes, flowEdges, stickyNotes, boardSections, boardComments, boardImages, next)
+      return next
+    })
+    setSelectedFreeTextIds([item.id])
+    setSelectedCardSlugs([])
+    setSelectedFlowNodeIds([])
+    setSelectedFlowNodeId(null)
+    setSelectedStickyNoteIds([])
+    setSelectedSectionIds([])
+    setSelectedCommentIds([])
+    setSelectedImageIds([])
+  }
+
   const removeStickyNotesByIds = (ids: string[]) => {
     if (!canEdit || ids.length === 0) return
     const idSet = new Set(ids)
@@ -2727,6 +3535,34 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       return next
     })
     setSelectedCommentIds(prev => prev.filter(id => !idSet.has(id)))
+  }
+
+  const removeFreeTextsByIds = (ids: string[]) => {
+    if (!canEdit || ids.length === 0) return
+    const idSet = new Set(ids)
+    setBoardFreeTexts(prev => {
+      const next = prev.filter(item => !idSet.has(item.id))
+      persistFlowchart(flowNodes, flowEdges, stickyNotes, boardSections, boardComments, boardImages, next)
+      return next
+    })
+    setSelectedFreeTextIds(prev => prev.filter(id => !idSet.has(id)))
+  }
+
+  /** Tomt tekstfelt fjernes når fokus forlader det (fx klik væk), undtagen under træk/resize. */
+  const scheduleRemoveEmptyFreeTextOnBlur = (id: string) => {
+    if (!canEdit) return
+    window.setTimeout(() => {
+      if (draggingBoardFreeText.current === id) return
+      if (freeTextResizeRef.current?.id === id) return
+      setBoardFreeTexts(prev => {
+        const item = prev.find(x => x.id === id)
+        if (!item || item.text.trim() !== '') return prev
+        const next = prev.filter(x => x.id !== id)
+        persistFlowchart(flowNodes, flowEdges, stickyNotes, boardSections, boardComments, boardImages, next)
+        queueMicrotask(() => setSelectedFreeTextIds(sel => sel.filter(x => x !== id)))
+        return next
+      })
+    }, 0)
   }
 
   const setCommentResolved = (commentId: string, resolved: boolean) => {
@@ -2911,6 +3747,18 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     })
   }
 
+  const bringSelectedFreeTextsToFront = () => {
+    if (!canEdit || selectedFreeTextIds.length === 0) return
+    const sel = new Set(selectedFreeTextIds)
+    setBoardFreeTexts(prev => {
+      const rest = prev.filter(t => !sel.has(t.id))
+      const moved = prev.filter(t => sel.has(t.id))
+      const next = [...rest, ...moved]
+      persistFlowchart(flowNodes, flowEdges, stickyNotes, boardSections, boardComments, boardImages, next)
+      return next
+    })
+  }
+
   const duplicateSelectedStickies = () => {
     if (!canEdit || selectedStickyNoteIds.length === 0) return
     const D = 28
@@ -3007,6 +3855,25 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     persistFlowchart(flowNodes, flowEdges, stickyNotes, boardSections, next)
   }
 
+  const duplicateSelectedFreeTexts = () => {
+    if (!canEdit || selectedFreeTextIds.length === 0) return
+    const D = 28
+    const sel = new Set(selectedFreeTextIds)
+    const clones: BoardFreeText[] = boardFreeTexts
+      .filter(t => sel.has(t.id))
+      .map((t, i) => ({
+        ...t,
+        id: `ftext-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 7)}`,
+        x: t.x + D,
+        y: t.y + D,
+      }))
+    if (clones.length === 0) return
+    const next = [...boardFreeTexts, ...clones]
+    setBoardFreeTexts(next)
+    setSelectedFreeTextIds(clones.map(c => c.id))
+    persistFlowchart(flowNodes, flowEdges, stickyNotes, boardSections, boardComments, boardImages, next)
+  }
+
   const addBoardImageFromSrc = (src: string, at?: { x: number; y: number }) => {
     if (!canEdit) return
     const rect = canvasRef.current?.getBoundingClientRect()
@@ -3035,6 +3902,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     setSelectedStickyNoteIds([])
     setSelectedSectionIds([])
     setSelectedCommentIds([])
+    setSelectedFreeTextIds([])
   }
 
   const addBoardImageFromSrcRef = useRef(addBoardImageFromSrc)
@@ -3129,7 +3997,8 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
         selectedStickyNoteIds.length === 0 &&
         selectedSectionIds.length === 0 &&
         selectedCommentIds.length === 0 &&
-        selectedImageIds.length === 0
+        selectedImageIds.length === 0 &&
+        selectedFreeTextIds.length === 0
       ) return
       event.preventDefault()
       if (selectedFlowNodeIds.length > 0) {
@@ -3150,13 +4019,16 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       if (selectedImageIds.length > 0) {
         removeBoardImagesByIds(selectedImageIds)
       }
+      if (selectedFreeTextIds.length > 0) {
+        removeFreeTextsByIds(selectedFreeTextIds)
+      }
     }
 
     window.addEventListener('keydown', onKeyDownDeleteSelected)
     return () => {
       window.removeEventListener('keydown', onKeyDownDeleteSelected)
     }
-  }, [project?.role, selectedFlowNodeIds, selectedCardSlugs, selectedStickyNoteIds, selectedSectionIds, selectedCommentIds, selectedImageIds])
+  }, [project?.role, selectedFlowNodeIds, selectedCardSlugs, selectedStickyNoteIds, selectedSectionIds, selectedCommentIds, selectedImageIds, selectedFreeTextIds])
 
   const getCanvasWorldPoint = (clientX: number, clientY: number) => {
     const rect = canvasRef.current?.getBoundingClientRect()
@@ -3179,8 +4051,8 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     for (let i = flowNodes.length - 1; i >= 0; i--) {
       const node = flowNodes[i]
       if (excludeNodeId && node.id === excludeNodeId) continue
-      const style = getFlowNodeStyle(node.shape)
-      if (x >= node.x && x <= node.x + style.width && y >= node.y && y <= node.y + style.height) {
+      const dim = getFlowNodeDimensions(node)
+      if (x >= node.x && x <= node.x + dim.width && y >= node.y && y <= node.y + dim.height) {
         return node
       }
     }
@@ -3620,9 +4492,14 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const planningSingleToolMode = (kanbanReady && !ganttReady) || (!kanbanReady && ganttReady)
   const planningWideLayout = planningDualMode || planningSingleToolMode
 
-  const stickyToolbarNote = stickyRichUi
-    ? stickyNotes.find(n => n.id === stickyRichUi.noteId)
-    : undefined
+  const stickyToolbarNote =
+    richToolbarUi?.kind === 'sticky'
+      ? stickyNotes.find(n => n.id === richToolbarUi.noteId)
+      : undefined
+  const flowToolbarNode =
+    richToolbarUi?.kind === 'flow'
+      ? flowNodes.find(n => n.id === richToolbarUi.nodeId)
+      : undefined
 
   const workspaceTopBarOffset = isOffline ? 89 : 56
   const workspaceContentFrame: CSSProperties = {
@@ -3945,10 +4822,11 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                       style={{
                         width: 34,
                         height: 20,
-                        border: '2px solid #9CA3AF',
+                        border: 'none',
                         borderRadius: getFlowNodeStyle(item.shape).borderRadius > 20 ? 999 : 6,
                         clipPath: getFlowNodeStyle(item.shape).clipPath,
-                        background: draggingPaletteShape === item.shape ? '#FEF3C7' : '#F9FAFB',
+                        background: draggingPaletteShape === item.shape ? '#FEF3C7' : '#fff',
+                        boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
                         flexShrink: 0,
                       }}
                     />
@@ -4110,6 +4988,34 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                   strokeWidth="1.25"
                 />
                 <path d="M15 4.5v5h4.5" fill="#BBF7D0" stroke="#15803D" strokeWidth="1.25" strokeLinejoin="round" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              title="Tekstfelt — frit tekst på boardet"
+              aria-label="Indsæt tekstfelt på boardet"
+              disabled={!canEdit}
+              onClick={() => {
+                addBoardFreeText()
+                setHandPanTool(false)
+              }}
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: 11,
+                border: 'none',
+                background: 'transparent',
+                color: canEdit ? '#374151' : '#9CA3AF',
+                cursor: canEdit ? 'pointer' : 'not-allowed',
+                opacity: canEdit ? 1 : 0.45,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                <path d="M5 5.5h14v2.6H13.6V19h-3.2V8.1H5V5.5z" />
               </svg>
             </button>
             <button
@@ -4768,6 +5674,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           setSelectedSectionIds([])
           setSelectedCommentIds([])
           setSelectedImageIds([])
+          setSelectedFreeTextIds([])
           setContextMenu({
             type: 'canvas',
             x: e.clientX,
@@ -5158,7 +6065,10 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                 const isLinkSource = linkingFromNodeId === node.id
                 const isSelected = selectedFlowNodeIds.includes(node.id)
                 const showConnectors = hoveredFlowNodeId === node.id || isSelected || isLinkSource
-                const style = getFlowNodeStyle(node.shape)
+                const dim = getFlowNodeDimensions(node)
+                const isDecisionShape = node.shape === 'decision'
+                /** Diamant er smal mod spidser — lodrette indryk så tekst ligger i det bredere midterbånd */
+                const diamondPadV = isDecisionShape ? Math.max(14, Math.round(dim.height * 0.33)) : 0
                 return (
                   <div
                     key={node.id}
@@ -5169,145 +6079,187 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                       position: 'absolute',
                       left: node.x,
                       top: node.y,
-                      width: style.width,
-                      height: style.height,
-                      background: '#fff',
-                      border: isLinkSource ? '2px solid #F59E0B' : isSelected ? '2px solid #2563EB' : '2px solid #9CA3AF',
-                      borderRadius: style.borderRadius,
-                      clipPath: style.clipPath,
-                      transform: 'translateZ(0)',
-                      boxShadow: isLinkSource
-                        ? '0 0 0 3px rgba(245,158,11,0.22), 0 8px 20px rgba(0,0,0,0.12)'
-                        : isSelected
-                          ? '0 0 0 3px rgba(37,99,235,0.2), 0 8px 20px rgba(0,0,0,0.12)'
-                          : '0 8px 20px rgba(0,0,0,0.09)',
-                      padding: 10,
+                      width: dim.width,
+                      height: dim.height,
                       zIndex: 3,
-                      display: 'flex',
-                      flexDirection: 'column',
+                      transform: 'translateZ(0)',
                       userSelect: 'none',
+                      overflow: 'visible',
                     }}
-                    onMouseDown={e => onFlowNodeMouseDown(e, node.id)}
+                    onMouseDown={e => onFlowNodeCardMouseDown(e, node.id)}
                     onContextMenu={e => {
                       if (!canEdit) return
-                      const t = e.target as HTMLElement
-                      if (t.tagName === 'INPUT' || t.tagName === 'BUTTON') return
+                      const t = boardPointerTargetElement(e.target)
+                      if (
+                        t &&
+                        (t.hasAttribute('data-flow-resize') ||
+                          t.closest('[data-flow-resize]') ||
+                          t.hasAttribute('data-flow-editor') ||
+                          t.closest('[data-flow-editor]') ||
+                          t.tagName === 'TEXTAREA' ||
+                          t.tagName === 'INPUT' ||
+                          t.closest('button'))
+                      ) {
+                        return
+                      }
                       openBoardShapeContextMenu(e, 'flow', node.id)
                     }}
                     onMouseEnter={() => setHoveredFlowNodeId(node.id)}
                     onMouseLeave={() => setHoveredFlowNodeId(prev => (prev === node.id ? null : prev))}
                   >
-                    <input
-                      value={node.label}
-                      onMouseDown={e => e.stopPropagation()}
-                      onChange={e => {
-                        const nextLabel = e.target.value
-                        setFlowNodes(prev => {
-                          const next = prev.map(n => (n.id === node.id ? { ...n, label: nextLabel } : n))
-                          persistFlowchart(next, flowEdges)
-                          return next
-                        })
-                      }}
-                      disabled={!canEdit}
+                    {/* clipPath kun på selve figuren — ellers klippes connector-punkter halvt væk */}
+                    <div
                       style={{
+                        position: 'absolute',
+                        inset: 0,
+                        minHeight: 0,
+                        background: node.fillColor && node.fillColor !== '#FFFFFF' ? node.fillColor : '#fff',
                         border: 'none',
-                        background: 'transparent',
-                        width: '100%',
-                        textAlign: 'center',
-                        fontSize: 12,
-                        fontWeight: 700,
-                        color: '#1F2937',
-                        outline: 'none',
-                        marginTop: 'auto',
-                        marginBottom: 'auto',
+                        borderRadius: dim.borderRadius,
+                        clipPath: dim.clipPath,
+                        boxShadow: isLinkSource
+                          ? '0 0 0 3px rgba(245,158,11,0.35), 0 8px 20px rgba(0,0,0,0.12)'
+                          : isSelected
+                            ? '0 0 0 3px rgba(37,99,235,0.35), 0 8px 20px rgba(0,0,0,0.12)'
+                            : '0 8px 20px rgba(0,0,0,0.09)',
+                        ...(isDecisionShape
+                          ? {
+                              paddingTop: diamondPadV,
+                              paddingBottom: diamondPadV,
+                              /* ~17% pr. side → ~66% tekstbredde, matcher diamantens bredde ved ~33% fra spids */
+                              paddingLeft: 'max(10px, 17%)',
+                              paddingRight: 'max(10px, 17%)',
+                              justifyContent: 'center' as const,
+                            }
+                          : { padding: 10 }),
+                        display: 'flex',
+                        flexDirection: 'column',
+                        pointerEvents: 'auto',
                       }}
-                    />
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6 }}>
-                      <button
-                        type="button"
-                        onMouseDown={e => startEdgeDrag(e, node.id, 'left')}
-                        title="Træk pil fra venstre"
-                        style={{
-                          position: 'absolute',
-                          left: -7,
-                          top: '50%',
-                          transform: 'translateY(-50%)',
-                          width: 14,
-                          height: 14,
-                          borderRadius: '50%',
-                          border: '2px solid #fff',
-                          background: '#F59E0B',
-                          cursor: 'crosshair',
-                          boxShadow: '0 2px 7px rgba(0,0,0,0.22)',
-                          opacity: showConnectors ? 1 : 0,
-                          pointerEvents: showConnectors ? 'auto' : 'none',
-                          transition: 'opacity 120ms ease',
-                        }}
-                      />
-                      <button
-                        type="button"
-                        onMouseDown={e => startEdgeDrag(e, node.id, 'top')}
-                        title="Træk pil fra top"
-                        style={{
-                          position: 'absolute',
-                          top: -7,
-                          left: '50%',
-                          transform: 'translateX(-50%)',
-                          width: 14,
-                          height: 14,
-                          borderRadius: '50%',
-                          border: '2px solid #fff',
-                          background: '#F59E0B',
-                          cursor: 'crosshair',
-                          boxShadow: '0 2px 7px rgba(0,0,0,0.22)',
-                          opacity: showConnectors ? 1 : 0,
-                          pointerEvents: showConnectors ? 'auto' : 'none',
-                          transition: 'opacity 120ms ease',
-                        }}
-                      />
-                      <button
-                        type="button"
-                        onMouseDown={e => startEdgeDrag(e, node.id, 'right')}
-                        title="Træk pil fra højre"
-                        style={{
-                          position: 'absolute',
-                          right: -7,
-                          top: '50%',
-                          transform: 'translateY(-50%)',
-                          width: 14,
-                          height: 14,
-                          borderRadius: '50%',
-                          border: '2px solid #fff',
-                          background: '#F59E0B',
-                          cursor: 'crosshair',
-                          boxShadow: '0 2px 7px rgba(0,0,0,0.22)',
-                          opacity: showConnectors ? 1 : 0,
-                          pointerEvents: showConnectors ? 'auto' : 'none',
-                          transition: 'opacity 120ms ease',
-                        }}
-                      />
-                      <button
-                        type="button"
-                        onMouseDown={e => startEdgeDrag(e, node.id, 'bottom')}
-                        title="Træk pil fra bund"
-                        style={{
-                          position: 'absolute',
-                          bottom: -7,
-                          left: '50%',
-                          transform: 'translateX(-50%)',
-                          width: 14,
-                          height: 14,
-                          borderRadius: '50%',
-                          border: '2px solid #fff',
-                          background: '#F59E0B',
-                          cursor: 'crosshair',
-                          boxShadow: '0 2px 7px rgba(0,0,0,0.22)',
-                          opacity: showConnectors ? 1 : 0,
-                          pointerEvents: showConnectors ? 'auto' : 'none',
-                          transition: 'opacity 120ms ease',
-                        }}
+                    >
+                      <StickyNoteBodyEditor
+                        noteId={node.id}
+                        text={node.label}
+                        format={mergeStickyFormat(node.format, {})}
+                        disabled={!canEdit}
+                        isSelected={isSelected}
+                        onRequestSelect={selectFlowNodeForEditor}
+                        onCommitHtml={commitFlowNodeHtml}
+                        registerEditor={registerFlowNodeEditor}
+                        variant="flow"
                       />
                     </div>
+                    {canEdit && isSelected ? (
+                      <button
+                        type="button"
+                        data-flow-resize=""
+                        title="Træk — størrelse følger board-gitter (24 px)"
+                        aria-label="Ændr størrelse hjørne sydøst"
+                        onMouseDown={e => onFlowNodeResizeMouseDown(e, node.id, 'se')}
+                        style={{
+                          position: 'absolute',
+                          right: -6,
+                          bottom: -6,
+                          width: 11,
+                          height: 11,
+                          background: '#fff',
+                          border: '2px solid #2563EB',
+                          borderRadius: 2,
+                          padding: 0,
+                          zIndex: 8,
+                          boxSizing: 'border-box',
+                          cursor: 'nwse-resize',
+                        }}
+                      />
+                    ) : null}
+                    <button
+                      type="button"
+                      onMouseDown={e => startEdgeDrag(e, node.id, 'left')}
+                      title="Træk pil fra venstre"
+                      style={{
+                        position: 'absolute',
+                        left: -7,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        width: 14,
+                        height: 14,
+                        borderRadius: '50%',
+                        border: '2px solid #fff',
+                        background: '#F59E0B',
+                        cursor: 'crosshair',
+                        boxShadow: '0 2px 7px rgba(0,0,0,0.22)',
+                        opacity: showConnectors ? 1 : 0,
+                        pointerEvents: showConnectors ? 'auto' : 'none',
+                        transition: 'opacity 120ms ease',
+                        zIndex: 5,
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onMouseDown={e => startEdgeDrag(e, node.id, 'top')}
+                      title="Træk pil fra top"
+                      style={{
+                        position: 'absolute',
+                        top: -7,
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        width: 14,
+                        height: 14,
+                        borderRadius: '50%',
+                        border: '2px solid #fff',
+                        background: '#F59E0B',
+                        cursor: 'crosshair',
+                        boxShadow: '0 2px 7px rgba(0,0,0,0.22)',
+                        opacity: showConnectors ? 1 : 0,
+                        pointerEvents: showConnectors ? 'auto' : 'none',
+                        transition: 'opacity 120ms ease',
+                        zIndex: 5,
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onMouseDown={e => startEdgeDrag(e, node.id, 'right')}
+                      title="Træk pil fra højre"
+                      style={{
+                        position: 'absolute',
+                        right: -7,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        width: 14,
+                        height: 14,
+                        borderRadius: '50%',
+                        border: '2px solid #fff',
+                        background: '#F59E0B',
+                        cursor: 'crosshair',
+                        boxShadow: '0 2px 7px rgba(0,0,0,0.22)',
+                        opacity: showConnectors ? 1 : 0,
+                        pointerEvents: showConnectors ? 'auto' : 'none',
+                        transition: 'opacity 120ms ease',
+                        zIndex: 5,
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onMouseDown={e => startEdgeDrag(e, node.id, 'bottom')}
+                      title="Træk pil fra bund"
+                      style={{
+                        position: 'absolute',
+                        bottom: -7,
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        width: 14,
+                        height: 14,
+                        borderRadius: '50%',
+                        border: '2px solid #fff',
+                        background: '#F59E0B',
+                        cursor: 'crosshair',
+                        boxShadow: '0 2px 7px rgba(0,0,0,0.22)',
+                        opacity: showConnectors ? 1 : 0,
+                        pointerEvents: showConnectors ? 'auto' : 'none',
+                        transition: 'opacity 120ms ease',
+                        zIndex: 5,
+                      }}
+                    />
                   </div>
                 )
               })}
@@ -5554,6 +6506,120 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                     {author}
                   </span>
                 </div>
+              </div>
+            )
+          })}
+
+          {boardFreeTexts.map(ft => {
+            const isSelected = selectedFreeTextIds.includes(ft.id)
+            const { w: ftW, h: ftH } = getFreeTextSize(ft)
+            const fontPx = getFreeTextFontSizePx(ft)
+            const ftResizeBtn: CSSProperties = {
+              position: 'absolute',
+              width: 8,
+              height: 8,
+              background: 'rgba(255,255,255,0.95)',
+              border: '1px solid #2563EB',
+              borderRadius: 1,
+              padding: 0,
+              zIndex: 8,
+              boxSizing: 'border-box',
+            }
+            return (
+              <div
+                key={ft.id}
+                data-board-free-text={ft.id}
+                onMouseDown={e => onFreeTextCardMouseDown(e, ft.id)}
+                onContextMenu={e => {
+                  const t = boardPointerTargetElement(e.target)
+                  if (t?.tagName === 'TEXTAREA') return
+                  openBoardShapeContextMenu(e, 'freeText', ft.id)
+                }}
+                style={{
+                  position: 'absolute',
+                  left: ft.x,
+                  top: ft.y,
+                  width: ftW,
+                  height: ftH,
+                  zIndex: 4,
+                  boxSizing: 'border-box',
+                  borderRadius: 0,
+                  border: 'none',
+                  background: 'transparent',
+                  boxShadow: 'none',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  cursor: 'default',
+                  overflow: 'visible',
+                }}
+              >
+                {canEdit && isSelected ? (
+                  <>
+                    <button
+                      type="button"
+                      data-free-text-resize=""
+                      title="Ændr størrelse (nordvest)"
+                      aria-label="Ændr størrelse hjørne nordvest"
+                      onMouseDown={e => onFreeTextResizeMouseDown(e, ft.id, 'nw')}
+                      style={{ ...ftResizeBtn, left: -5, top: -5, cursor: 'nwse-resize' }}
+                    />
+                    <button
+                      type="button"
+                      data-free-text-resize=""
+                      title="Ændr størrelse (nordøst)"
+                      aria-label="Ændr størrelse hjørne nordøst"
+                      onMouseDown={e => onFreeTextResizeMouseDown(e, ft.id, 'ne')}
+                      style={{ ...ftResizeBtn, right: -5, top: -5, cursor: 'nesw-resize' }}
+                    />
+                    <button
+                      type="button"
+                      data-free-text-resize=""
+                      title="Ændr størrelse (sydvest)"
+                      aria-label="Ændr størrelse hjørne sydvest"
+                      onMouseDown={e => onFreeTextResizeMouseDown(e, ft.id, 'sw')}
+                      style={{ ...ftResizeBtn, left: -5, bottom: -5, cursor: 'nesw-resize' }}
+                    />
+                    <button
+                      type="button"
+                      data-free-text-resize=""
+                      title="Ændr størrelse (sydøst)"
+                      aria-label="Ændr størrelse hjørne sydøst"
+                      onMouseDown={e => onFreeTextResizeMouseDown(e, ft.id, 'se')}
+                      style={{ ...ftResizeBtn, right: -5, bottom: -5, cursor: 'nwse-resize' }}
+                    />
+                  </>
+                ) : null}
+                <textarea
+                  value={ft.text}
+                  data-free-text-id={ft.id}
+                  onBlur={() => scheduleRemoveEmptyFreeTextOnBlur(ft.id)}
+                  onChange={e => {
+                    const nextText = e.target.value
+                    setBoardFreeTexts(prev => {
+                      const next = prev.map(item => (item.id === ft.id ? { ...item, text: nextText } : item))
+                      persistFlowchart(flowNodes, flowEdges, stickyNotes, boardSections, boardComments, boardImages, next)
+                      return next
+                    })
+                  }}
+                  disabled={!canEdit}
+                  placeholder=""
+                  style={{
+                    flex: 1,
+                    width: '100%',
+                    minHeight: 0,
+                    margin: 0,
+                    padding: 0,
+                    border: 'none',
+                    background: 'transparent',
+                    resize: 'none',
+                    outline: 'none',
+                    fontSize: fontPx,
+                    lineHeight: 1.45,
+                    color: '#0F172A',
+                    boxSizing: 'border-box',
+                    fontFamily: 'inherit',
+                  }}
+                />
               </div>
             )
           })}
@@ -6628,6 +7694,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
               <button type="button" onClick={() => { addStickyNote({ x: contextMenu.worldX, y: contextMenu.worldY }); setContextMenu(null) }} style={S.ctxItem}>Indsæt sticky note</button>
               <button type="button" onClick={() => { addBoardSection({ x: contextMenu.worldX, y: contextMenu.worldY }); setContextMenu(null) }} style={S.ctxItem}>Indsæt sektion</button>
               <button type="button" onClick={() => { addBoardComment({ x: contextMenu.worldX, y: contextMenu.worldY }); setContextMenu(null) }} style={S.ctxItem}>Indsæt kommentar</button>
+              <button type="button" onClick={() => { addBoardFreeText({ x: contextMenu.worldX, y: contextMenu.worldY }); setContextMenu(null) }} style={S.ctxItem}>Indsæt tekstfelt</button>
               <button
                 type="button"
                 onClick={() => {
@@ -6830,6 +7897,17 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                   <div style={S.ctxDivider} />
                 </>
               )}
+              {contextMenu.shapeKind === 'freeText' && (
+                <>
+                  <button type="button" onClick={() => { bringSelectedFreeTextsToFront(); setContextMenu(null) }} style={S.ctxItem}>
+                    Flyt valgte forrest{selectedFreeTextIds.length > 1 ? ` (${selectedFreeTextIds.length})` : ''}
+                  </button>
+                  <button type="button" onClick={() => { duplicateSelectedFreeTexts(); setContextMenu(null) }} style={S.ctxItem}>
+                    Duplikér / flyt valgte (+28){selectedFreeTextIds.length > 1 ? ` (${selectedFreeTextIds.length})` : ''}
+                  </button>
+                  <div style={S.ctxDivider} />
+                </>
+              )}
               {contextMenu.shapeKind === 'comment' && (
                 <>
                   <button type="button" onClick={() => { duplicateSelectedComments(); setContextMenu(null) }} style={S.ctxItem}>
@@ -6849,6 +7927,8 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                     removeSectionsByIds([...selectedSectionIds])
                   } else if (contextMenu.shapeKind === 'image') {
                     removeBoardImagesByIds([...selectedImageIds])
+                  } else if (contextMenu.shapeKind === 'freeText') {
+                    removeFreeTextsByIds([...selectedFreeTextIds])
                   } else {
                     removeCommentsByIds([...selectedCommentIds])
                   }
@@ -6867,7 +7947,9 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                         ? ` (${selectedImageIds.length})`
                         : contextMenu.shapeKind === 'comment' && selectedCommentIds.length > 1
                           ? ` (${selectedCommentIds.length})`
-                          : ''}
+                          : contextMenu.shapeKind === 'freeText' && selectedFreeTextIds.length > 1
+                            ? ` (${selectedFreeTextIds.length})`
+                            : ''}
               </button>
             </>
           ) : null}
@@ -6876,21 +7958,40 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       </ToolEmbedProvider>
       )}
 
-      {canEdit && stickyRichUi && stickyToolbarNote ? (
+      {canEdit &&
+      richToolbarUi &&
+      ((richToolbarUi.kind === 'sticky' && stickyToolbarNote) ||
+        (richToolbarUi.kind === 'flow' && flowToolbarNode)) ? (
         <StickyRichToolbar
           visible
           anchor={{
-            left: stickyRichUi.rect.left,
-            top: stickyRichUi.rect.top,
-            width: stickyRichUi.rect.width,
-            height: stickyRichUi.rect.height,
+            left: richToolbarUi.rect.left,
+            top: richToolbarUi.rect.top,
+            width: richToolbarUi.rect.width,
+            height: richToolbarUi.rect.height,
           }}
-          format={mergeStickyFormat(stickyToolbarNote.format, {})}
-          noteColor={stickyToolbarNote.color}
-          colorPalette={STICKY_NOTE_COLORS}
-          boldActive={stickyRichUi.bold}
-          italicActive={stickyRichUi.italic}
-          strikeActive={stickyRichUi.strike}
+          format={mergeStickyFormat(
+            richToolbarUi.kind === 'sticky' ? stickyToolbarNote!.format : flowToolbarNode!.format,
+            {}
+          )}
+          noteColor={
+            richToolbarUi.kind === 'sticky'
+              ? stickyToolbarNote!.color
+              : flowToolbarNode!.fillColor ?? '#FFFFFF'
+          }
+          colorPalette={
+            richToolbarUi.kind === 'sticky' ? STICKY_NOTE_COLORS : FLOWCHART_SHAPE_COLORS
+          }
+          toolbarAriaLabel={
+            richToolbarUi.kind === 'sticky' ? 'Sticky note formatering' : 'Flowchart formatering'
+          }
+          colorButtonTitle={richToolbarUi.kind === 'sticky' ? 'Sticky-farve' : 'Form-farve'}
+          colorButtonAriaLabel={
+            richToolbarUi.kind === 'sticky' ? 'Vælg sticky-farve' : 'Vælg form-farve'
+          }
+          boldActive={richToolbarUi.bold}
+          italicActive={richToolbarUi.italic}
+          strikeActive={richToolbarUi.strike}
           onSetNoteColor={handleToolbarSetNoteColor}
           onSetFormat={handleToolbarSetFormat}
           onFontSizePx={handleToolbarFontSize}
@@ -6933,18 +8034,73 @@ function getFlowNodeStyle(shape: FlowShape): { width: number; height: number; bo
   }
 }
 
+function getFlowNodeDimensions(node: FlowNode): {
+  width: number
+  height: number
+  borderRadius: number
+  clipPath?: string
+} {
+  const base = getFlowNodeStyle(node.shape)
+  const w =
+    typeof node.width === 'number' && Number.isFinite(node.width) && node.width >= FLOW_NODE_MIN_W
+      ? node.width
+      : base.width
+  const h =
+    typeof node.height === 'number' && Number.isFinite(node.height) && node.height >= FLOW_NODE_MIN_H
+      ? node.height
+      : base.height
+  return { width: w, height: h, borderRadius: base.borderRadius, clipPath: base.clipPath }
+}
+
 function getFlowNodeAnchor(node: FlowNode, side: 'left' | 'top' | 'bottom' | 'right') {
-  const style = getFlowNodeStyle(node.shape)
+  const dim = getFlowNodeDimensions(node)
   if (side === 'top') {
-    return { x: node.x + style.width / 2, y: node.y }
+    return { x: node.x + dim.width / 2, y: node.y }
   }
   if (side === 'bottom') {
-    return { x: node.x + style.width / 2, y: node.y + style.height }
+    return { x: node.x + dim.width / 2, y: node.y + dim.height }
   }
   return {
-    x: side === 'left' ? node.x : node.x + style.width,
-    y: node.y + style.height / 2,
+    x: side === 'left' ? node.x : node.x + dim.width,
+    y: node.y + dim.height / 2,
   }
+}
+
+/** Flytter mål-form så den flugter med kilden: lodrette forbindelser deler x-center, vandrette deler y-center. */
+function alignFlowTargetToSource(
+  from: FlowNode,
+  to: FlowNode,
+  fromSide: FlowConnectorSide,
+  toSide: FlowConnectorSide
+): { x: number; y: number } {
+  const dFrom = getFlowNodeDimensions(from)
+  const dTo = getFlowNodeDimensions(to)
+  const cxFrom = from.x + dFrom.width / 2
+  const cyFrom = from.y + dFrom.height / 2
+
+  let x = to.x
+  let y = to.y
+
+  const isVerticalConnector = (s: FlowConnectorSide) => s === 'top' || s === 'bottom'
+  const isHorizontalConnector = (s: FlowConnectorSide) => s === 'left' || s === 'right'
+
+  if (isVerticalConnector(fromSide) && isVerticalConnector(toSide)) {
+    x = cxFrom - dTo.width / 2
+  } else if (isHorizontalConnector(fromSide) && isHorizontalConnector(toSide)) {
+    y = cyFrom - dTo.height / 2
+  } else {
+    const aFrom = getFlowNodeAnchor(from, fromSide)
+    const aTo = getFlowNodeAnchor(to, toSide)
+    const dx = aTo.x - aFrom.x
+    const dy = aTo.y - aFrom.y
+    if (Math.abs(dy) >= Math.abs(dx)) {
+      x = cxFrom - dTo.width / 2
+    } else {
+      y = cyFrom - dTo.height / 2
+    }
+  }
+
+  return { x, y }
 }
 
 function getClosestTargetSide(node: FlowNode, point: { x: number; y: number }): FlowConnectorSide {

@@ -17,6 +17,8 @@ type Props = {
   onRequestSelect: (id: string, additive: boolean) => void
   onCommitHtml: (id: string, html: string) => void
   registerEditor: (id: string, el: HTMLDivElement | null) => void
+  /** Flowchart-former bruger `data-flow-editor` så samme toolbar kan måle markering. */
+  variant?: 'sticky' | 'flow'
 }
 
 export default function StickyNoteBodyEditor({
@@ -28,6 +30,7 @@ export default function StickyNoteBodyEditor({
   onRequestSelect,
   onCommitHtml,
   registerEditor,
+  variant = 'sticky',
 }: Props) {
   const elRef = useRef<HTMLDivElement>(null)
   const skipSync = useRef(false)
@@ -47,30 +50,35 @@ export default function StickyNoteBodyEditor({
     el.innerHTML = migratePlainStickyTextToHtml(text)
   }, [text, noteId])
 
+  const isFlow = variant === 'flow'
+
   return (
     <div
       ref={elRef}
-      data-sticky-editor={noteId}
+      {...(isFlow ? { 'data-flow-editor': noteId } : { 'data-sticky-editor': noteId })}
       contentEditable={!disabled}
       suppressContentEditableWarning
-      className="forge-sticky-note-input"
+      className={isFlow ? undefined : 'forge-sticky-note-input'}
       style={{
         flex: 1,
         minHeight: 0,
         width: '100%',
         border: 'none',
         background: 'transparent',
-        padding: '12px 12px 6px',
+        padding: isFlow ? '2px 4px' : '12px 12px 6px',
         fontSize: format.fontSizePx,
-        lineHeight: 1.4,
+        lineHeight: 1.35,
         outline: 'none',
         boxSizing: 'border-box',
         cursor: disabled ? 'default' : 'text',
         fontFamily: stickyFontStack(format.fontFamily),
-        fontWeight: format.bold ? 700 : 400,
-        fontStyle: format.italic ? 'italic' : 'normal',
+        /* Fed/kursiv kun via inline HTML (execCommand), ellers ville hele feltet arve format.bold/italic */
+        fontWeight: 400,
+        fontStyle: 'normal',
         overflow: 'auto',
         wordBreak: 'break-word',
+        overflowWrap: 'break-word',
+        textAlign: isFlow ? 'center' : undefined,
         userSelect: 'text',
         WebkitUserSelect: 'text',
       }}
