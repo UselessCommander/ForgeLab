@@ -715,6 +715,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const [currentUsername, setCurrentUsername] = useState<string>('Dig')
   const [liveCursors, setLiveCursors] = useState<Record<string, LiveCursor>>({})
   const [liveCardSelections, setLiveCardSelections] = useState<Record<string, LiveCardSelection>>({})
+  const [boardSyncVersion, setBoardSyncVersion] = useState(0)
 
   // ── Canvas state ──────────────────────────────────────────────────
   const [pan, setPan] = useState({ x: 60, y: 60 })
@@ -1070,6 +1071,19 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     [activeWorkspaceTab, currentUserId, currentUsername]
   )
 
+  const broadcastBoardRefresh = useCallback(async () => {
+    const channel = cursorChannelRef.current
+    if (!channel || !currentUserId || activeWorkspaceTab !== 'board') return
+    await channel.send({
+      type: 'broadcast',
+      event: 'board_refresh',
+      payload: {
+        userId: currentUserId,
+        ts: Date.now(),
+      },
+    })
+  }, [activeWorkspaceTab, currentUserId])
+
   useEffect(() => {
     if (activeWorkspaceTab !== 'board' || !projectId || !currentUserId) return
 
@@ -1170,6 +1184,9 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
             },
           }
         })
+      })
+      .on('broadcast', { event: 'board_refresh' }, () => {
+        setBoardSyncVersion((v) => v + 1)
       })
       .subscribe()
 
@@ -1483,7 +1500,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     return () => {
       mounted = false
     }
-  }, [projectId, currentUsername])
+  }, [projectId, currentUsername, boardSyncVersion])
 
   useEffect(() => {
     if (activeWorkspaceTab !== 'board') return
@@ -1533,10 +1550,14 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           images: nextImages,
           freeTexts: nextFreeTexts,
           updatedAt: Date.now(),
-        }).catch(console.error)
+        })
+          .then(() => {
+            void broadcastBoardRefresh()
+          })
+          .catch(console.error)
       }, 400)
     },
-    [projectId, stickyNotes, boardSections, boardComments, boardImages, boardFreeTexts]
+    [projectId, stickyNotes, boardSections, boardComments, boardImages, boardFreeTexts, broadcastBoardRefresh]
   )
 
   useEffect(() => {
@@ -1825,9 +1846,13 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       Object.entries(positions).forEach(([slug, { x, y }]) => {
         norm[slug] = { x: x / 1600, y: y / 900 }
       })
-      updateProject(projectId, { ddCanvasLayout: norm }).catch(console.error)
+      updateProject(projectId, { ddCanvasLayout: norm })
+        .then(() => {
+          void broadcastBoardRefresh()
+        })
+        .catch(console.error)
     },
-    [project, projectId]
+    [project, projectId, broadcastBoardRefresh]
   )
 
   const createBoardUndoSnapshot = useCallback((): BoardUndoSnapshot => {
@@ -4635,6 +4660,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       setModifying(true)
       await Promise.all(uniqueToolIds.map(async toolId => removeToolFromProject(projectId, toolId)))
       removeLocal()
+      await broadcastBoardRefresh()
     } catch {
       alert('Kunne ikke fjerne ét eller flere værktøjer. Prøv igen.')
     } finally {
@@ -4805,6 +4831,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       if (defaultPhase) {
         await updateProjectToolPhases(projectId, { [toolId]: defaultPhase })
       }
+      await broadcastBoardRefresh()
       setShowAddTool(false)
     } catch {
       if (shouldRollback) {
@@ -4891,6 +4918,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
         alert(`Tilføjede ${uniqueToolIds.length - failed.length}/${uniqueToolIds.length} værktøjer. ${failed.length} fejlede.`)
       }
 
+      await broadcastBoardRefresh()
       setShowAddTool(false)
     } catch {
       setProject(prev => {
@@ -4928,6 +4956,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       setCardPositions(prev => { const n = { ...prev }; delete n[toolId]; return n })
       setCardZOrder(prev => { const n = { ...prev }; delete n[toolId]; return n })
       setLockedCardSlugs(prev => prev.filter(slug => slug !== toolId))
+      await broadcastBoardRefresh()
     } catch {
       alert('Kunne ikke fjerne værktøj. Prøv igen.')
     } finally {
