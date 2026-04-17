@@ -331,6 +331,19 @@ type LiveCursor = LiveCursorPayload & {
   updatedAt: number
 }
 
+type LiveCardSelectionPayload = {
+  userId: string
+  username: string
+  color: string
+  selectedCardSlugs: string[]
+  visible: boolean
+  ts: number
+}
+
+type LiveCardSelection = LiveCardSelectionPayload & {
+  updatedAt: number
+}
+
 type BoardContextMenu =
   | { type: 'canvas'; x: number; y: number; worldX: number; worldY: number }
   | { type: 'card'; x: number; y: number; slug: string }
@@ -349,7 +362,19 @@ type MarqueeSelection = {
   currentY: number
 }
 
+type BoardClipboardPayload = {
+  copiedAt: number
+  flowNodes: FlowNode[]
+  flowEdges: FlowEdge[]
+  stickyNotes: StickyNote[]
+  sections: BoardSection[]
+  comments: BoardComment[]
+  images: BoardImage[]
+  freeTexts: BoardFreeText[]
+}
+
 const FLOWCHART_TOOL_SLUG = 'project-board-flowchart'
+const BOARD_CLIPBOARD_MIME = 'application/x-forgelab-board-items'
 /** Standard sticky-størrelse når width/height ikke er sat */
 const STICKY_NOTE_SIZE = 200
 const STICKY_NOTE_MIN_W = 100
@@ -669,6 +694,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [currentUsername, setCurrentUsername] = useState<string>('Dig')
   const [liveCursors, setLiveCursors] = useState<Record<string, LiveCursor>>({})
+  const [liveCardSelections, setLiveCardSelections] = useState<Record<string, LiveCardSelection>>({})
 
   // ── Canvas state ──────────────────────────────────────────────────
   const [pan, setPan] = useState({ x: 60, y: 60 })
@@ -777,6 +803,8 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const boardImageRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const stickyExportRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const flowNodeExportRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  const boardClipboardRef = useRef<BoardClipboardPayload | null>(null)
+  const boardPasteCountRef = useRef(0)
   const boardImageFileInputRef = useRef<HTMLInputElement | null>(null)
   const pendingImageWorldRef = useRef<{ x: number; y: number } | null>(null)
   const isMarqueeSelecting = useRef(false)
@@ -793,6 +821,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const cardElementRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const GRID_SIZE = 24
   const cursorChannelRef = useRef<any>(null)
+  const lastCardSelectionSignatureRef = useRef<string>('')
   const lastCursorSendAtRef = useRef(0)
   const liveCursorTargetsRef = useRef<Record<string, LiveCursor>>({})
   const liveCursorSmoothedRef = useRef<Record<string, { x: number; y: number }>>({})
@@ -961,6 +990,23 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     [activeWorkspaceTab, currentUserId, currentUsername]
   )
 
+  const broadcastCardSelection = useCallback(
+    async (slugs: string[], visible: boolean) => {
+      const channel = cursorChannelRef.current
+      if (!channel || !currentUserId || activeWorkspaceTab !== 'board') return
+      const payload: LiveCardSelectionPayload = {
+        userId: currentUserId,
+        username: currentUsername,
+        color: getStableCursorColor(currentUserId),
+        selectedCardSlugs: slugs,
+        visible,
+        ts: Date.now(),
+      }
+      await channel.send({ type: 'broadcast', event: 'card_selection', payload })
+    },
+    [activeWorkspaceTab, currentUserId, currentUsername]
+  )
+
   useEffect(() => {
     if (activeWorkspaceTab !== 'board' || !projectId || !currentUserId) return
 
@@ -1042,12 +1088,33 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
         }
         scheduleCursorSmoothing()
       })
+      .on('broadcast', { event: 'card_selection' }, (message: { payload?: LiveCardSelectionPayload }) => {
+        const payload = message?.payload
+        if (!payload || !payload.userId || payload.userId === currentUserId) return
+        const now = Date.now()
+        setLiveCardSelections(prev => {
+          if (!payload.visible || !Array.isArray(payload.selectedCardSlugs) || payload.selectedCardSlugs.length === 0) {
+            if (!prev[payload.userId]) return prev
+            const next = { ...prev }
+            delete next[payload.userId]
+            return next
+          }
+          return {
+            ...prev,
+            [payload.userId]: {
+              ...payload,
+              updatedAt: now,
+            },
+          }
+        })
+      })
       .subscribe()
 
     cursorChannelRef.current = channel
     liveCursorTargetsRef.current = {}
     liveCursorSmoothedRef.current = {}
     setLiveCursors({})
+    setLiveCardSelections({})
 
     const staleCleanup = window.setInterval(() => {
       const now = Date.now()
@@ -1063,6 +1130,18 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
         }
       }
       if (pruned) scheduleCursorSmoothing()
+      setLiveCardSelections(prev => {
+        let changed = false
+        const next: Record<string, LiveCardSelection> = {}
+        for (const [userId, item] of Object.entries(prev)) {
+          if (now - item.updatedAt > CURSOR_STALE_MS) {
+            changed = true
+            continue
+          }
+          next[userId] = item
+        }
+        return changed ? next : prev
+      })
     }, 2000)
 
     return () => {
@@ -1074,6 +1153,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       liveCursorTargetsRef.current = {}
       liveCursorSmoothedRef.current = {}
       setLiveCursors({})
+      setLiveCardSelections({})
       void channel.send({
         type: 'broadcast',
         event: 'cursor_move',
@@ -1086,10 +1166,31 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           ts: Date.now(),
         } satisfies LiveCursorPayload,
       })
+      void channel.send({
+        type: 'broadcast',
+        event: 'card_selection',
+        payload: {
+          userId: currentUserId,
+          username: currentUsername,
+          color: getStableCursorColor(currentUserId),
+          selectedCardSlugs: [],
+          visible: false,
+          ts: Date.now(),
+        } satisfies LiveCardSelectionPayload,
+      })
       cursorChannelRef.current = null
       void channel.unsubscribe()
     }
   }, [activeWorkspaceTab, currentUserId, currentUsername, projectId])
+
+  useEffect(() => {
+    if (activeWorkspaceTab !== 'board' || !currentUserId) return
+    const visible = selectedCardSlugs.length > 0
+    const signature = `${visible ? '1' : '0'}:${selectedCardSlugs.slice().sort().join('|')}`
+    if (signature === lastCardSelectionSignatureRef.current) return
+    lastCardSelectionSignatureRef.current = signature
+    void broadcastCardSelection(selectedCardSlugs, visible)
+  }, [activeWorkspaceTab, broadcastCardSelection, currentUserId, selectedCardSlugs])
 
   const handleDdCanvasLayoutSave = useCallback(
     async (layout: NonNullable<Project['ddCanvasLayout']>) => {
@@ -3874,6 +3975,175 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     persistFlowchart(flowNodes, flowEdges, stickyNotes, boardSections, boardComments, boardImages, next)
   }
 
+  const snapshotBoardSelectionToClipboard = (): BoardClipboardPayload | null => {
+    const selFlow = new Set(selectedFlowNodeIds)
+    const selSticky = new Set(selectedStickyNoteIds)
+    const selSections = new Set(selectedSectionIds)
+    const selComments = new Set(selectedCommentIds)
+    const selImages = new Set(selectedImageIds)
+    const selFreeTexts = new Set(selectedFreeTextIds)
+
+    const flowNodesSelected = flowNodes.filter(n => selFlow.has(n.id))
+    const flowEdgesSelected =
+      flowNodesSelected.length > 0
+        ? flowEdges.filter(e => selFlow.has(e.from) && selFlow.has(e.to))
+        : []
+    const stickySelected = stickyNotes.filter(n => selSticky.has(n.id))
+    const sectionsSelected = boardSections.filter(s => selSections.has(s.id))
+    const commentsSelected = boardComments.filter(c => selComments.has(c.id))
+    const imagesSelected = boardImages.filter(i => selImages.has(i.id))
+    const freeTextsSelected = boardFreeTexts.filter(t => selFreeTexts.has(t.id))
+
+    const hasAny =
+      flowNodesSelected.length > 0 ||
+      stickySelected.length > 0 ||
+      sectionsSelected.length > 0 ||
+      commentsSelected.length > 0 ||
+      imagesSelected.length > 0 ||
+      freeTextsSelected.length > 0
+    if (!hasAny) return null
+
+    return {
+      copiedAt: Date.now(),
+      flowNodes: flowNodesSelected,
+      flowEdges: flowEdgesSelected,
+      stickyNotes: stickySelected,
+      sections: sectionsSelected,
+      comments: commentsSelected,
+      images: imagesSelected,
+      freeTexts: freeTextsSelected,
+    }
+  }
+
+  const pasteBoardClipboard = (payload: BoardClipboardPayload, anchor?: { x: number; y: number }): boolean => {
+    if (!canEdit) return false
+    const allCoords: Array<{ x: number; y: number }> = [
+      ...payload.flowNodes.map(n => ({ x: n.x, y: n.y })),
+      ...payload.stickyNotes.map(n => ({ x: n.x, y: n.y })),
+      ...payload.sections.map(s => ({ x: s.x, y: s.y })),
+      ...payload.comments.map(c => ({ x: c.x, y: c.y })),
+      ...payload.images.map(i => ({ x: i.x, y: i.y })),
+      ...payload.freeTexts.map(t => ({ x: t.x, y: t.y })),
+    ]
+    if (allCoords.length === 0) return false
+    const minX = Math.min(...allCoords.map(p => p.x))
+    const minY = Math.min(...allCoords.map(p => p.y))
+
+    const rect = canvasRef.current?.getBoundingClientRect()
+    const fallbackX = rect ? (rect.width / 2 - pan.x) / zoom : 220
+    const fallbackY = rect ? (rect.height / 2 - pan.y) / zoom : 220
+    const base = anchor ?? { x: fallbackX, y: fallbackY }
+
+    boardPasteCountRef.current += 1
+    const pasteOffset = boardPasteCountRef.current * BOARD_ALT_DUPLICATE_OFFSET
+    const dx = base.x - minX + pasteOffset
+    const dy = base.y - minY + pasteOffset
+
+    const flowIdMap = new Map<string, string>()
+    const flowClones = payload.flowNodes.map((n, i) => {
+      const id = `node-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 7)}`
+      flowIdMap.set(n.id, id)
+      const pos = snapPoint(n.x + dx, n.y + dy)
+      return { ...n, id, x: pos.x, y: pos.y }
+    })
+    const flowEdgeClones = payload.flowEdges
+      .map((e, i) => {
+        const from = flowIdMap.get(e.from)
+        const to = flowIdMap.get(e.to)
+        if (!from || !to) return null
+        return {
+          ...e,
+          id: `edge-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 7)}`,
+          from,
+          to,
+        }
+      })
+      .filter(Boolean) as FlowEdge[]
+
+    const stickyClones = payload.stickyNotes.map((n, i) => {
+      const pos = snapPoint(n.x + dx, n.y + dy)
+      return {
+        ...n,
+        id: `sticky-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 7)}`,
+        x: pos.x,
+        y: pos.y,
+        createdBy: currentUsername,
+      }
+    })
+    const sectionClones = payload.sections.map((s, i) => {
+      const pos = snapPoint(s.x + dx, s.y + dy)
+      return {
+        ...s,
+        id: `section-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 7)}`,
+        x: pos.x,
+        y: pos.y,
+      }
+    })
+    const commentClones = payload.comments.map((c, i) => {
+      const pos = snapPoint(c.x + dx, c.y + dy)
+      return {
+        ...c,
+        id: `comment-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 7)}`,
+        x: pos.x,
+        y: pos.y,
+        createdAt: Date.now(),
+        createdBy: currentUsername,
+        resolved: false,
+        resolvedAt: undefined,
+      }
+    })
+    const imageClones = payload.images.map((im, i) => {
+      const pos = snapPoint(im.x + dx, im.y + dy)
+      return {
+        ...im,
+        id: `img-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 7)}`,
+        x: pos.x,
+        y: pos.y,
+      }
+    })
+    const freeTextClones = payload.freeTexts.map((t, i) => {
+      const pos = snapPoint(t.x + dx, t.y + dy)
+      return {
+        ...t,
+        id: `ftext-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 7)}`,
+        x: pos.x,
+        y: pos.y,
+      }
+    })
+
+    const nextFlowNodes = flowClones.length > 0 ? [...flowNodes, ...flowClones] : flowNodes
+    const nextFlowEdges = flowEdgeClones.length > 0 ? [...flowEdges, ...flowEdgeClones] : flowEdges
+    const nextSticky = stickyClones.length > 0 ? [...stickyNotes, ...stickyClones] : stickyNotes
+    const nextSections = sectionClones.length > 0 ? [...boardSections, ...sectionClones] : boardSections
+    const nextComments = commentClones.length > 0 ? [...boardComments, ...commentClones] : boardComments
+    const nextImages = imageClones.length > 0 ? [...boardImages, ...imageClones] : boardImages
+    const nextFreeTexts = freeTextClones.length > 0 ? [...boardFreeTexts, ...freeTextClones] : boardFreeTexts
+
+    if (flowClones.length > 0) {
+      setFlowNodes(nextFlowNodes)
+      setFlowEdges(nextFlowEdges)
+      setSelectedFlowNodeIds(flowClones.map(n => n.id))
+      setSelectedFlowNodeId(flowClones[0]?.id ?? null)
+    } else {
+      setSelectedFlowNodeIds([])
+      setSelectedFlowNodeId(null)
+    }
+    setStickyNotes(nextSticky)
+    setSelectedStickyNoteIds(stickyClones.map(n => n.id))
+    setBoardSections(nextSections)
+    setSelectedSectionIds(sectionClones.map(s => s.id))
+    setBoardComments(nextComments)
+    setSelectedCommentIds(commentClones.map(c => c.id))
+    setBoardImages(nextImages)
+    setSelectedImageIds(imageClones.map(i => i.id))
+    setBoardFreeTexts(nextFreeTexts)
+    setSelectedFreeTextIds(freeTextClones.map(t => t.id))
+    setSelectedCardSlugs([])
+
+    persistFlowchart(nextFlowNodes, nextFlowEdges, nextSticky, nextSections, nextComments, nextImages, nextFreeTexts)
+    return true
+  }
+
   const addBoardImageFromSrc = (src: string, at?: { x: number; y: number }) => {
     if (!canEdit) return
     const rect = canvasRef.current?.getBoundingClientRect()
@@ -3911,33 +4181,117 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   useEffect(() => {
     const editable = project?.role === 'owner' || project?.role === 'editor'
     if (!editable || activeWorkspaceTab !== 'board') return
+    const onCopy = (ev: ClipboardEvent) => {
+      const target = ev.target as HTMLElement | null
+      const isTypingTarget =
+        target?.tagName === 'INPUT' ||
+        target?.tagName === 'TEXTAREA' ||
+        target?.isContentEditable
+      if (isTypingTarget) return
+      const payload = snapshotBoardSelectionToClipboard()
+      if (!payload) return
+      boardClipboardRef.current = payload
+      boardPasteCountRef.current = 0
+      try {
+        const json = JSON.stringify(payload)
+        ev.clipboardData?.setData(BOARD_CLIPBOARD_MIME, json)
+        ev.clipboardData?.setData('text/plain', '[ForgeLab board selection]')
+        ev.preventDefault()
+      } catch {
+        /* clipboard permissions/availability varies by browser */
+      }
+    }
+    window.addEventListener('copy', onCopy)
+    return () => window.removeEventListener('copy', onCopy)
+  }, [
+    project?.role,
+    activeWorkspaceTab,
+    flowNodes,
+    flowEdges,
+    stickyNotes,
+    boardSections,
+    boardComments,
+    boardImages,
+    boardFreeTexts,
+    selectedFlowNodeIds,
+    selectedStickyNoteIds,
+    selectedSectionIds,
+    selectedCommentIds,
+    selectedImageIds,
+    selectedFreeTextIds,
+  ])
+
+  useEffect(() => {
+    const editable = project?.role === 'owner' || project?.role === 'editor'
+    if (!editable || activeWorkspaceTab !== 'board') return
     const onPaste = (ev: ClipboardEvent) => {
       const target = ev.target as HTMLElement | null
-      if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable) return
+      const isTypingTarget =
+        target?.tagName === 'INPUT' ||
+        target?.tagName === 'TEXTAREA' ||
+        target?.isContentEditable
+      if (isTypingTarget) return
       const items = ev.clipboardData?.items
-      if (!items?.length) return
-      for (let i = 0; i < items.length; i++) {
-        const it = items[i]
-        if (it.kind !== 'file' || !it.type.startsWith('image/')) continue
-        const file = it.getAsFile()
-        if (!file) continue
-        ev.preventDefault()
-        const reader = new FileReader()
-        reader.onload = () => {
-          const data = reader.result
-          if (typeof data !== 'string') return
-          const rect = canvasRef.current?.getBoundingClientRect()
-          const cx = rect ? (rect.width / 2 - pan.x) / zoom : 200
-          const cy = rect ? (rect.height / 2 - pan.y) / zoom : 200
-          addBoardImageFromSrcRef.current(data, { x: cx, y: cy })
+      if (items?.length) {
+        for (let i = 0; i < items.length; i++) {
+          const it = items[i]
+          if (it.kind !== 'file' || !it.type.startsWith('image/')) continue
+          const file = it.getAsFile()
+          if (!file) continue
+          ev.preventDefault()
+          const reader = new FileReader()
+          reader.onload = () => {
+            const data = reader.result
+            if (typeof data !== 'string') return
+            const rect = canvasRef.current?.getBoundingClientRect()
+            const cx = rect ? (rect.width / 2 - pan.x) / zoom : 200
+            const cy = rect ? (rect.height / 2 - pan.y) / zoom : 200
+            addBoardImageFromSrcRef.current(data, { x: cx, y: cy })
+          }
+          reader.readAsDataURL(file)
+          return
         }
-        reader.readAsDataURL(file)
-        break
+      }
+
+      const rawPayload =
+        ev.clipboardData?.getData(BOARD_CLIPBOARD_MIME) ||
+        ev.clipboardData?.getData('text/plain') ||
+        ''
+      if (rawPayload) {
+        try {
+          const parsed = JSON.parse(rawPayload) as BoardClipboardPayload
+          if (parsed && Array.isArray(parsed.flowNodes) && Array.isArray(parsed.stickyNotes)) {
+            ev.preventDefault()
+            boardClipboardRef.current = parsed
+            if (pasteBoardClipboard(parsed)) return
+          }
+        } catch {
+          /* plain text, not JSON payload */
+        }
+      }
+
+      if (boardClipboardRef.current) {
+        ev.preventDefault()
+        if (pasteBoardClipboard(boardClipboardRef.current)) return
+      }
+
+      const uri = ev.clipboardData?.getData('text/uri-list')?.trim() || ''
+      const plainText = ev.clipboardData?.getData('text/plain')?.trim() || ''
+      const candidate = uri || plainText
+      const looksLikeImageUrl =
+        /^data:image\//i.test(candidate) ||
+        /^https?:\/\/.+\.(png|jpe?g|gif|webp|bmp|svg)(\?.*)?$/i.test(candidate)
+      if (looksLikeImageUrl) {
+        ev.preventDefault()
+        const rect = canvasRef.current?.getBoundingClientRect()
+        const cx = rect ? (rect.width / 2 - pan.x) / zoom : 200
+        const cy = rect ? (rect.height / 2 - pan.y) / zoom : 200
+        addBoardImageFromSrcRef.current(candidate, { x: cx, y: cy })
       }
     }
     window.addEventListener('paste', onPaste)
     return () => window.removeEventListener('paste', onPaste)
-  }, [project?.role, activeWorkspaceTab, pan.x, pan.y, zoom])
+  }, [project?.role, activeWorkspaceTab, pan.x, pan.y, zoom, pasteBoardClipboard])
 
   const removeToolCardsByIds = async (toolIds: string[]) => {
     if (toolIds.length === 0) return
@@ -6960,6 +7314,10 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
             const pos = cardPositions[slug] || defaultPos(slug, idx)
             const isDragging = dragging.current === slug
             const isSelected = selectedCardSlugs.includes(slug)
+            const remoteCardSelectors = Object.values(liveCardSelections).filter(entry =>
+              entry.selectedCardSlugs.includes(slug)
+            )
+            const remoteOwner = remoteCardSelectors[0] || null
             const isLocked = lockedCardSlugs.includes(slug)
             const phase = toolPhases[slug] || getDefaultPhaseForTool(pickerFramework, slug)
             const phaseLabel = phase ? frameworkPhases.find(p => p.id === phase)?.label : null
@@ -7009,7 +7367,11 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                   border: 'none',
                   borderRadius: 0,
                   boxShadow: 'none',
-                  outline: isSelected ? '2px solid #2563EB' : 'none',
+                  outline: isSelected
+                    ? '2px solid #2563EB'
+                    : remoteOwner
+                      ? `2px solid ${remoteOwner.color}`
+                      : 'none',
                   outlineOffset: 4,
                   resize: 'both',
                   overflow: 'hidden',
@@ -7020,6 +7382,60 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                   zIndex: isDragging ? 1000 : (cardZOrder[slug] || 1),
                 }}
               >
+                {remoteCardSelectors.length > 0 && !isSelected && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: -30,
+                      right: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      pointerEvents: 'none',
+                      zIndex: 5,
+                    }}
+                  >
+                    {remoteCardSelectors.slice(0, 2).map(selector => (
+                      <div
+                        key={selector.userId}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          background: selector.color,
+                          color: '#FFFFFF',
+                          borderRadius: 999,
+                          padding: '2px 8px',
+                          fontSize: 11,
+                          fontWeight: 700,
+                          boxShadow: '0 4px 12px rgba(2,6,23,0.22)',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {selector.username || 'Bruger'}
+                      </div>
+                    ))}
+                    {remoteCardSelectors.length > 2 && (
+                      <div
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          minWidth: 24,
+                          height: 20,
+                          borderRadius: 999,
+                          background: '#0F172A',
+                          color: '#FFFFFF',
+                          fontSize: 11,
+                          fontWeight: 700,
+                          padding: '0 6px',
+                        }}
+                      >
+                        +{remoteCardSelectors.length - 2}
+                      </div>
+                    )}
+                  </div>
+                )}
                 {/* Header: logo, navn, fase — også træk-håndtag når redigering */}
                 <div
                   {...(canEdit && !isLocked
@@ -7445,7 +7861,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           }}
         >
           <div
-            style={{ width: '100%', maxWidth: 500, maxHeight: '82vh', background: 'white', borderRadius: 22, boxShadow: '0 32px 64px rgba(0,0,0,0.22)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+            style={{ width: '100%', maxWidth: 760, maxHeight: '88vh', background: 'white', borderRadius: 22, boxShadow: '0 32px 64px rgba(0,0,0,0.22)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
             onClick={e => e.stopPropagation()}
           >
             <div style={{ padding: '18px 20px 14px', borderBottom: '1px solid #F3F4F6' }}>
@@ -7500,8 +7916,8 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                     }}
                   />
                 ) : (
-                  <div style={{ width: 504, height: 292, overflow: 'hidden' }}>
-                    <div style={{ transform: 'scale(0.39)', transformOrigin: 'top left', width: 1200, height: 650 }}>
+                  <div style={{ width: '100%', height: 368, overflow: 'hidden', display: 'flex', justifyContent: 'center' }}>
+                    <div style={{ transform: 'scale(0.58)', transformOrigin: 'top center', width: 1200, height: 650 }}>
                       <DoubleDiamondDiagram
                         activeSelection={selectedPhaseForDiagram as DoubleDiamondPhase}
                         onSelect={selection => {

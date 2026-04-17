@@ -5,6 +5,10 @@
 import type { FrameworkId, FrameworkPhase } from '@/lib/frameworks'
 import { hasFunctionalStorageConsent } from '@/lib/cookie-consent'
 
+function isDemoProject(projectId: string): boolean {
+  return projectId.startsWith('demo-')
+}
+
 /** Normaliseret placering af ikon på Double Diamond-canvas (0–1 i forhold til viewBox-bredde/højde) */
 export type DdCanvasPosition = { x: number; y: number }
 
@@ -237,6 +241,8 @@ export async function getProjectToolData(
   projectId: string,
   toolSlug: string
 ): Promise<Record<string, any>> {
+  const canUseLocalFallback = isDemoProject(projectId) && hasFunctionalStorageConsent()
+  const localKey = `forgelab_demo_tool_${projectId}_${toolSlug}`
   try {
     const response = await fetch(`/api/projects/${projectId}/tools/${toolSlug}/data`, {
       method: 'GET',
@@ -245,9 +251,9 @@ export async function getProjectToolData(
 
     if (!response.ok) {
       if (response.status === 404 || response.status === 503 || response.status >= 500) {
-        // Fallback to local storage for demo mode
-        if (!hasFunctionalStorageConsent()) return {}
-        const saved = localStorage.getItem(`forgelab_demo_tool_${projectId}_${toolSlug}`)
+        // Kun demo-projekter må bruge lokal fallback; ellers skal data være shared via backend.
+        if (!canUseLocalFallback) return {}
+        const saved = localStorage.getItem(localKey)
         return saved ? JSON.parse(saved) : {}
       }
       throw new Error('Failed to fetch tool data')
@@ -256,9 +262,9 @@ export async function getProjectToolData(
     const result = await response.json()
     return result.data || {}
   } catch (error) {
-    console.error('Error fetching tool data, falling back to local storage:', error)
-    if (!hasFunctionalStorageConsent()) return {}
-    const saved = localStorage.getItem(`forgelab_demo_tool_${projectId}_${toolSlug}`)
+    console.error('Error fetching tool data:', error)
+    if (!canUseLocalFallback) return {}
+    const saved = localStorage.getItem(localKey)
     return saved ? JSON.parse(saved) : {}
   }
 }
@@ -269,6 +275,8 @@ export async function saveProjectToolData(
   toolSlug: string,
   data: Record<string, any>
 ): Promise<boolean> {
+  const canUseLocalFallback = isDemoProject(projectId) && hasFunctionalStorageConsent()
+  const localKey = `forgelab_demo_tool_${projectId}_${toolSlug}`
   try {
     const response = await fetch(`/api/projects/${projectId}/tools/${toolSlug}/data`, {
       method: 'PUT',
@@ -281,9 +289,9 @@ export async function saveProjectToolData(
 
     if (!response.ok) {
       if (response.status === 404 || response.status === 503 || response.status >= 500) {
-        // Fallback to local storage for demo mode
-        if (!hasFunctionalStorageConsent()) return false
-        localStorage.setItem(`forgelab_demo_tool_${projectId}_${toolSlug}`, JSON.stringify(data))
+        // Kun demo-projekter må bruge lokal fallback; ellers skal data være shared via backend.
+        if (!canUseLocalFallback) return false
+        localStorage.setItem(localKey, JSON.stringify(data))
         return true
       }
       throw new Error('Failed to save tool data')
@@ -291,9 +299,9 @@ export async function saveProjectToolData(
 
     return true
   } catch (error) {
-    console.error('Error saving tool data, falling back to local storage:', error)
-    if (!hasFunctionalStorageConsent()) return false
-    localStorage.setItem(`forgelab_demo_tool_${projectId}_${toolSlug}`, JSON.stringify(data))
+    console.error('Error saving tool data:', error)
+    if (!canUseLocalFallback) return false
+    localStorage.setItem(localKey, JSON.stringify(data))
     return true
   }
 }
