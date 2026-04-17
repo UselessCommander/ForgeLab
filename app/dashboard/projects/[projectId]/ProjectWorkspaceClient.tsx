@@ -644,6 +644,42 @@ const CURSOR_SMOOTHING = 0.28
 /** Fortsæt animation inden for denne afstand (world px) til målet. */
 const CURSOR_SMOOTH_STOP_PX = 0.35
 const CURSOR_COLORS = ['#2563EB', '#7C3AED', '#DB2777', '#059669', '#D97706', '#0891B2', '#4F46E5']
+const ORBIT_WINDOW_MS = 2200
+const ORBIT_MIN_RADIUS = 26
+const ORBIT_MAX_RADIUS = 220
+const ORBIT_MIN_SWEEP_PER_LOOP = Math.PI * 1.8
+const ORBIT_MAX_CENTER_JUMP = 90
+const STICKY_HOVER_RADIUS = 28
+const STICKY_COLLAB_WINDOW_MS = 2000
+const STICKY_GLOW_MS = 5200
+const NIGHT_CREATURE_MIN_HOUR = 22
+const NIGHT_CREATURE_DURATION_MS = 3200
+const NIGHT_CREATURE_COOLDOWN_MS = 1200
+const FRIDAY_CELEBRATION_START_HOUR = 12
+const FRIDAY_CELEBRATION_END_HOUR = 18
+const FRIDAY_CELEBRATION_MS = 2100
+
+type OrbitPortalEffect = { id: string; x: number; y: number; createdAt: number }
+type NightCreatureEffect = {
+  id: string
+  userId: string
+  x: number
+  y: number
+  createdAt: number
+  expiresAt: number
+  emoji: '🦉' | '🦇' | '✨'
+}
+type FridayCelebrationEffect = { id: string; x: number; y: number; createdAt: number }
+
+function isNightModeHour(d = new Date()) {
+  return d.getHours() >= NIGHT_CREATURE_MIN_HOUR
+}
+
+function isFridayAfternoon(d = new Date()) {
+  const day = d.getDay()
+  const hour = d.getHours()
+  return day === 5 && hour >= FRIDAY_CELEBRATION_START_HOUR && hour <= FRIDAY_CELEBRATION_END_HOUR
+}
 
 const FLOW_SHAPE_LIBRARY: Array<{ shape: FlowShape; label: string }> = [
   { shape: 'terminator', label: 'Start / Slut' },
@@ -715,6 +751,10 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const [currentUsername, setCurrentUsername] = useState<string>('Dig')
   const [liveCursors, setLiveCursors] = useState<Record<string, LiveCursor>>({})
   const [liveCardSelections, setLiveCardSelections] = useState<Record<string, LiveCardSelection>>({})
+  const [orbitPortalEffects, setOrbitPortalEffects] = useState<OrbitPortalEffect[]>([])
+  const [stickyGoldGlowIds, setStickyGoldGlowIds] = useState<Record<string, number>>({})
+  const [nightCreatureEffects, setNightCreatureEffects] = useState<NightCreatureEffect[]>([])
+  const [fridayCelebrationEffects, setFridayCelebrationEffects] = useState<FridayCelebrationEffect[]>([])
   const [boardSyncVersion, setBoardSyncVersion] = useState(0)
 
   // ── Canvas state ──────────────────────────────────────────────────
@@ -853,6 +893,14 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const liveCursorTargetsRef = useRef<Record<string, LiveCursor>>({})
   const liveCursorSmoothedRef = useRef<Record<string, { x: number; y: number }>>({})
   const liveCursorRafRef = useRef<number | null>(null)
+  const localCursorPointRef = useRef<{ x: number; y: number; visible: boolean }>({ x: 0, y: 0, visible: false })
+  const orbitTrackRef = useRef<
+    Record<string, { targetUserId: string; centerX: number; centerY: number; lastAngle: number; sweep: number; loops: number; startedAt: number }>
+  >({})
+  const lastOrbitTriggerRef = useRef<Record<string, number>>({})
+  const stickyHoverTrackerRef = useRef<Record<string, Record<string, number>>>({})
+  const stickyHoverCooldownRef = useRef<Record<string, number>>({})
+  const lastCreatureSpawnByUserRef = useRef<Record<string, number>>({})
   const sectionDrawModeRef = useRef(false)
   const sentMentionKeysRef = useRef<Set<string>>(new Set())
   const analyticsBoardReturnQs = `return=${encodeURIComponent(`/dashboard/projects/${projectId}`)}&project=${encodeURIComponent(projectId)}`
@@ -1084,6 +1132,147 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     })
   }, [activeWorkspaceTab, currentUserId])
 
+  const triggerOrbitPortal = useCallback((x: number, y: number) => {
+    const now = Date.now()
+    const id = `orbit-${now}-${Math.random().toString(36).slice(2, 7)}`
+    setOrbitPortalEffects(prev => [...prev, { id, x, y, createdAt: now }])
+  }, [])
+
+  const triggerStickyGoldGlow = useCallback((noteId: string) => {
+    const now = Date.now()
+    setStickyGoldGlowIds(prev => ({ ...prev, [noteId]: now + STICKY_GLOW_MS }))
+  }, [])
+
+  const maybeSpawnNightCreature = useCallback((userId: string, x: number, y: number) => {
+    if (!isNightModeHour()) return
+    const now = Date.now()
+    if (now - (lastCreatureSpawnByUserRef.current[userId] || 0) < NIGHT_CREATURE_COOLDOWN_MS) return
+    lastCreatureSpawnByUserRef.current[userId] = now
+    const emoji: NightCreatureEffect['emoji'][] = ['🦉', '🦇', '✨']
+    const id = `night-${now}-${Math.random().toString(36).slice(2, 7)}`
+    setNightCreatureEffects(prev => [
+      ...prev,
+      {
+        id,
+        userId,
+        x,
+        y,
+        createdAt: now,
+        expiresAt: now + NIGHT_CREATURE_DURATION_MS,
+        emoji: emoji[Math.floor(Math.random() * emoji.length)],
+      },
+    ])
+  }, [])
+
+  const detectOrbitAndCollabUnlocks = useCallback(
+    (nextCursors: Record<string, LiveCursor>) => {
+      const now = Date.now()
+      const allCursors: Array<{ userId: string; x: number; y: number }> = Object.values(nextCursors)
+        .filter(c => c.visible)
+        .map(c => ({ userId: c.userId, x: c.x, y: c.y }))
+      if (currentUserId && localCursorPointRef.current.visible) {
+        allCursors.push({ userId: currentUserId, x: localCursorPointRef.current.x, y: localCursorPointRef.current.y })
+      }
+
+      const getClosestTarget = (sourceUserId: string, sx: number, sy: number) => {
+        let best: { userId: string; x: number; y: number; dist: number } | null = null
+        for (const c of allCursors) {
+          if (c.userId === sourceUserId) continue
+          const dist = Math.hypot(c.x - sx, c.y - sy)
+          if (!best || dist < best.dist) best = { ...c, dist }
+        }
+        return best
+      }
+
+      for (const cursor of allCursors) {
+        const closest = getClosestTarget(cursor.userId, cursor.x, cursor.y)
+        if (!closest) {
+          delete orbitTrackRef.current[cursor.userId]
+          continue
+        }
+        if (closest.dist < ORBIT_MIN_RADIUS || closest.dist > ORBIT_MAX_RADIUS) {
+          delete orbitTrackRef.current[cursor.userId]
+          continue
+        }
+        const angle = Math.atan2(cursor.y - closest.y, cursor.x - closest.x)
+        const prev = orbitTrackRef.current[cursor.userId]
+        if (
+          !prev ||
+          prev.targetUserId !== closest.userId ||
+          Math.hypot(prev.centerX - closest.x, prev.centerY - closest.y) > ORBIT_MAX_CENTER_JUMP ||
+          now - prev.startedAt > ORBIT_WINDOW_MS
+        ) {
+          orbitTrackRef.current[cursor.userId] = {
+            targetUserId: closest.userId,
+            centerX: closest.x,
+            centerY: closest.y,
+            lastAngle: angle,
+            sweep: 0,
+            loops: 0,
+            startedAt: now,
+          }
+          continue
+        }
+        let delta = angle - prev.lastAngle
+        while (delta > Math.PI) delta -= Math.PI * 2
+        while (delta < -Math.PI) delta += Math.PI * 2
+        const sweep = prev.sweep + delta
+        const loops = Math.floor(Math.abs(sweep) / ORBIT_MIN_SWEEP_PER_LOOP)
+        orbitTrackRef.current[cursor.userId] = { ...prev, lastAngle: angle, sweep, loops }
+
+        const triggerKey = `${cursor.userId}:${closest.userId}`
+        if (loops >= 2 && now - (lastOrbitTriggerRef.current[triggerKey] || 0) > 4000) {
+          lastOrbitTriggerRef.current[triggerKey] = now
+          triggerOrbitPortal(closest.x, closest.y)
+          orbitTrackRef.current[cursor.userId] = {
+            targetUserId: closest.userId,
+            centerX: closest.x,
+            centerY: closest.y,
+            lastAngle: angle,
+            sweep: 0,
+            loops: 0,
+            startedAt: now,
+          }
+        }
+      }
+
+      const hoveredByUser: Record<string, string> = {}
+      for (const c of allCursors) {
+        const note = stickyNotes.find(n => {
+          const { w, h } = getStickyNoteSize(n)
+          return (
+            c.x >= n.x - STICKY_HOVER_RADIUS &&
+            c.x <= n.x + w + STICKY_HOVER_RADIUS &&
+            c.y >= n.y - STICKY_HOVER_RADIUS &&
+            c.y <= n.y + h + STICKY_HOVER_RADIUS
+          )
+        })
+        if (note) hoveredByUser[c.userId] = note.id
+      }
+
+      for (const [noteId, users] of Object.entries(stickyHoverTrackerRef.current)) {
+        for (const userId of Object.keys(users)) {
+          if (hoveredByUser[userId] !== noteId || now - users[userId] > STICKY_COLLAB_WINDOW_MS) {
+            delete stickyHoverTrackerRef.current[noteId][userId]
+          }
+        }
+        if (Object.keys(stickyHoverTrackerRef.current[noteId]).length === 0) delete stickyHoverTrackerRef.current[noteId]
+      }
+
+      for (const [userId, noteId] of Object.entries(hoveredByUser)) {
+        const noteUsers = stickyHoverTrackerRef.current[noteId] || {}
+        noteUsers[userId] = now
+        stickyHoverTrackerRef.current[noteId] = noteUsers
+        const activeUsers = Object.values(noteUsers).filter(ts => now - ts <= STICKY_COLLAB_WINDOW_MS).length
+        if (activeUsers >= 3 && now - (stickyHoverCooldownRef.current[noteId] || 0) > STICKY_GLOW_MS) {
+          stickyHoverCooldownRef.current[noteId] = now
+          triggerStickyGoldGlow(noteId)
+        }
+      }
+    },
+    [currentUserId, stickyNotes, triggerOrbitPortal, triggerStickyGoldGlow]
+  )
+
   useEffect(() => {
     if (activeWorkspaceTab !== 'board' || !projectId || !currentUserId) return
 
@@ -1131,6 +1320,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       }
 
       setLiveCursors(next)
+      detectOrbitAndCollabUnlocks(next)
       if (needsNextFrame) {
         liveCursorRafRef.current = requestAnimationFrame(runCursorSmoothingFrame)
       }
@@ -1163,6 +1353,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           color,
           updatedAt: now,
         }
+        maybeSpawnNightCreature(payload.userId, payload.x, payload.y)
         scheduleCursorSmoothing()
       })
       .on('broadcast', { event: 'card_selection' }, (message: { payload?: LiveCardSelectionPayload }) => {
@@ -1261,7 +1452,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       cursorChannelRef.current = null
       void channel.unsubscribe()
     }
-  }, [activeWorkspaceTab, currentUserId, currentUsername, projectId])
+  }, [activeWorkspaceTab, currentUserId, currentUsername, detectOrbitAndCollabUnlocks, maybeSpawnNightCreature, projectId])
 
   useEffect(() => {
     if (activeWorkspaceTab !== 'board' || !currentUserId) return
@@ -1271,6 +1462,25 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     lastCardSelectionSignatureRef.current = signature
     void broadcastCardSelection(selectedCardSlugs, visible)
   }, [activeWorkspaceTab, broadcastCardSelection, currentUserId, selectedCardSlugs])
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const now = Date.now()
+      setOrbitPortalEffects(prev => prev.filter(item => now - item.createdAt < 1400))
+      setNightCreatureEffects(prev => prev.filter(item => item.expiresAt > now))
+      setFridayCelebrationEffects(prev => prev.filter(item => now - item.createdAt < FRIDAY_CELEBRATION_MS))
+      setStickyGoldGlowIds(prev => {
+        let changed = false
+        const next: Record<string, number> = {}
+        for (const [noteId, expiresAt] of Object.entries(prev)) {
+          if (expiresAt > now) next[noteId] = expiresAt
+          else changed = true
+        }
+        return changed ? next : prev
+      })
+    }, 250)
+    return () => window.clearInterval(timer)
+  }, [])
 
   const handleDdCanvasLayoutSave = useCallback(
     async (layout: NonNullable<Project['ddCanvasLayout']>) => {
@@ -2093,7 +2303,9 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
 
   const onCanvasMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const worldPoint = getCanvasWorldPoint(e.clientX, e.clientY)
+    localCursorPointRef.current = { x: worldPoint.x, y: worldPoint.y, visible: true }
     void broadcastCursor(worldPoint.x, worldPoint.y, true)
+    if (currentUserId) maybeSpawnNightCreature(currentUserId, worldPoint.x, worldPoint.y)
 
     if (sectionResizeRef.current) {
       const r = sectionResizeRef.current
@@ -3913,6 +4125,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
 
   const setCommentResolved = (commentId: string, resolved: boolean) => {
     if (!canEdit) return
+    const targetComment = boardComments.find(item => item.id === commentId) || null
     let updated = false
     setBoardComments(prev => {
       const next = prev.map(item => {
@@ -3928,6 +4141,14 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       return next
     })
     if (resolved) setSelectedCommentIds(prev => prev.filter(id => id !== commentId))
+    if (resolved && targetComment && isFridayAfternoon()) {
+      const now = Date.now()
+      const id = `celebrate-${now}-${Math.random().toString(36).slice(2, 7)}`
+      setFridayCelebrationEffects(prev => [
+        ...prev,
+        { id, x: targetComment.x + targetComment.width / 2, y: targetComment.y + 16, createdAt: now },
+      ])
+    }
   }
 
   const removeBoardImagesByIds = (ids: string[]) => {
@@ -6345,6 +6566,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
         }}
         onMouseLeave={() => {
           isPointerOverCanvasRef.current = false
+          localCursorPointRef.current.visible = false
           void broadcastCursor(0, 0, false)
           if (isSectionPlacementDragging.current) {
             isSectionPlacementDragging.current = false
@@ -6961,6 +7183,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
 
           {stickyNotes.map(note => {
             const isSelected = selectedStickyNoteIds.includes(note.id)
+            const hasGoldGlow = Boolean(stickyGoldGlowIds[note.id] && stickyGoldGlowIds[note.id] > Date.now())
             const author = (note.createdBy || currentUsername || 'Dig').trim() || 'Dig'
             const noteFormat = mergeStickyFormat(note.format, {})
             const { w: stickyW, h: stickyH } = getStickyNoteSize(note)
@@ -7012,9 +7235,11 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                   borderRadius: 0,
                   border: 'none',
                   background: note.color,
-                  boxShadow: isSelected
-                    ? '0 0 0 2px #2563EB, 4px 6px 18px rgba(0,0,0,0.14), 2px 3px 8px rgba(0,0,0,0.08)'
-                    : '4px 6px 18px rgba(0,0,0,0.12), 2px 3px 8px rgba(0,0,0,0.07)',
+                  boxShadow: hasGoldGlow
+                    ? '0 0 0 2px #F59E0B, 0 0 0 6px rgba(245,158,11,0.24), 0 0 26px rgba(245,158,11,0.5), 4px 6px 18px rgba(0,0,0,0.14)'
+                    : isSelected
+                      ? '0 0 0 2px #2563EB, 4px 6px 18px rgba(0,0,0,0.14), 2px 3px 8px rgba(0,0,0,0.08)'
+                      : '4px 6px 18px rgba(0,0,0,0.12), 2px 3px 8px rgba(0,0,0,0.07)',
                   zIndex: 4,
                   display: 'flex',
                   flexDirection: 'column',
@@ -7611,6 +7836,121 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                 </div>
               )
             })}
+
+          {orbitPortalEffects.map(effect => {
+            const age = Date.now() - effect.createdAt
+            const progress = Math.max(0, Math.min(1, age / 1200))
+            const scale = 0.4 + progress * 1.5
+            const opacity = 1 - progress
+            return (
+              <div
+                key={effect.id}
+                style={{
+                  position: 'absolute',
+                  left: effect.x,
+                  top: effect.y,
+                  width: 92,
+                  height: 92,
+                  borderRadius: '50%',
+                  border: '3px solid rgba(99,102,241,0.92)',
+                  boxShadow: '0 0 24px rgba(99,102,241,0.55), inset 0 0 18px rgba(59,130,246,0.45)',
+                  transform: `translate(-50%, -50%) scale(${scale})`,
+                  opacity,
+                  pointerEvents: 'none',
+                  zIndex: 22,
+                }}
+              />
+            )
+          })}
+
+          {nightCreatureEffects.map(effect => {
+            const age = Date.now() - effect.createdAt
+            const phase = age / 220
+            const driftX = Math.sin(phase) * 14
+            const driftY = -16 + Math.cos(phase * 1.4) * 8
+            const opacity = Math.max(0, Math.min(1, (effect.expiresAt - Date.now()) / NIGHT_CREATURE_DURATION_MS + 0.15))
+            return (
+              <div
+                key={effect.id}
+                style={{
+                  position: 'absolute',
+                  left: effect.x + driftX,
+                  top: effect.y + driftY,
+                  transform: 'translate(-50%, -50%)',
+                  fontSize: 20,
+                  filter: 'drop-shadow(0 4px 10px rgba(15,23,42,0.45))',
+                  opacity,
+                  pointerEvents: 'none',
+                  zIndex: 21,
+                }}
+              >
+                {effect.emoji}
+              </div>
+            )
+          })}
+
+          {fridayCelebrationEffects.map(effect => {
+            const age = Date.now() - effect.createdAt
+            const progress = Math.max(0, Math.min(1, age / FRIDAY_CELEBRATION_MS))
+            const opacity = 1 - progress
+            return (
+              <div
+                key={effect.id}
+                style={{
+                  position: 'absolute',
+                  left: effect.x,
+                  top: effect.y,
+                  width: 0,
+                  height: 0,
+                  pointerEvents: 'none',
+                  zIndex: 23,
+                }}
+              >
+                {Array.from({ length: 12 }).map((_, i) => {
+                  const angle = (Math.PI * 2 * i) / 12
+                  const radius = 16 + progress * 72
+                  const x = Math.cos(angle) * radius
+                  const y = Math.sin(angle) * radius - progress * 22
+                  const color = ['#F59E0B', '#EAB308', '#F97316', '#A855F7'][i % 4]
+                  return (
+                    <span
+                      key={`c-${i}`}
+                      style={{
+                        position: 'absolute',
+                        left: x,
+                        top: y,
+                        width: 7,
+                        height: 7,
+                        borderRadius: 999,
+                        background: color,
+                        opacity,
+                        boxShadow: '0 0 10px rgba(255,255,255,0.5)',
+                      }}
+                    />
+                  )
+                })}
+                {Array.from({ length: 4 }).map((_, i) => {
+                  const x = (i - 1.5) * 12
+                  const y = -10 - progress * (34 + i * 8)
+                  return (
+                    <span
+                      key={`s-${i}`}
+                      style={{
+                        position: 'absolute',
+                        left: x,
+                        top: y,
+                        width: 18 + i * 4,
+                        height: 18 + i * 4,
+                        borderRadius: '50%',
+                        background: 'radial-gradient(circle, rgba(148,163,184,0.32), rgba(148,163,184,0))',
+                        opacity: opacity * 0.8,
+                      }}
+                    />
+                  )
+                })}
+              </div>
+            )
+          })}
 
           {marqueeSelection && (
             <div
