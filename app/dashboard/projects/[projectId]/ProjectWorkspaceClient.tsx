@@ -649,6 +649,9 @@ const ORBIT_MIN_RADIUS = 26
 const ORBIT_MAX_RADIUS = 220
 const ORBIT_MIN_SWEEP_PER_LOOP = Math.PI * 1.8
 const ORBIT_MAX_CENTER_JUMP = 90
+const HIGH_FIVE_PROXIMITY_PX = 54
+const HIGH_FIVE_HOLD_MS = 1200
+const HIGH_FIVE_COOLDOWN_MS = 3500
 const STICKY_HOVER_RADIUS = 28
 const STICKY_COLLAB_WINDOW_MS = 2000
 const STICKY_GLOW_MS = 5200
@@ -661,6 +664,7 @@ const FRIDAY_CELEBRATION_MS = 2100
 const BOARD_COMMENT_CARD_WIDTH = 300
 
 type OrbitPortalEffect = { id: string; x: number; y: number; createdAt: number }
+type HighFiveEffect = { id: string; x: number; y: number; createdAt: number; users: [string, string] }
 type NightCreatureEffect = {
   id: string
   userId: string
@@ -680,6 +684,11 @@ function isFridayAfternoon(d = new Date()) {
   const day = d.getDay()
   const hour = d.getHours()
   return day === 5 && hour >= FRIDAY_CELEBRATION_START_HOUR && hour <= FRIDAY_CELEBRATION_END_HOUR
+}
+
+function shouldTriggerFridayCelebration() {
+  if (process.env.NODE_ENV !== 'production') return true
+  return isFridayAfternoon()
 }
 
 const FLOW_SHAPE_LIBRARY: Array<{ shape: FlowShape; label: string }> = [
@@ -753,6 +762,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const [liveCursors, setLiveCursors] = useState<Record<string, LiveCursor>>({})
   const [liveCardSelections, setLiveCardSelections] = useState<Record<string, LiveCardSelection>>({})
   const [orbitPortalEffects, setOrbitPortalEffects] = useState<OrbitPortalEffect[]>([])
+  const [highFiveEffects, setHighFiveEffects] = useState<HighFiveEffect[]>([])
   const [stickyGoldGlowIds, setStickyGoldGlowIds] = useState<Record<string, number>>({})
   const [nightCreatureEffects, setNightCreatureEffects] = useState<NightCreatureEffect[]>([])
   const [fridayCelebrationEffects, setFridayCelebrationEffects] = useState<FridayCelebrationEffect[]>([])
@@ -902,6 +912,8 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const stickyHoverTrackerRef = useRef<Record<string, Record<string, number>>>({})
   const stickyHoverCooldownRef = useRef<Record<string, number>>({})
   const lastCreatureSpawnByUserRef = useRef<Record<string, number>>({})
+  const highFivePairStartRef = useRef<Record<string, number>>({})
+  const highFiveCooldownRef = useRef<Record<string, number>>({})
   const sectionDrawModeRef = useRef(false)
   const sentMentionKeysRef = useRef<Set<string>>(new Set())
   const analyticsBoardReturnQs = `return=${encodeURIComponent(`/dashboard/projects/${projectId}`)}&project=${encodeURIComponent(projectId)}`
@@ -1144,6 +1156,12 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     setStickyGoldGlowIds(prev => ({ ...prev, [noteId]: now + STICKY_GLOW_MS }))
   }, [])
 
+  const triggerHighFive = useCallback((userA: string, userB: string, x: number, y: number) => {
+    const now = Date.now()
+    const id = `highfive-${now}-${Math.random().toString(36).slice(2, 7)}`
+    setHighFiveEffects(prev => [...prev, { id, x, y, createdAt: now, users: [userA, userB] }])
+  }, [])
+
   const maybeSpawnNightCreature = useCallback((userId: string, x: number, y: number) => {
     if (!isNightModeHour()) return
     const now = Date.now()
@@ -1237,6 +1255,29 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
         }
       }
 
+      const activePairKeys = new Set<string>()
+      for (let i = 0; i < allCursors.length; i++) {
+        for (let j = i + 1; j < allCursors.length; j++) {
+          const a = allCursors[i]
+          const b = allCursors[j]
+          const dist = Math.hypot(a.x - b.x, a.y - b.y)
+          const pairKey = [a.userId, b.userId].sort().join(':')
+          if (dist > HIGH_FIVE_PROXIMITY_PX) continue
+          activePairKeys.add(pairKey)
+          const startedAt = highFivePairStartRef.current[pairKey] || now
+          highFivePairStartRef.current[pairKey] = startedAt
+          const cooldownUntil = highFiveCooldownRef.current[pairKey] || 0
+          if (now - startedAt >= HIGH_FIVE_HOLD_MS && now >= cooldownUntil) {
+            highFiveCooldownRef.current[pairKey] = now + HIGH_FIVE_COOLDOWN_MS
+            highFivePairStartRef.current[pairKey] = now
+            triggerHighFive(a.userId, b.userId, (a.x + b.x) / 2, (a.y + b.y) / 2)
+          }
+        }
+      }
+      for (const key of Object.keys(highFivePairStartRef.current)) {
+        if (!activePairKeys.has(key)) delete highFivePairStartRef.current[key]
+      }
+
       const hoveredByUser: Record<string, string> = {}
       for (const c of allCursors) {
         const note = stickyNotes.find(n => {
@@ -1271,7 +1312,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
         }
       }
     },
-    [currentUserId, stickyNotes, triggerOrbitPortal, triggerStickyGoldGlow]
+    [currentUserId, stickyNotes, triggerHighFive, triggerOrbitPortal, triggerStickyGoldGlow]
   )
 
   useEffect(() => {
@@ -1468,6 +1509,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     const timer = window.setInterval(() => {
       const now = Date.now()
       setOrbitPortalEffects(prev => prev.filter(item => now - item.createdAt < 1400))
+      setHighFiveEffects(prev => prev.filter(item => now - item.createdAt < 1300))
       setNightCreatureEffects(prev => prev.filter(item => item.expiresAt > now))
       setFridayCelebrationEffects(prev => prev.filter(item => now - item.createdAt < FRIDAY_CELEBRATION_MS))
       setStickyGoldGlowIds(prev => {
@@ -2307,6 +2349,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     localCursorPointRef.current = { x: worldPoint.x, y: worldPoint.y, visible: true }
     void broadcastCursor(worldPoint.x, worldPoint.y, true)
     if (currentUserId) maybeSpawnNightCreature(currentUserId, worldPoint.x, worldPoint.y)
+    detectOrbitAndCollabUnlocks(liveCursors)
 
     if (sectionResizeRef.current) {
       const r = sectionResizeRef.current
@@ -4142,7 +4185,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       return next
     })
     if (resolved) setSelectedCommentIds(prev => prev.filter(id => id !== commentId))
-    if (resolved && targetComment && isFridayAfternoon()) {
+    if (resolved && targetComment && shouldTriggerFridayCelebration()) {
       const now = Date.now()
       const id = `celebrate-${now}-${Math.random().toString(36).slice(2, 7)}`
       setFridayCelebrationEffects(prev => [
@@ -7861,6 +7904,38 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                   zIndex: 22,
                 }}
               />
+            )
+          })}
+
+          {highFiveEffects.map(effect => {
+            const age = Date.now() - effect.createdAt
+            const progress = Math.max(0, Math.min(1, age / 1100))
+            const riseY = 20 * progress
+            const opacity = 1 - progress
+            return (
+              <div
+                key={effect.id}
+                style={{
+                  position: 'absolute',
+                  left: effect.x,
+                  top: effect.y - riseY,
+                  transform: 'translate(-50%, -50%) scale(1)',
+                  pointerEvents: 'none',
+                  zIndex: 23,
+                  opacity,
+                  filter: 'drop-shadow(0 5px 14px rgba(15,23,42,0.28))',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  fontSize: 20,
+                }}
+              >
+                <span>✋</span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: '#0F172A', background: 'rgba(255,255,255,0.9)', borderRadius: 999, padding: '2px 8px' }}>
+                  High five!
+                </span>
+                <span>🤚</span>
+              </div>
             )
           })}
 
