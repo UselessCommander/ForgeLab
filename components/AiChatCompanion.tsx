@@ -21,6 +21,7 @@ interface AiChatCompanionProps {
     | 'card-sorting'
     | 'survey'
     | 'qr'
+    | 'files'
   framework: string
   role: string
   onAddTool: (slug: string) => void
