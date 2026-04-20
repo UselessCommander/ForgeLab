@@ -1,6 +1,8 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import ForgeLabLogo from '@/components/ForgeLabLogo'
 import CookieConsent from '@/components/CookieConsent'
+import { getCurrentUserId } from '@/lib/auth'
 import {
   QrCode,
   BarChart3,
@@ -16,7 +18,12 @@ import {
   Users,
 } from 'lucide-react'
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const userId = await getCurrentUserId()
+  if (userId) {
+    redirect('/dashboard')
+  }
+
   return (
     <div className="min-h-screen bg-[#fafbfc] text-gray-900 overflow-hidden">
       {/* Subtle background pattern */}

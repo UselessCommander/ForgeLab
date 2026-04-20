@@ -811,6 +811,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const [marqueeSelection, setMarqueeSelection] = useState<MarqueeSelection | null>(null)
   const [richToolbarUi, setRichToolbarUi] = useState<RichToolbarUiState | null>(null)
   const canvasRef = useRef<HTMLDivElement>(null)
+  const boardTransformLayerRef = useRef<HTMLDivElement>(null)
   const isPointerOverCanvasRef = useRef(false)
   const isPanning = useRef(false)
   const lastPanPos = useRef({ x: 0, y: 0 })
@@ -3269,6 +3270,48 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     link.remove()
   }
 
+  const waitNextFrame = () =>
+    new Promise<void>((resolve) => {
+      requestAnimationFrame(() => resolve())
+    })
+
+  const withExportFriendlyBoardScale = async <T,>(task: () => Promise<T>): Promise<T> => {
+    const layer = boardTransformLayerRef.current
+    if (!layer) return task()
+
+    const prevTransform = layer.style.transform
+    const prevTransition = layer.style.transition
+
+    // Eksport skal ikke afhænge af brugerens aktuelle zoom/pan.
+    layer.style.transition = 'none'
+    layer.style.transform = 'translate(0px, 0px) scale(1)'
+    await waitNextFrame()
+
+    try {
+      return await task()
+    } finally {
+      layer.style.transform = prevTransform
+      layer.style.transition = prevTransition
+      await waitNextFrame()
+    }
+  }
+
+  const padCanvas = (
+    source: HTMLCanvasElement,
+    paddingPx = 36,
+    bgColor = '#ffffff'
+  ): HTMLCanvasElement => {
+    const out = document.createElement('canvas')
+    out.width = source.width + paddingPx * 2
+    out.height = source.height + paddingPx * 2
+    const ctx = out.getContext('2d')
+    if (!ctx) return source
+    ctx.fillStyle = bgColor
+    ctx.fillRect(0, 0, out.width, out.height)
+    ctx.drawImage(source, paddingPx, paddingPx)
+    return out
+  }
+
   const exportSelectedCards = async (format: 'png' | 'jpg' | 'pdf') => {
     const selected = selectedCardSlugs.filter(slug => cardElementRefs.current[slug])
     if (selected.length === 0) {
@@ -3277,16 +3320,18 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     }
 
     try {
-      const captures = await Promise.all(
-        selected.map(async slug => {
-          const el = cardElementRefs.current[slug]
-          if (!el) return null
-          const canvas = await html2canvas(el, {
-            backgroundColor: '#ffffff',
-            scale: Math.min(2, window.devicePixelRatio || 1),
+      const captures = await withExportFriendlyBoardScale(async () =>
+        Promise.all(
+          selected.map(async slug => {
+            const el = cardElementRefs.current[slug]
+            if (!el) return null
+            const canvas = await html2canvas(el, {
+              backgroundColor: '#ffffff',
+              scale: Math.max(2, Math.min(3, window.devicePixelRatio || 1)),
+            })
+            return { slug, canvas: padCanvas(canvas) }
           })
-          return { slug, canvas }
-        })
+      )
       )
       const validCaptures = captures.filter(
         (item): item is { slug: string; canvas: HTMLCanvasElement } => item !== null
@@ -4460,14 +4505,16 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       return
     }
     try {
-      const captures = await Promise.all(
-        valid.map(async ({ el, fileBase }) => {
-          const canvas = await html2canvas(el, {
-            backgroundColor: '#ffffff',
-            scale: Math.min(2, window.devicePixelRatio || 1),
+      const captures = await withExportFriendlyBoardScale(async () =>
+        Promise.all(
+          valid.map(async ({ el, fileBase }) => {
+            const canvas = await html2canvas(el, {
+              backgroundColor: '#ffffff',
+              scale: Math.max(2, Math.min(3, window.devicePixelRatio || 1)),
+            })
+            return { fileBase, canvas: padCanvas(canvas) }
           })
-          return { fileBase, canvas }
-        })
+        )
       )
       if (format === 'pdf') {
         const first = captures[0]
@@ -5558,6 +5605,14 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const projectTools = project.toolIds.map(id => ({ slug: id, tool: getVaerktoejBySlug(id) })).filter(x => x.tool)
   const boardTools = projectTools.filter(({ slug }) => !BOARD_EXCLUDED_TOOL_SLUGS.has(slug))
   const planningTools = projectTools.filter(({ slug }) => BOARD_EXCLUDED_TOOL_SLUGS.has(slug))
+  const isBoardEmpty =
+    boardTools.length === 0 &&
+    flowNodes.length === 0 &&
+    stickyNotes.length === 0 &&
+    boardSections.length === 0 &&
+    boardComments.length === 0 &&
+    boardFreeTexts.length === 0 &&
+    boardImages.length === 0
   // In offline/demo mode allow all tools, not just allowed slugs
   const toAdd = VAERKTOEJER.filter(t =>
     (isOffline || allowed.has(t.slug)) &&
@@ -6958,7 +7013,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           }}
         >
           {/* Empty state */}
-          {boardTools.length === 0 && (
+          {isBoardEmpty && (
             <div style={{
               position: 'absolute', top: 200, left: 300,
               textAlign: 'center', userSelect: 'none', pointerEvents: 'none',
