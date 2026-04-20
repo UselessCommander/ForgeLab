@@ -349,7 +349,7 @@ export default function AiChatCompanion({
   const [input, setInput] = useState('')
   const [loadingMessageIndex, setLoadingMessageIndex] = useState(0)
   const [loadingDotCount, setLoadingDotCount] = useState(1)
-  const { messages, sendMessage, isLoading, status, error } = (useChat as any)({
+  const { messages, sendMessage, setMessages, isLoading, status, error } = (useChat as any)({
     // Nyt chat-id pr. fane: ellers genbruger AI SDK samme Chat/transport fra første mount,
     // og body() har stale closure → API får altid workspaceTab fra første visning (typisk "board").
     id: `${projectId}-${workspaceTab}`,
@@ -753,12 +753,24 @@ export default function AiChatCompanion({
       reader.readAsDataURL(file)
     })
 
+  const stripFilePartsFromHistory = (history: any[] = []) =>
+    history.map(message => {
+      if (!Array.isArray(message?.parts)) return message
+      const nextParts = message.parts.filter((part: any) => part?.type !== 'file')
+      return { ...message, parts: nextParts }
+    })
+
   const handleManualSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setUploadError(null)
     if ((!input.trim() && pendingFiles.length === 0) || isTyping) return
 
     if (kimiOnlyMode) await rebuildSlidesContextDigest(input.trim())
+
+    // Undgå at tidligere vedhæftede filer bliver sendt igen på hver ny besked.
+    if (typeof setMessages === 'function') {
+      setMessages((prev: any[]) => stripFilePartsFromHistory(prev))
+    }
 
     let fileParts: any[] = []
     if (pendingFiles.length > 0) {
@@ -901,6 +913,19 @@ export default function AiChatCompanion({
 
     return rawMessage
   }
+
+  useEffect(() => {
+    const msg = String(error?.message || '').toLowerCase()
+    const isPayloadLarge =
+      msg.includes('request entity too large') ||
+      msg.includes('function_payload_too_large') ||
+      msg.includes('file_payload_too_large') ||
+      msg.includes('payload too large')
+    if (!isPayloadLarge) return
+    if (typeof setMessages === 'function') {
+      setMessages((prev: any[]) => stripFilePartsFromHistory(prev))
+    }
+  }, [error, setMessages])
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
