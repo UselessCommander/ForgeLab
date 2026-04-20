@@ -2,8 +2,31 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUserId } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 
-function isAdminUser(userId: string | null) {
-  return userId === 'admin'
+function normalizeName(value: string | null | undefined) {
+  return String(value || '').trim().toLowerCase()
+}
+
+async function isAdminUser(userId: string | null) {
+  if (!userId) return false
+  if (userId === 'admin') return true
+
+  const { data, error } = await supabase
+    .from('users')
+    .select('username')
+    .eq('id', userId)
+    .limit(1)
+
+  if (error) {
+    console.error('Error checking admin identity:', error)
+    return false
+  }
+
+  const username = normalizeName(data?.[0]?.username)
+  const adminUsernames = new Set([
+    normalizeName(process.env.ADMIN_USERNAME || 'admin'),
+    normalizeName('Useless commander'),
+  ])
+  return adminUsernames.has(username)
 }
 
 // GET /api/admin/ai-access?q=...
@@ -12,7 +35,9 @@ export async function GET(request: NextRequest) {
   try {
     const userId = await getCurrentUserId()
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    if (!isAdminUser(userId)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (!(await isAdminUser(userId))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
     const q = request.nextUrl.searchParams.get('q')?.trim().toLowerCase() || ''
     const limitRaw = Number(request.nextUrl.searchParams.get('limit') || '50')
@@ -53,7 +78,9 @@ export async function PATCH(request: NextRequest) {
   try {
     const userId = await getCurrentUserId()
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    if (!isAdminUser(userId)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (!(await isAdminUser(userId))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
     const body = await request.json().catch(() => ({}))
     const targetUserId = typeof body?.userId === 'string' ? body.userId.trim() : ''
