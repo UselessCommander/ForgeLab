@@ -43,6 +43,7 @@ import DoubleDiamondDiagram from '@/components/dashboard/DoubleDiamondDiagram'
 import DesignThinkingDiagram from '@/components/dashboard/DesignThinkingDiagram'
 import GoogleDesignSprintDiagram from '@/components/dashboard/GoogleDesignSprintDiagram'
 import ProjectSlidesTab from '@/components/ProjectSlidesTab'
+import ProjectFilesTab from '@/components/ProjectFilesTab'
 import StickyNoteBodyEditor from '@/components/StickyNoteBodyEditor'
 import StickyRichToolbar from '@/components/StickyRichToolbar'
 import type { StickyNoteFormat } from '@/lib/stickyNoteRichText'
@@ -752,7 +753,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const canEdit =
     project != null && (project.role === 'owner' || project.role === 'editor')
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<
-    'board' | 'planning' | 'slides' | 'survey' | 'card-sorting' | 'qr'
+    'board' | 'planning' | 'slides' | 'survey' | 'card-sorting' | 'qr' | 'files'
   >('board')
   const [planningPane, setPlanningPane] = useState<'kanban' | 'gantt'>('kanban')
   const [showAddTool, setShowAddTool] = useState(false)
@@ -5735,6 +5736,19 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           >
             QR
           </button>
+          <button
+            style={{
+              ...S.zoomBtn,
+              minWidth: 72,
+              fontSize: 12,
+              fontWeight: 700,
+              background: activeWorkspaceTab === 'files' ? '#111827' : 'transparent',
+              color: activeWorkspaceTab === 'files' ? '#fff' : '#6B7280',
+            }}
+            onClick={() => setActiveWorkspaceTab('files')}
+          >
+            PDF
+          </button>
           {activeWorkspaceTab === 'board' && (
             <Link
               href={`/analytics?${analyticsBoardReturnQs}`}
@@ -6284,6 +6298,8 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           canEdit={canEdit}
           contentInsetLeftPx={0}
         />
+      ) : activeWorkspaceTab === 'files' ? (
+        <ProjectFilesTab projectId={projectId} canEdit={canEdit} />
       ) : activeWorkspaceTab === 'survey' ? (
       <ToolEmbedProvider projectId={projectId}>
         <div
