@@ -6,6 +6,7 @@ export interface User {
     id: string;
     username: string;
     email?: string | null;
+    ai_enabled?: boolean | null;
     first_name?: string | null;
     last_name?: string | null;
     profile_role?: string | null;
@@ -107,6 +108,7 @@ export async function createUser(username: string, password: string, email?: str
             id: data.id,
             username: data.username,
             email: data.email,
+            ai_enabled: data.ai_enabled ?? false,
             first_name: data.first_name ?? null,
             last_name: data.last_name ?? null,
             profile_role: data.profile_role ?? null,
@@ -173,6 +175,7 @@ export async function getUserByUsername(username: string): Promise<User | null> 
             id: userData.id,
             username: userData.username,
             email: userData.email,
+            ai_enabled: userData.ai_enabled ?? false,
             first_name: userData.first_name ?? null,
             last_name: userData.last_name ?? null,
             profile_role: userData.profile_role ?? null,
@@ -216,6 +219,7 @@ export async function getUserById(id: string): Promise<User | null> {
             id: userData.id,
             username: userData.username,
             email: userData.email,
+            ai_enabled: userData.ai_enabled ?? false,
             first_name: userData.first_name ?? null,
             last_name: userData.last_name ?? null,
             profile_role: userData.profile_role ?? null,
@@ -291,6 +295,7 @@ export async function getUserByEmail(email: string): Promise<User | null> {
             id: userData.id,
             username: userData.username,
             email: userData.email,
+            ai_enabled: userData.ai_enabled ?? false,
             first_name: userData.first_name ?? null,
             last_name: userData.last_name ?? null,
             profile_role: userData.profile_role ?? null,

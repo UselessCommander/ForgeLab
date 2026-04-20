@@ -84,10 +84,25 @@ export async function POST(req: Request) {
 
     if (userId !== 'admin') {
       const user = await getUserById(userId)
-      if (!hasAiAccessFromSubscription(user)) {
+      const hasManualAiAccess = user?.ai_enabled === true
+      const hasSubscriptionAiAccess = hasAiAccessFromSubscription(user)
+
+      if (!hasManualAiAccess && !hasSubscriptionAiAccess) {
+        console.warn('AI access denied', {
+          userId,
+          username: user?.username || null,
+          email: user?.email || null,
+          ai_enabled: user?.ai_enabled ?? null,
+          plan_key: user?.plan_key ?? null,
+          subscription_status: user?.subscription_status ?? null,
+          at: new Date().toISOString(),
+        })
         return new Response(
-          JSON.stringify({ error: 'AI kræver et aktivt Pro-abonnement. Opgrader på profilsiden.' }),
-          { status: 402, headers: { 'Content-Type': 'application/json' } }
+          JSON.stringify({
+            error: 'AI er ikke aktiveret for din bruger endnu. Opgrader til Pro eller kontakt os for adgang.',
+            code: 'AI_ACCESS_DENIED',
+          }),
+          { status: 403, headers: { 'Content-Type': 'application/json' } }
         )
       }
     }
