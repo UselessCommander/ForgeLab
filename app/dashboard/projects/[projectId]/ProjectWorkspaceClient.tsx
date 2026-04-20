@@ -649,12 +649,19 @@ const ORBIT_MIN_RADIUS = 26
 const ORBIT_MAX_RADIUS = 220
 const ORBIT_MIN_SWEEP_PER_LOOP = Math.PI * 1.8
 const ORBIT_MAX_CENTER_JUMP = 90
-const HIGH_FIVE_PROXIMITY_PX = 54
-const HIGH_FIVE_HOLD_MS = 1200
+const HIGH_FIVE_PROXIMITY_PX = 38
+const HIGH_FIVE_HOLD_MS = 700
 const HIGH_FIVE_COOLDOWN_MS = 3500
+const HIGH_FIVE_SHAKE_SIGN_CHANGES = 4
+const HIGH_FIVE_SHAKE_MIN_DELTA_PX = 2.2
 const STICKY_HOVER_RADIUS = 28
 const STICKY_COLLAB_WINDOW_MS = 2000
 const STICKY_GLOW_MS = 5200
+const SOLO_SHAKE_SIGN_CHANGES = 5
+const SOLO_SHAKE_MIN_DELTA_PX = 2.5
+const SOLO_SHAKE_COOLDOWN_MS = 2600
+const SOLO_ORBIT_SWEEP = Math.PI * 1.65
+const SOLO_ORBIT_WINDOW_MS = 1900
 const NIGHT_CREATURE_MIN_HOUR = 22
 const NIGHT_CREATURE_DURATION_MS = 3200
 const NIGHT_CREATURE_COOLDOWN_MS = 1200
@@ -665,6 +672,8 @@ const BOARD_COMMENT_CARD_WIDTH = 300
 
 type OrbitPortalEffect = { id: string; x: number; y: number; createdAt: number }
 type HighFiveEffect = { id: string; x: number; y: number; createdAt: number; users: [string, string] }
+type SoloSparkEffect = { id: string; x: number; y: number; createdAt: number }
+type SoloOrbitEffect = { id: string; x: number; y: number; createdAt: number }
 type NightCreatureEffect = {
   id: string
   userId: string
@@ -763,6 +772,8 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const [liveCardSelections, setLiveCardSelections] = useState<Record<string, LiveCardSelection>>({})
   const [orbitPortalEffects, setOrbitPortalEffects] = useState<OrbitPortalEffect[]>([])
   const [highFiveEffects, setHighFiveEffects] = useState<HighFiveEffect[]>([])
+  const [soloSparkEffects, setSoloSparkEffects] = useState<SoloSparkEffect[]>([])
+  const [soloOrbitEffects, setSoloOrbitEffects] = useState<SoloOrbitEffect[]>([])
   const [stickyGoldGlowIds, setStickyGoldGlowIds] = useState<Record<string, number>>({})
   const [nightCreatureEffects, setNightCreatureEffects] = useState<NightCreatureEffect[]>([])
   const [fridayCelebrationEffects, setFridayCelebrationEffects] = useState<FridayCelebrationEffect[]>([])
@@ -914,6 +925,18 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const lastCreatureSpawnByUserRef = useRef<Record<string, number>>({})
   const highFivePairStartRef = useRef<Record<string, number>>({})
   const highFiveCooldownRef = useRef<Record<string, number>>({})
+  const highFivePairMotionRef = useRef<
+    Record<string, { lastDist: number; lastDelta: number; shakeCount: number; updatedAt: number }>
+  >({})
+  const soloShakeRef = useRef<{ lastX: number; dx: number; count: number; updatedAt: number } | null>(null)
+  const soloShakeCooldownRef = useRef(0)
+  const soloOrbitRef = useRef<{
+    centerX: number
+    centerY: number
+    startedAt: number
+    lastAngle: number
+    sweep: number
+  } | null>(null)
   const sectionDrawModeRef = useRef(false)
   const sentMentionKeysRef = useRef<Set<string>>(new Set())
   const analyticsBoardReturnQs = `return=${encodeURIComponent(`/dashboard/projects/${projectId}`)}&project=${encodeURIComponent(projectId)}`
@@ -1162,6 +1185,18 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     setHighFiveEffects(prev => [...prev, { id, x, y, createdAt: now, users: [userA, userB] }])
   }, [])
 
+  const triggerSoloSpark = useCallback((x: number, y: number) => {
+    const now = Date.now()
+    const id = `solo-spark-${now}-${Math.random().toString(36).slice(2, 7)}`
+    setSoloSparkEffects(prev => [...prev, { id, x, y, createdAt: now }])
+  }, [])
+
+  const triggerSoloOrbit = useCallback((x: number, y: number) => {
+    const now = Date.now()
+    const id = `solo-orbit-${now}-${Math.random().toString(36).slice(2, 7)}`
+    setSoloOrbitEffects(prev => [...prev, { id, x, y, createdAt: now }])
+  }, [])
+
   const maybeSpawnNightCreature = useCallback((userId: string, x: number, y: number) => {
     if (!isNightModeHour()) return
     const now = Date.now()
@@ -1266,16 +1301,52 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           activePairKeys.add(pairKey)
           const startedAt = highFivePairStartRef.current[pairKey] || now
           highFivePairStartRef.current[pairKey] = startedAt
+          const motion = highFivePairMotionRef.current[pairKey] || {
+            lastDist: dist,
+            lastDelta: 0,
+            shakeCount: 0,
+            updatedAt: now,
+          }
+          const distDelta = dist - motion.lastDist
+          const staleMotion = now - motion.updatedAt > 420
+          let nextShakeCount = staleMotion ? 0 : motion.shakeCount
+          if (
+            !staleMotion &&
+            Math.abs(distDelta) >= HIGH_FIVE_SHAKE_MIN_DELTA_PX &&
+            Math.abs(motion.lastDelta) >= HIGH_FIVE_SHAKE_MIN_DELTA_PX &&
+            Math.sign(distDelta) !== Math.sign(motion.lastDelta)
+          ) {
+            nextShakeCount += 1
+          }
+          highFivePairMotionRef.current[pairKey] = {
+            lastDist: dist,
+            lastDelta: distDelta,
+            shakeCount: nextShakeCount,
+            updatedAt: now,
+          }
           const cooldownUntil = highFiveCooldownRef.current[pairKey] || 0
-          if (now - startedAt >= HIGH_FIVE_HOLD_MS && now >= cooldownUntil) {
+          if (
+            now - startedAt >= HIGH_FIVE_HOLD_MS &&
+            nextShakeCount >= HIGH_FIVE_SHAKE_SIGN_CHANGES &&
+            now >= cooldownUntil
+          ) {
             highFiveCooldownRef.current[pairKey] = now + HIGH_FIVE_COOLDOWN_MS
             highFivePairStartRef.current[pairKey] = now
+            highFivePairMotionRef.current[pairKey] = {
+              lastDist: dist,
+              lastDelta: 0,
+              shakeCount: 0,
+              updatedAt: now,
+            }
             triggerHighFive(a.userId, b.userId, (a.x + b.x) / 2, (a.y + b.y) / 2)
           }
         }
       }
       for (const key of Object.keys(highFivePairStartRef.current)) {
-        if (!activePairKeys.has(key)) delete highFivePairStartRef.current[key]
+        if (!activePairKeys.has(key)) {
+          delete highFivePairStartRef.current[key]
+          delete highFivePairMotionRef.current[key]
+        }
       }
 
       const hoveredByUser: Record<string, string> = {}
@@ -1510,6 +1581,8 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       const now = Date.now()
       setOrbitPortalEffects(prev => prev.filter(item => now - item.createdAt < 1400))
       setHighFiveEffects(prev => prev.filter(item => now - item.createdAt < 1300))
+      setSoloSparkEffects(prev => prev.filter(item => now - item.createdAt < 1200))
+      setSoloOrbitEffects(prev => prev.filter(item => now - item.createdAt < 1300))
       setNightCreatureEffects(prev => prev.filter(item => item.expiresAt > now))
       setFridayCelebrationEffects(prev => prev.filter(item => now - item.createdAt < FRIDAY_CELEBRATION_MS))
       setStickyGoldGlowIds(prev => {
@@ -2350,6 +2423,55 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     void broadcastCursor(worldPoint.x, worldPoint.y, true)
     if (currentUserId) maybeSpawnNightCreature(currentUserId, worldPoint.x, worldPoint.y)
     detectOrbitAndCollabUnlocks(liveCursors)
+    const isSolo = Object.values(liveCursors).filter(c => c.visible).length === 0
+    if (isSolo) {
+      const now = Date.now()
+      const shake = soloShakeRef.current
+      if (!shake || now - shake.updatedAt > 520) {
+        soloShakeRef.current = { lastX: worldPoint.x, dx: 0, count: 0, updatedAt: now }
+      } else {
+        const dx = worldPoint.x - shake.lastX
+        let count = shake.count
+        if (
+          Math.abs(dx) >= SOLO_SHAKE_MIN_DELTA_PX &&
+          Math.abs(shake.dx) >= SOLO_SHAKE_MIN_DELTA_PX &&
+          Math.sign(dx) !== Math.sign(shake.dx)
+        ) {
+          count += 1
+        }
+        soloShakeRef.current = { lastX: worldPoint.x, dx, count, updatedAt: now }
+        if (count >= SOLO_SHAKE_SIGN_CHANGES && now >= soloShakeCooldownRef.current) {
+          soloShakeCooldownRef.current = now + SOLO_SHAKE_COOLDOWN_MS
+          soloShakeRef.current = { lastX: worldPoint.x, dx: 0, count: 0, updatedAt: now }
+          triggerSoloSpark(worldPoint.x, worldPoint.y)
+        }
+      }
+
+      const orbit = soloOrbitRef.current
+      if (!orbit || now - orbit.startedAt > SOLO_ORBIT_WINDOW_MS) {
+        soloOrbitRef.current = {
+          centerX: worldPoint.x,
+          centerY: worldPoint.y,
+          startedAt: now,
+          lastAngle: 0,
+          sweep: 0,
+        }
+      } else {
+        const angle = Math.atan2(worldPoint.y - orbit.centerY, worldPoint.x - orbit.centerX)
+        let delta = angle - orbit.lastAngle
+        while (delta > Math.PI) delta -= Math.PI * 2
+        while (delta < -Math.PI) delta += Math.PI * 2
+        const sweep = orbit.sweep + delta
+        soloOrbitRef.current = { ...orbit, lastAngle: angle, sweep }
+        if (Math.abs(sweep) >= SOLO_ORBIT_SWEEP) {
+          triggerSoloOrbit(orbit.centerX, orbit.centerY)
+          soloOrbitRef.current = null
+        }
+      }
+    } else {
+      soloShakeRef.current = null
+      soloOrbitRef.current = null
+    }
 
     if (sectionResizeRef.current) {
       const r = sectionResizeRef.current
@@ -7910,8 +8032,10 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           {highFiveEffects.map(effect => {
             const age = Date.now() - effect.createdAt
             const progress = Math.max(0, Math.min(1, age / 1100))
-            const riseY = 20 * progress
+            const riseY = 16 * progress
             const opacity = 1 - progress
+            const handOffset = Math.max(0, 22 - progress * 42)
+            const clapPop = progress < 0.5 ? progress * 2 : (1 - progress) * 2
             return (
               <div
                 key={effect.id}
@@ -7927,15 +8051,78 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                   display: 'flex',
                   alignItems: 'center',
                   gap: 6,
-                  fontSize: 20,
+                  fontSize: 22,
                 }}
               >
-                <span>✋</span>
-                <span style={{ fontSize: 13, fontWeight: 800, color: '#0F172A', background: 'rgba(255,255,255,0.9)', borderRadius: 999, padding: '2px 8px' }}>
-                  High five!
+                <span style={{ transform: `translateX(${handOffset}px)` }}>✋</span>
+                <span
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 900,
+                    letterSpacing: 0.4,
+                    color: '#0F172A',
+                    background: 'rgba(255,255,255,0.94)',
+                    borderRadius: 999,
+                    padding: '2px 8px',
+                    transform: `scale(${1 + clapPop * 0.4})`,
+                    boxShadow: `0 0 ${8 + clapPop * 16}px rgba(250,204,21,0.55)`,
+                  }}
+                >
+                  CLAP!
                 </span>
-                <span>🤚</span>
+                <span style={{ transform: `translateX(${-handOffset}px)` }}>🤚</span>
               </div>
+            )
+          })}
+
+          {soloSparkEffects.map(effect => {
+            const age = Date.now() - effect.createdAt
+            const progress = Math.max(0, Math.min(1, age / 1000))
+            const opacity = 1 - progress
+            const scale = 0.45 + progress * 1.2
+            return (
+              <div
+                key={effect.id}
+                style={{
+                  position: 'absolute',
+                  left: effect.x,
+                  top: effect.y,
+                  transform: `translate(-50%, -50%) scale(${scale})`,
+                  opacity,
+                  pointerEvents: 'none',
+                  zIndex: 22,
+                  fontSize: 22,
+                  filter: 'drop-shadow(0 0 12px rgba(250,204,21,0.65))',
+                }}
+              >
+                ✨
+              </div>
+            )
+          })}
+
+          {soloOrbitEffects.map(effect => {
+            const age = Date.now() - effect.createdAt
+            const progress = Math.max(0, Math.min(1, age / 1200))
+            const opacity = 1 - progress
+            const rot = progress * 270
+            return (
+              <div
+                key={effect.id}
+                style={{
+                  position: 'absolute',
+                  left: effect.x,
+                  top: effect.y,
+                  width: 72,
+                  height: 72,
+                  borderRadius: '50%',
+                  border: '2px dashed rgba(14,165,233,0.9)',
+                  boxShadow: '0 0 16px rgba(14,165,233,0.45)',
+                  transform: `translate(-50%, -50%) rotate(${rot}deg) scale(${0.7 + progress * 0.6})`,
+                  opacity,
+                  pointerEvents: 'none',
+                  zIndex: 22,
+                }}
+              />
             )
           })}
 
