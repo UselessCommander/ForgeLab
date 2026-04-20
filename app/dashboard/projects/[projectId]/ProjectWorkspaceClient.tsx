@@ -1626,7 +1626,9 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           ts: Date.now(),
         } satisfies LiveCardSelectionPayload,
       })
-      void channel.untrack()
+      if (typeof channel?.untrack === 'function') {
+        void channel.untrack()
+      }
       cursorChannelRef.current = null
       void channel.unsubscribe()
     }

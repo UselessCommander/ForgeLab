@@ -345,7 +345,18 @@ export async function POST(req: Request) {
           ].join('\n')
 
     const normalizedMessages: ModelMessage[] = []
-    for (const message of messages) {
+    let lastUserMessageIndex = -1
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      if (messages?.[i]?.role === 'user') {
+        lastUserMessageIndex = i
+        break
+      }
+    }
+    let totalFilePayloadChars = 0
+    const MAX_FILE_PAYLOAD_CHARS = 2_500_000
+
+    for (let messageIndex = 0; messageIndex < messages.length; messageIndex += 1) {
+      const message = messages[messageIndex]
       const role: 'assistant' | 'system' | 'user' =
         message?.role === 'assistant'
           ? 'assistant'
@@ -372,6 +383,9 @@ export async function POST(req: Request) {
           }
 
           if (role !== 'user' || part?.type !== 'file') continue
+          // Send kun fil-binary fra den seneste user-besked.
+          // Ellers vokser payload hurtigt over Vercel-limits på efterfølgende turns.
+          if (messageIndex !== lastUserMessageIndex) continue
 
           const mimeType = typeof part?.mediaType === 'string' ? part.mediaType : ''
           const hasSupportedPrefix = SUPPORTED_MIME_PREFIXES.some(prefix => mimeType.startsWith(prefix))
@@ -381,6 +395,7 @@ export async function POST(req: Request) {
           if (typeof part?.url === 'string' && part.url.startsWith('data:')) {
             const base64Data = part.url.split(',')[1]
             if (base64Data) {
+              totalFilePayloadChars += base64Data.length
               userContentParts.push({
                 type: 'file',
                 data: base64Data,
@@ -406,6 +421,17 @@ export async function POST(req: Request) {
       if (userContentParts.length > 0) {
         normalizedMessages.push({ role: 'user', content: userContentParts })
       }
+    }
+
+    if (totalFilePayloadChars > MAX_FILE_PAYLOAD_CHARS) {
+      return new Response(
+        JSON.stringify({
+          error:
+            'Vedhæftede filer er for store til én AI-anmodning. Prøv med færre/mindre filer eller del dokumentet op.',
+          code: 'FILE_PAYLOAD_TOO_LARGE',
+        }),
+        { status: 413, headers: { 'Content-Type': 'application/json' } }
+      )
     }
 
     const openrouter = createOpenAI({

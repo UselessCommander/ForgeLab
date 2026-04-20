@@ -890,6 +890,15 @@ export default function AiChatCompanion({
       return 'Netværksfejl ved kontakt til AI-serveren. Tjek forbindelse og prøv igen.'
     }
 
+    if (
+      lower.includes('request entity too large') ||
+      lower.includes('function_payload_too_large') ||
+      lower.includes('file_payload_too_large') ||
+      lower.includes('payload too large')
+    ) {
+      return 'Din besked blev for stor til serveren. Prøv med færre/mindre filer eller del dokumentet op i mindre bidder.'
+    }
+
     return rawMessage
   }
 
