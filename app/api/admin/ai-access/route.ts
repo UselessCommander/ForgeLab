@@ -1,33 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUserId } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
-
-function normalizeName(value: string | null | undefined) {
-  return String(value || '').trim().toLowerCase()
-}
-
-async function isAdminUser(userId: string | null) {
-  if (!userId) return false
-  if (userId === 'admin') return true
-
-  const { data, error } = await supabase
-    .from('users')
-    .select('username')
-    .eq('id', userId)
-    .limit(1)
-
-  if (error) {
-    console.error('Error checking admin identity:', error)
-    return false
-  }
-
-  const username = normalizeName(data?.[0]?.username)
-  const adminUsernames = new Set([
-    normalizeName(process.env.ADMIN_USERNAME || 'admin'),
-    normalizeName('Useless commander'),
-  ])
-  return adminUsernames.has(username)
-}
+import { isAdminUserId } from '@/lib/admin'
 
 // GET /api/admin/ai-access?q=...
 // Returnerer brugere med ai_enabled status (kun admin).
@@ -35,7 +9,7 @@ export async function GET(request: NextRequest) {
   try {
     const userId = await getCurrentUserId()
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    if (!(await isAdminUser(userId))) {
+    if (!(await isAdminUserId(userId))) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -78,7 +52,7 @@ export async function PATCH(request: NextRequest) {
   try {
     const userId = await getCurrentUserId()
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    if (!(await isAdminUser(userId))) {
+    if (!(await isAdminUserId(userId))) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

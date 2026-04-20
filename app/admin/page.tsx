@@ -248,6 +248,12 @@ export default function AdminDashboard() {
 
         <div className="bg-white rounded-2xl p-4 md:p-6 shadow-sm border border-gray-200/80 mb-6 md:mb-8">
           <div className="flex flex-wrap items-center gap-4">
+            <Link
+              href="/admin/ai-access"
+              className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition-all duration-200 shadow-sm"
+            >
+              🤖 AI adgang
+            </Link>
             <button
               onClick={loadData}
               className="px-5 py-2.5 bg-gray-900 text-white rounded-xl font-medium hover:bg-gray-800 transition-all duration-200 shadow-sm"
