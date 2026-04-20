@@ -658,6 +658,7 @@ const NIGHT_CREATURE_COOLDOWN_MS = 1200
 const FRIDAY_CELEBRATION_START_HOUR = 12
 const FRIDAY_CELEBRATION_END_HOUR = 18
 const FRIDAY_CELEBRATION_MS = 2100
+const BOARD_COMMENT_CARD_WIDTH = 300
 
 type OrbitPortalEffect = { id: string; x: number; y: number; createdAt: number }
 type NightCreatureEffect = {
@@ -4146,7 +4147,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       const id = `celebrate-${now}-${Math.random().toString(36).slice(2, 7)}`
       setFridayCelebrationEffects(prev => [
         ...prev,
-        { id, x: targetComment.x + targetComment.width / 2, y: targetComment.y + 16, createdAt: now },
+        { id, x: targetComment.x + BOARD_COMMENT_CARD_WIDTH / 2, y: targetComment.y + 16, createdAt: now },
       ])
     }
   }
@@ -7639,7 +7640,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                   position: 'absolute',
                   left: comment.x,
                   top: comment.y,
-                  width: 300,
+                  width: BOARD_COMMENT_CARD_WIDTH,
                   borderRadius: 18,
                   border: isSelected ? '2px solid #2563EB' : '1px solid #E2E8F0',
                   background: '#FFFFFF',
