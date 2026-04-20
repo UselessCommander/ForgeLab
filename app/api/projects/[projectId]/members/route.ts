@@ -38,7 +38,10 @@ export async function GET(
     }
 
     const memberUserIds = (members || []).map((m) => m.user_id)
-    const { data: users } = await supabase.from('users').select('id, username, email').in('id', memberUserIds)
+    const { data: users } = await supabase
+      .from('users')
+      .select('id, username, email, avatar_url')
+      .in('id', memberUserIds)
     const userById = new Map((users || []).map((u) => [u.id, u]))
 
     return NextResponse.json(
@@ -46,6 +49,7 @@ export async function GET(
         ...m,
         username: userById.get(m.user_id)?.username || m.user_id,
         email: userById.get(m.user_id)?.email || null,
+        avatar_url: userById.get(m.user_id)?.avatar_url || null,
       }))
     )
   } catch (error) {

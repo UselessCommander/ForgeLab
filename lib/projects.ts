@@ -30,6 +30,7 @@ export interface ProjectMember {
   user_id: string
   username?: string
   email?: string | null
+  avatar_url?: string | null
   role: 'owner' | 'editor' | 'viewer'
   created_at: string
 }

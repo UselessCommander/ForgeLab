@@ -61,6 +61,7 @@ import {
   AlertTriangle,
   FlaskConical,
   LayoutTemplate,
+  MessageCircle,
   MessageSquare,
   PartyPopper,
   SearchX,
@@ -344,6 +345,18 @@ type LiveCardSelectionPayload = {
 
 type LiveCardSelection = LiveCardSelectionPayload & {
   updatedAt: number
+}
+
+type LiveChatMessagePayload = {
+  id: string
+  userId: string
+  username: string
+  text: string
+  createdAt: number
+}
+
+type LiveChatMessage = LiveChatMessagePayload & {
+  isMine: boolean
 }
 
 type BoardContextMenu =
@@ -760,17 +773,20 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const [addToolSearch, setAddToolSearch] = useState('')
   const [selectedAddToolCategory, setSelectedAddToolCategory] = useState<'all' | string>('all')
   const [showAllAddToolResults, setShowAllAddToolResults] = useState(false)
-  const [showPanel, setShowPanel] = useState<'settings' | 'comments' | null>(null)
+  const [showPanel, setShowPanel] = useState<'settings' | 'comments' | 'live-chat' | null>(null)
   const [loading, setLoading] = useState(true)
   const [modifying, setModifying] = useState(false)
   const [isOffline, setIsOffline] = useState(false)
   const [members, setMembers] = useState<ProjectMember[]>([])
+  const [onlineMemberIds, setOnlineMemberIds] = useState<string[]>([])
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState<'editor' | 'viewer'>('editor')
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [currentUsername, setCurrentUsername] = useState<string>('Dig')
   const [liveCursors, setLiveCursors] = useState<Record<string, LiveCursor>>({})
   const [liveCardSelections, setLiveCardSelections] = useState<Record<string, LiveCardSelection>>({})
+  const [liveChatMessages, setLiveChatMessages] = useState<LiveChatMessage[]>([])
+  const [liveChatInput, setLiveChatInput] = useState('')
   const [orbitPortalEffects, setOrbitPortalEffects] = useState<OrbitPortalEffect[]>([])
   const [highFiveEffects, setHighFiveEffects] = useState<HighFiveEffect[]>([])
   const [soloSparkEffects, setSoloSparkEffects] = useState<SoloSparkEffect[]>([])
@@ -911,6 +927,9 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const cardElementRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const GRID_SIZE = 24
   const cursorChannelRef = useRef<any>(null)
+  const chatScrollRef = useRef<HTMLDivElement | null>(null)
+  const onlineMemberIdSet = new Set(onlineMemberIds)
+  const onlineMembers = members.filter((member) => onlineMemberIdSet.has(member.user_id))
   const lastCardSelectionSignatureRef = useRef<string>('')
   const lastCursorSendAtRef = useRef(0)
   const liveCursorTargetsRef = useRef<Record<string, LiveCursor>>({})
@@ -1388,7 +1407,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   )
 
   useEffect(() => {
-    if (activeWorkspaceTab !== 'board' || !projectId || !currentUserId) return
+    if (!projectId || !currentUserId) return
 
     const runCursorSmoothingFrame = () => {
       liveCursorRafRef.current = null
@@ -1445,10 +1464,27 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       liveCursorRafRef.current = requestAnimationFrame(runCursorSmoothingFrame)
     }
 
+    const syncOnlineMembersFromPresence = (channelRef: any) => {
+      const rawState = channelRef?.presenceState?.() || {}
+      const ids = Array.from(
+        new Set(
+          Object.values(rawState)
+            .flatMap((entry: any) =>
+              Array.isArray(entry) ? entry.map((item) => String(item?.userId || '')) : []
+            )
+            .filter(Boolean)
+        )
+      )
+      setOnlineMemberIds(ids)
+    }
+
     const channel: any = supabase.channel(`project-live-cursors:${projectId}`, {
-      config: { broadcast: { self: false } },
+      config: { broadcast: { self: false }, presence: { key: currentUserId } },
     })
     channel
+      .on('presence', { event: 'sync' }, () => syncOnlineMembersFromPresence(channel))
+      .on('presence', { event: 'join' }, () => syncOnlineMembersFromPresence(channel))
+      .on('presence', { event: 'leave' }, () => syncOnlineMembersFromPresence(channel))
       .on('broadcast', { event: 'cursor_move' }, (message: { payload?: LiveCursorPayload }) => {
         const payload = message?.payload
         if (!payload || !payload.userId || payload.userId === currentUserId) return
@@ -1493,7 +1529,32 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       .on('broadcast', { event: 'board_refresh' }, () => {
         setBoardSyncVersion((v) => v + 1)
       })
-      .subscribe()
+      .on('broadcast', { event: 'live_chat_message' }, (message: { payload?: LiveChatMessagePayload }) => {
+        const payload = message?.payload
+        if (!payload || !payload.userId || payload.userId === currentUserId) return
+        const normalizedText = String(payload.text || '').trim()
+        if (!normalizedText) return
+        setLiveChatMessages((prev) => {
+          if (prev.some((item) => item.id === payload.id)) return prev
+          const next = [
+            ...prev,
+            {
+              ...payload,
+              text: normalizedText.slice(0, 800),
+              isMine: false,
+            },
+          ]
+          return next.slice(-100)
+        })
+      })
+      .subscribe((status: string) => {
+        if (status !== 'SUBSCRIBED') return
+        void channel.track({
+          userId: currentUserId,
+          username: currentUsername,
+          onlineAt: Date.now(),
+        })
+      })
 
     cursorChannelRef.current = channel
     liveCursorTargetsRef.current = {}
@@ -1539,6 +1600,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       liveCursorSmoothedRef.current = {}
       setLiveCursors({})
       setLiveCardSelections({})
+      setOnlineMemberIds([])
       void channel.send({
         type: 'broadcast',
         event: 'cursor_move',
@@ -1563,10 +1625,38 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           ts: Date.now(),
         } satisfies LiveCardSelectionPayload,
       })
+      void channel.untrack()
       cursorChannelRef.current = null
       void channel.unsubscribe()
     }
-  }, [activeWorkspaceTab, currentUserId, currentUsername, detectOrbitAndCollabUnlocks, maybeSpawnNightCreature, projectId])
+  }, [currentUserId, currentUsername, detectOrbitAndCollabUnlocks, maybeSpawnNightCreature, projectId])
+
+  useEffect(() => {
+    if (showPanel !== 'live-chat') return
+    chatScrollRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [liveChatMessages, showPanel])
+
+  const sendLiveChatMessage = useCallback(async () => {
+    const channel = cursorChannelRef.current
+    const normalizedText = liveChatInput.trim()
+    if (!channel || !normalizedText || !currentUserId) return
+
+    const payload: LiveChatMessagePayload = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      userId: currentUserId,
+      username: currentUsername || 'Dig',
+      text: normalizedText.slice(0, 800),
+      createdAt: Date.now(),
+    }
+
+    setLiveChatMessages((prev) => [...prev, { ...payload, isMine: true }].slice(-100))
+    setLiveChatInput('')
+    await channel.send({
+      type: 'broadcast',
+      event: 'live_chat_message',
+      payload,
+    })
+  }, [currentUserId, currentUsername, liveChatInput])
 
   useEffect(() => {
     if (activeWorkspaceTab !== 'board' || !currentUserId) return
@@ -5802,9 +5892,9 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
 
         {/* Right */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, justifyContent: 'flex-end' }}>
-          {members.length > 0 && (
+          {onlineMembers.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', marginRight: 2 }}>
-              {members.slice(0, 5).map((m, i) => {
+              {onlineMembers.slice(0, 5).map((m, i) => {
                 const label = m.email || m.username || m.user_id
                 const initial = (label || '?').charAt(0).toUpperCase()
                 return (
@@ -5817,11 +5907,12 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                       borderRadius: '50%',
                       border: '2px solid #fff',
                       marginLeft: i === 0 ? 0 : -8,
-                      background: m.role === 'owner'
-                        ? 'linear-gradient(135deg,#F59E0B,#D97706)'
-                        : m.role === 'editor'
-                          ? 'linear-gradient(135deg,#60A5FA,#2563EB)'
-                          : 'linear-gradient(135deg,#D1D5DB,#9CA3AF)',
+                      background:
+                        m.role === 'owner'
+                          ? 'linear-gradient(135deg,#F59E0B,#D97706)'
+                          : m.role === 'editor'
+                            ? 'linear-gradient(135deg,#60A5FA,#2563EB)'
+                            : 'linear-gradient(135deg,#D1D5DB,#9CA3AF)',
                       color: '#fff',
                       fontSize: 11,
                       fontWeight: 800,
@@ -5830,15 +5921,24 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                       justifyContent: 'center',
                       boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
                       cursor: 'default',
+                      overflow: 'hidden',
                     }}
                   >
-                    {initial}
+                    {m.avatar_url ? (
+                      <img
+                        src={m.avatar_url}
+                        alt={label}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    ) : (
+                      initial
+                    )}
                   </div>
                 )
               })}
-              {members.length > 5 && (
+              {onlineMembers.length > 5 && (
                 <div
-                  title={`${members.length - 5} flere medlemmer`}
+                  title={`${onlineMembers.length - 5} flere online`}
                   style={{
                     width: 28,
                     height: 28,
@@ -5854,7 +5954,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                     justifyContent: 'center',
                   }}
                 >
-                  +{members.length - 5}
+                  +{onlineMembers.length - 5}
                 </div>
               )}
             </div>
@@ -6259,6 +6359,32 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
               }}
             >
               <LayoutTemplate size={20} strokeWidth={2} color="currentColor" aria-hidden />
+            </button>
+            <button
+              type="button"
+              title="Live chat"
+              aria-label="Åbn live chat"
+              aria-pressed={showPanel === 'live-chat'}
+              onClick={() => {
+                setShowPanel(p => (p === 'live-chat' ? null : 'live-chat'))
+                setHandPanTool(false)
+              }}
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: 11,
+                border: 'none',
+                background: showPanel === 'live-chat' ? '#A259FF' : 'transparent',
+                color: showPanel === 'live-chat' ? '#fff' : '#374151',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                transition: 'background 0.15s, color 0.15s',
+              }}
+            >
+              <MessageCircle size={18} strokeWidth={1.9} aria-hidden />
             </button>
             <button
               type="button"
@@ -8532,10 +8658,16 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
                 {showPanel === 'settings' ? (
                   <Settings size={15} strokeWidth={2.2} aria-hidden />
+                ) : showPanel === 'live-chat' ? (
+                  <MessageCircle size={15} strokeWidth={2.2} aria-hidden />
                 ) : (
                   <MessageSquare size={15} strokeWidth={2.2} aria-hidden />
                 )}
-                {showPanel === 'settings' ? 'Projektindstillinger' : 'Kommentarer'}
+                {showPanel === 'settings'
+                  ? 'Projektindstillinger'
+                  : showPanel === 'live-chat'
+                    ? 'Live chat'
+                    : 'Kommentarer'}
               </span>
             </h2>
             <button onClick={() => setShowPanel(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', fontSize: 20, lineHeight: 1, padding: '0 2px' }}>×</button>
@@ -8643,14 +8775,22 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                     <p style={{ margin: '0 0 10px', fontSize: 13, color: '#9CA3AF' }}>Kun owner kan invitere/fjerne medlemmer.</p>
                   )}
                   <p style={{ margin: '14px 0 6px', fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                    Medlemmer ({members.length})
+                    Medlemmer ({members.length}) · Online nu ({onlineMembers.length})
                   </p>
                   {members.length === 0 ? (
                     <p style={{ fontSize: 13, color: '#9CA3AF' }}>Ingen endnu.</p>
                   ) : members.map(m => (
                     <div key={m.user_id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 10, background: '#F9FAFB', border: '1px solid #F3F4F6', marginBottom: 6 }}>
-                      <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'linear-gradient(135deg,#F59E0B,#D97706)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
-                        {(m.username || m.user_id).charAt(0).toUpperCase()}
+                      <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'linear-gradient(135deg,#F59E0B,#D97706)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 12, fontWeight: 700, flexShrink: 0, overflow: 'hidden' }}>
+                        {m.avatar_url ? (
+                          <img
+                            src={m.avatar_url}
+                            alt={m.email || m.username || m.user_id}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          />
+                        ) : (
+                          (m.username || m.user_id).charAt(0).toUpperCase()
+                        )}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -8658,6 +8798,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                         </p>
                         <p style={{ margin: 0, fontSize: 11, color: '#9CA3AF' }}>
                           {m.role}{m.username ? ` · ${m.username}` : ''}
+                          {onlineMemberIdSet.has(m.user_id) ? ' · online nu' : ''}
                         </p>
                       </div>
                       {isOwner && m.role !== 'owner' && (
@@ -8798,6 +8939,117 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                     </>
                   )
                 })()}
+              </div>
+            )}
+            {showPanel === 'live-chat' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, minHeight: '100%' }}>
+                <div
+                  style={{
+                    flex: 1,
+                    minHeight: 220,
+                    maxHeight: 420,
+                    overflowY: 'auto',
+                    border: '1px solid #E2E8F0',
+                    borderRadius: 12,
+                    background: '#F8FAFC',
+                    padding: 10,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                  }}
+                >
+                  {liveChatMessages.length === 0 ? (
+                    <div
+                      style={{
+                        border: '1px dashed #CBD5E1',
+                        borderRadius: 10,
+                        padding: '10px 12px',
+                        background: '#fff',
+                        fontSize: 12,
+                        color: '#64748B',
+                      }}
+                    >
+                      Start samtalen her. Beskeder vises live for andre medlemmer i projektet.
+                    </div>
+                  ) : (
+                    liveChatMessages.map((item) => (
+                      <div
+                        key={item.id}
+                        style={{
+                          alignSelf: item.isMine ? 'flex-end' : 'flex-start',
+                          maxWidth: '88%',
+                          borderRadius: 10,
+                          padding: '8px 10px',
+                          background: item.isMine ? '#DDD6FE' : '#fff',
+                          border: item.isMine ? '1px solid #C4B5FD' : '1px solid #E2E8F0',
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'baseline',
+                            justifyContent: 'space-between',
+                            gap: 8,
+                            marginBottom: 4,
+                          }}
+                        >
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#1E293B' }}>
+                            {item.isMine ? 'Dig' : item.username || 'Medlem'}
+                          </span>
+                          <span style={{ fontSize: 10, color: '#64748B' }}>
+                            {new Date(item.createdAt).toLocaleTimeString('da-DK', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </span>
+                        </div>
+                        <p style={{ margin: 0, fontSize: 12, whiteSpace: 'pre-wrap', color: '#0F172A' }}>
+                          {item.text}
+                        </p>
+                      </div>
+                    ))
+                  )}
+                  <div ref={chatScrollRef} />
+                </div>
+
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    void sendLiveChatMessage()
+                  }}
+                  style={{ display: 'flex', gap: 8 }}
+                >
+                  <input
+                    value={liveChatInput}
+                    onChange={(event) => setLiveChatInput(event.target.value)}
+                    placeholder="Skriv en besked..."
+                    maxLength={800}
+                    style={{
+                      flex: 1,
+                      borderRadius: 10,
+                      border: '1.5px solid #E2E8F0',
+                      padding: '8px 10px',
+                      fontSize: 13,
+                      outline: 'none',
+                    }}
+                  />
+                  <button
+                    type="submit"
+                    disabled={!liveChatInput.trim()}
+                    style={{
+                      border: 'none',
+                      borderRadius: 10,
+                      padding: '0 12px',
+                      background: liveChatInput.trim() ? '#4F46E5' : '#CBD5E1',
+                      color: '#fff',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: liveChatInput.trim() ? 'pointer' : 'not-allowed',
+                    }}
+                  >
+                    Send
+                  </button>
+                </form>
               </div>
             )}
           </div>
