@@ -8,10 +8,10 @@ const supabase = createClient(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { projectId: string; commentId: string } }
+  { params }: { params: Promise<{ projectId: string; commentId: string }> }
 ) {
   try {
-    const commentId = params.commentId
+    const { commentId } = await params
     const { content, userId } = await request.json()
 
     if (!content || !userId) {
@@ -49,10 +49,10 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { projectId: string; commentId: string } }
+  { params }: { params: Promise<{ projectId: string; commentId: string }> }
 ) {
   try {
-    const commentId = params.commentId
+    const { commentId } = await params
     const { userId } = await request.json()
 
     if (!userId) {

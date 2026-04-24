@@ -9,10 +9,10 @@ const supabase = createClient(
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
-    const projectId = params.projectId
+    const { projectId } = await params
 
     const comments = await getProjectCommentsWithReplies(projectId)
 
@@ -28,10 +28,10 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
-    const projectId = params.projectId
+    const { projectId } = await params
     const { content, parentId, userId } = await request.json()
 
     if (!content || !userId) {

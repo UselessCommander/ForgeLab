@@ -22,6 +22,7 @@ interface AiChatCompanionProps {
     | 'survey'
     | 'qr'
     | 'files'
+    | 'comments'
   framework: string
   role: string
   onAddTool: (slug: string) => void
