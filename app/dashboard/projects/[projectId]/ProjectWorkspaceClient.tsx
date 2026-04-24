@@ -45,8 +45,7 @@ import GoogleDesignSprintDiagram from '@/components/dashboard/GoogleDesignSprint
 import ProjectSlidesTab from '@/components/ProjectSlidesTab'
 import ProjectFilesTab from '@/components/ProjectFilesTab'
 import ProjectComments from '@/components/ProjectComments'
-import CommentPin from '@/components/CommentPin'
-import { getProjectCommentsWithReplies, createProjectComment, type ProjectComment } from '@/lib/comments'
+import { getProjectCommentsWithReplies, type ProjectComment } from '@/lib/comments'
 import StickyNoteBodyEditor from '@/components/StickyNoteBodyEditor'
 import StickyRichToolbar from '@/components/StickyRichToolbar'
 import type { StickyNoteFormat } from '@/lib/stickyNoteRichText'
@@ -300,6 +299,8 @@ type BoardComment = {
   createdBy: string
   resolved?: boolean
   resolvedAt?: number
+  replies?: BoardComment[]
+  parentId?: string
 }
 /** Frit placerbart tekstfelt på boardet (lige som sticky, men uden sticky-styling) */
 type BoardFreeText = {
@@ -771,8 +772,6 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<
     'board' | 'planning' | 'slides' | 'survey' | 'card-sorting' | 'qr' | 'files' | 'comments'
   >('board')
-  const [comments, setComments] = useState<ProjectComment[]>([])
-  const [isCommentMode, setIsCommentMode] = useState(false)
   const [planningPane, setPlanningPane] = useState<'kanban' | 'gantt'>('kanban')
   const [showAddTool, setShowAddTool] = useState(false)
   const [addToolSearch, setAddToolSearch] = useState('')
@@ -1706,28 +1705,106 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     [projectId]
   )
 
-  const handleCanvasClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
-    if (!isCommentMode || !currentUserId || !canEdit) return
+  
+  // Helper function to render nested comment replies
+  const renderBoardCommentReplies = (comment: BoardComment, level: number = 0) => {
+    const replies = boardComments.filter(c => c.parentId === comment.id && !c.resolved)
     
-    const rect = event.currentTarget.getBoundingClientRect()
-    const x = event.clientX - rect.left
-    const y = event.clientY - rect.top
-    
-    // Create a new comment at this position
-    const createCanvasComment = async () => {
-      try {
-        const newComment = await createProjectComment(projectId, currentUserId, 'Ny kommentar', {
-          positionX: x,
-          positionY: y,
-        })
-        setComments(prev => [...prev, newComment])
-      } catch (error) {
-        console.error('Error creating comment:', error)
-      }
-    }
-    
-    void createCanvasComment()
-  }, [isCommentMode, currentUserId, projectId, canEdit])
+    return replies.map(reply => {
+      const isSelected = selectedCommentIds.includes(reply.id)
+      const replyInitial = (reply.createdBy || '?').trim().charAt(0).toUpperCase()
+      const createdAtLabel = new Date(reply.createdAt || Date.now()).toLocaleTimeString('da-DK', {
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+
+      return (
+        <div key={reply.id}>
+          {/* Reply comment card */}
+          <div
+            onContextMenu={e => openBoardShapeContextMenu(e, 'comment', reply.id)}
+            onClick={e => {
+              e.stopPropagation()
+              const additive = e.metaKey || e.ctrlKey || e.shiftKey
+              if (!additive) {
+                setSelectedCommentIds([reply.id])
+                return
+              }
+              setSelectedCommentIds(prev => (prev.includes(reply.id) ? prev : [...prev, reply.id]))
+            }}
+            style={{
+              position: 'absolute',
+              left: reply.x + (level * 20), // Indent replies
+              top: reply.y,
+              width: BOARD_COMMENT_CARD_WIDTH,
+              borderRadius: 18,
+              border: isSelected ? '2px solid #2563EB' : '1px solid #E2E8F0',
+              background: '#FFFFFF',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+              zIndex: 4,
+              cursor: canEdit ? 'grab' : 'pointer',
+              userSelect: 'none',
+            }}
+          >
+            <div style={{ padding: '8px 12px', borderBottom: '1px solid #F1F5F9' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div
+                  style={{
+                    width: 24,
+                    height: 24,
+                    borderRadius: '999px',
+                    background: '#F3F4F6',
+                    color: '#6B7280',
+                    display: 'grid',
+                    placeItems: 'center',
+                    fontSize: 10,
+                    fontWeight: 700,
+                    userSelect: 'none',
+                  }}
+                >
+                  {replyInitial}
+                </div>
+                <span style={{ fontSize: 11, color: '#64748B', fontWeight: 600 }}>{createdAtLabel}</span>
+              </div>
+            </div>
+            <div style={{ padding: '0 12px 12px' }}>
+              <textarea
+                value={reply.text}
+                onMouseDown={e => e.stopPropagation()}
+                onChange={e => {
+                  const nextText = e.target.value
+                  setBoardComments(prev => {
+                    const next = prev.map(item => (item.id === reply.id ? { ...item, text: nextText } : item))
+                    persistFlowchart(flowNodes, flowEdges, stickyNotes, boardSections, next)
+                    return next
+                  })
+                }}
+                disabled={!canEdit}
+                placeholder="Skriv kommentar..."
+                style={{
+                  width: '100%',
+                  minHeight: 60,
+                  padding: '8px 10px',
+                  borderRadius: 10,
+                  border: '1px solid #E2E8F0',
+                  background: '#F8FAFC',
+                  color: '#0F172A',
+                  resize: 'vertical',
+                  outline: 'none',
+                  fontSize: 12,
+                  lineHeight: 1.45,
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+          </div>
+          
+          {/* Recursively render nested replies */}
+          {renderBoardCommentReplies(reply, level + 1)}
+        </div>
+      )
+    })
+  }
 
   const loadProject = async () => {
     try {
@@ -1800,7 +1877,6 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       const loadComments = async () => {
         try {
           const commentsData = await getProjectCommentsWithReplies(projectId)
-          setComments(commentsData)
         } catch (error) {
           console.error('Error loading comments:', error)
         }
@@ -4364,22 +4440,25 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     const centerX = at ? at.x : rect ? (rect.width / 2 - pan.x) / zoom : 240
     const centerY = at ? at.y : rect ? (rect.height / 2 - pan.y) / zoom : 240
     const pos = snapPoint(centerX, centerY)
-    const comment: BoardComment = {
-      id: `comment-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      x: pos.x,
-      y: pos.y,
+    addBoardComment(pos)
+  }
+
+  const addBoardCommentReply = useCallback((parentComment: BoardComment) => {
+    if (!canEdit) return
+    const id = `comment-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+    const newReply: BoardComment = {
+      id,
+      x: parentComment.x,
+      y: parentComment.y + 150, // Position below parent
       text: '',
       createdAt: Date.now(),
-      createdBy: currentUsername,
-      resolved: false,
+      createdBy: currentUserId || 'Unknown',
+      parentId: parentComment.id,
     }
-    setBoardComments(prev => {
-      const next = [...prev, comment]
-      persistFlowchart(flowNodes, flowEdges, stickyNotes, boardSections, next)
-      return next
-    })
-    setSelectedCommentIds([comment.id])
-  }
+    const next = [...boardComments, newReply]
+    setBoardComments(next)
+    persistFlowchart(flowNodes, flowEdges, stickyNotes, boardSections, next)
+  }, [canEdit, currentUserId, boardComments, flowNodes, flowEdges, stickyNotes, boardSections, persistFlowchart])
 
   const addBoardFreeText = (at?: { x: number; y: number }) => {
     if (!canEdit) return
@@ -5955,21 +6034,6 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
             Kommentarer
           </button>
           {activeWorkspaceTab === 'board' && (
-            <button
-              style={{
-                ...S.zoomBtn,
-                minWidth: 72,
-                fontSize: 12,
-                fontWeight: 700,
-                background: isCommentMode ? '#10B981' : 'transparent',
-                color: isCommentMode ? '#fff' : '#6B7280',
-              }}
-              onClick={() => setIsCommentMode(!isCommentMode)}
-            >
-              {isCommentMode ? 'Stop kommentar' : 'Tilføj kommentar'}
-            </button>
-          )}
-          {activeWorkspaceTab === 'board' && (
             <Link
               href={`/analytics?${analyticsBoardReturnQs}`}
               style={{
@@ -6558,16 +6622,148 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
         <ProjectFilesTab projectId={projectId} canEdit={canEdit} />
       ) : activeWorkspaceTab === 'comments' ? (
         <div style={{ ...workspaceContentFrame, padding: '28px 32px 40px' }}>
-          <ProjectComments
-            projectId={projectId}
-            userId={currentUserId || ''}
-            comments={comments}
-            onCommentsChange={() => {
-              if (projectId) {
-                getProjectCommentsWithReplies(projectId).then(setComments).catch(console.error)
-              }
-            }}
-          />
+          <div style={{ display: 'grid', gap: 12 }}>
+            {(() => {
+              const openComments = boardComments.filter(comment => !comment.resolved)
+              const resolvedComments = boardComments.filter(comment => comment.resolved)
+              return (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: '#334155' }}>
+                      Åbne ({openComments.length})
+                    </p>
+                    {canEdit && (
+                      <button
+                        onClick={() => addBoardComment()}
+                        style={{
+                          padding: '4px 12px',
+                          fontSize: 11,
+                          fontWeight: 700,
+                          background: '#2563EB',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: 6,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        + Ny kommentar
+                      </button>
+                    )}
+                  </div>
+                  
+                  {openComments.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '40px 20px', color: '#9CA3AF' }}>
+                      <p style={{ margin: 0, fontSize: 14 }}>Ingen åbne kommentarer</p>
+                      <p style={{ margin: '4px 0 0', fontSize: 12 }}>Tilføj kommentarer fra boardet eller brug knappen ovenfor</p>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'grid', gap: 8 }}>
+                      {openComments.map(comment => (
+                        <div
+                          key={comment.id}
+                          style={{
+                            padding: '12px 16px',
+                            border: '1px solid #E5E7EB',
+                            borderRadius: 8,
+                            background: '#fff',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                            <div
+                              style={{
+                                width: 24,
+                                height: 24,
+                                borderRadius: '999px',
+                                background: '#2563EB',
+                                color: '#fff',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: 10,
+                                fontWeight: 700,
+                              }}
+                            >
+                              {(comment.createdBy || '?').charAt(0).toUpperCase()}
+                            </div>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: '#334155' }}>
+                              {comment.createdBy}
+                            </span>
+                            <span style={{ fontSize: 11, color: '#6B7280' }}>
+                              {new Date(comment.createdAt).toLocaleTimeString('da-DK', {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </span>
+                          </div>
+                          <p style={{ margin: 0, fontSize: 13, color: '#374151', lineHeight: 1.5 }}>
+                            {comment.text || <em style={{ color: '#9CA3AF' }}>Tom kommentar</em>}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {resolvedComments.length > 0 && (
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: '#334155' }}>
+                          Løste ({resolvedComments.length})
+                        </p>
+                      </div>
+                      <div style={{ display: 'grid', gap: 8 }}>
+                        {resolvedComments.map(comment => (
+                          <div
+                            key={comment.id}
+                            style={{
+                              padding: '12px 16px',
+                              border: '1px solid #E5E7EB',
+                              borderRadius: 8,
+                              background: '#F9FAFB',
+                              opacity: 0.7,
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                              <div
+                                style={{
+                                  width: 24,
+                                  height: 24,
+                                  borderRadius: '999px',
+                                  background: '#10B981',
+                                  color: '#fff',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                }}
+                              >
+                                {(comment.createdBy || '?').charAt(0).toUpperCase()}
+                              </div>
+                              <span style={{ fontSize: 12, fontWeight: 600, color: '#334155' }}>
+                                {comment.createdBy}
+                              </span>
+                              <span style={{ fontSize: 11, color: '#6B7280' }}>
+                                {new Date(comment.createdAt).toLocaleTimeString('da-DK', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </span>
+                              <span style={{ fontSize: 10, color: '#10B981', fontWeight: 600 }}>
+                                ✓ Løst
+                              </span>
+                            </div>
+                            <p style={{ margin: 0, fontSize: 13, color: '#374151', lineHeight: 1.5 }}>
+                              {comment.text || <em style={{ color: '#9CA3AF' }}>Tom kommentar</em>}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </>
+              )
+            })()}
+          </div>
         </div>
       ) : activeWorkspaceTab === 'survey' ? (
       <ToolEmbedProvider projectId={projectId}>
@@ -7005,9 +7201,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
               ? 'grab'
               : sectionDrawMode
                 ? 'crosshair'
-                : isCommentMode
-                  ? 'crosshair'
-                  : 'default',
+                : 'default',
           backgroundImage: 'radial-gradient(circle, #C5C1BB 1.2px, transparent 1.2px)',
           backgroundSize: `${24 * zoom}px ${24 * zoom}px`,
           backgroundPosition: `${pan.x % (24 * zoom)}px ${pan.y % (24 * zoom)}px`,
@@ -7028,7 +7222,6 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           }
           onCanvasMouseUp()
         }}
-        onClick={handleCanvasClick}
         onMouseDown={onCanvasMouseDown}
         onContextMenu={e => {
           const target = e.target as HTMLElement
@@ -7996,7 +8189,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
             )
           })}
 
-          {boardComments.filter(comment => !comment.resolved).map(comment => {
+          {boardComments.filter(comment => !comment.parentId && !comment.resolved).map(comment => {
             const isSelected = selectedCommentIds.includes(comment.id)
             const commentInitial = (comment.createdBy || '?').trim().charAt(0).toUpperCase()
             const createdAtLabel = new Date(comment.createdAt || Date.now()).toLocaleTimeString('da-DK', {
@@ -8220,26 +8413,44 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                     borderBottomLeftRadius: 3,
                   }}
                 />
+                
+                {/* Reply button */}
+                {canEdit && (
+                  <button
+                    type="button"
+                    onMouseDown={e => e.stopPropagation()}
+                    onClick={e => {
+                      e.stopPropagation()
+                      addBoardCommentReply(comment)
+                    }}
+                    style={{
+                      position: 'absolute',
+                      right: -10,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      width: 24,
+                      height: 24,
+                      borderRadius: '999px',
+                      background: '#F3F4F6',
+                      border: '1px solid #E5E7EB',
+                      color: '#6B7280',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                      zIndex: 5,
+                    }}
+                    title="Svar på kommentar"
+                  >
+                    ↩
+                  </button>
+                )}
               </div>
             )
           })}
-
-          {/* Comment pins for positioned comments */}
-          {comments
-            .filter(comment => comment.position_x !== null && comment.position_y !== null)
-            .map(comment => (
-              <CommentPin
-                key={comment.id}
-                comment={comment}
-                zoom={zoom}
-                pan={pan}
-                onSelect={(selectedComment) => {
-                  // Switch to comments tab and select the comment
-                  setActiveWorkspaceTab('comments')
-                  // Could add more logic here to highlight the specific comment
-                }}
-              />
-            ))}
 
           {Object.values(liveCursors)
             .filter(cursor => cursor.visible)
