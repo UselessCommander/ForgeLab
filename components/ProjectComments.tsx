@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { MessageCircle, Reply, Edit2, Trash2, Send, X } from 'lucide-react'
-import { ProjectComment, createProjectComment, deleteProjectComment, updateProjectComment } from '@/lib/comments'
+import { useState, useRef, useEffect } from 'react'
+import { MessageCircle, Reply, Edit2, Trash2, Send, Check, X, MapPin } from 'lucide-react'
+import { createProjectComment, updateProjectComment, deleteProjectComment, resolveProjectComment, unresolveProjectComment, type ProjectComment } from '@/lib/comments'
 
 interface ProjectCommentsProps {
   projectId: string
@@ -31,7 +31,9 @@ function CommentItem({ comment, userId, projectId, onCommentsChange, level = 0 }
     
     setIsSubmitting(true)
     try {
-      await createProjectComment(projectId, userId, replyContent.trim(), comment.id)
+      await createProjectComment(projectId, userId, replyContent.trim(), {
+        parentId: comment.id
+      })
       setReplyContent('')
       setIsReplying(false)
       onCommentsChange()
@@ -68,6 +70,19 @@ function CommentItem({ comment, userId, projectId, onCommentsChange, level = 0 }
     }
   }
 
+  const handleToggleResolve = async () => {
+    try {
+      if (comment.resolved) {
+        await unresolveProjectComment(comment.id, userId)
+      } else {
+        await resolveProjectComment(comment.id, userId)
+      }
+      onCommentsChange()
+    } catch (error) {
+      console.error('Error toggling resolve:', error)
+    }
+  }
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString('da-DK', {
       day: 'numeric',
@@ -81,13 +96,25 @@ function CommentItem({ comment, userId, projectId, onCommentsChange, level = 0 }
 
   return (
     <div className={`${level > 0 ? 'ml-6 border-l-2 border-gray-100 pl-4' : ''}`}>
-      <div className="mb-4">
+      <div className="mb-4 group">
         <div className="flex items-start gap-3">
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1">
               <span className="font-medium text-sm text-gray-900">
                 {comment.user?.username || 'Unknown'}
               </span>
+              {comment.position_x !== null && comment.position_y !== null && (
+                <div className="flex items-center gap-1 text-xs text-gray-500">
+                  <MapPin className="w-3 h-3" />
+                  <span>På canvas</span>
+                </div>
+              )}
+              {comment.resolved && (
+                <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full flex items-center gap-1">
+                  <Check className="w-3 h-3" />
+                  Løst
+                </span>
+              )}
               <span className="text-xs text-gray-500">
                 {formatDate(comment.created_at)}
               </span>
@@ -132,6 +159,13 @@ function CommentItem({ comment, userId, projectId, onCommentsChange, level = 0 }
           {comment.user_id === userId && (
             <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
               <button
+                onClick={handleToggleResolve}
+                className={`p-1 hover:bg-gray-100 rounded ${comment.resolved ? 'text-green-600 hover:text-green-700' : 'text-gray-500 hover:text-gray-700'}`}
+                title={comment.resolved ? 'Genåbn kommentar' : 'Løs kommentar'}
+              >
+                {comment.resolved ? <X className="w-4 h-4" /> : <Check className="w-4 h-4" />}
+              </button>
+              <button
                 onClick={() => setIsEditing(true)}
                 className="p-1 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded"
                 title="Rediger"
@@ -149,15 +183,17 @@ function CommentItem({ comment, userId, projectId, onCommentsChange, level = 0 }
           )}
         </div>
         
-        <div className="mt-2">
-          <button
-            onClick={() => setIsReplying(!isReplying)}
-            className="flex items-center gap-1 text-sm text-gray-500 hover:text-blue-600 transition-colors"
-          >
-            <Reply className="w-3 h-3" />
-            Svar
-          </button>
-        </div>
+        {!comment.resolved && (
+          <div className="mt-2">
+            <button
+              onClick={() => setIsReplying(!isReplying)}
+              className="flex items-center gap-1 text-sm text-gray-500 hover:text-blue-600 transition-colors"
+            >
+              <Reply className="w-3 h-3" />
+              Svar
+            </button>
+          </div>
+        )}
 
         {isReplying && (
           <div className="mt-3 space-y-2">

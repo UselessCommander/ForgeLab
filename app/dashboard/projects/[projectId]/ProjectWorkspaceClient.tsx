@@ -45,7 +45,8 @@ import GoogleDesignSprintDiagram from '@/components/dashboard/GoogleDesignSprint
 import ProjectSlidesTab from '@/components/ProjectSlidesTab'
 import ProjectFilesTab from '@/components/ProjectFilesTab'
 import ProjectComments from '@/components/ProjectComments'
-import { getProjectCommentsWithReplies, type ProjectComment } from '@/lib/comments'
+import CommentPin from '@/components/CommentPin'
+import { getProjectCommentsWithReplies, createProjectComment, type ProjectComment } from '@/lib/comments'
 import StickyNoteBodyEditor from '@/components/StickyNoteBodyEditor'
 import StickyRichToolbar from '@/components/StickyRichToolbar'
 import type { StickyNoteFormat } from '@/lib/stickyNoteRichText'
@@ -771,6 +772,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     'board' | 'planning' | 'slides' | 'survey' | 'card-sorting' | 'qr' | 'files' | 'comments'
   >('board')
   const [comments, setComments] = useState<ProjectComment[]>([])
+  const [isCommentMode, setIsCommentMode] = useState(false)
   const [planningPane, setPlanningPane] = useState<'kanban' | 'gantt'>('kanban')
   const [showAddTool, setShowAddTool] = useState(false)
   const [addToolSearch, setAddToolSearch] = useState('')
@@ -1531,7 +1533,8 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
         })
       })
       .on('broadcast', { event: 'board_refresh' }, () => {
-        setBoardSyncVersion((v) => v + 1)
+        // Reload project data to get updated card positions and tool states
+        void syncProjectLight()
       })
       .on('broadcast', { event: 'live_chat_message' }, (message: { payload?: LiveChatMessagePayload }) => {
         const payload = message?.payload
@@ -1702,6 +1705,29 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     },
     [projectId]
   )
+
+  const handleCanvasClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    if (!isCommentMode || !currentUserId || !canEdit) return
+    
+    const rect = event.currentTarget.getBoundingClientRect()
+    const x = event.clientX - rect.left
+    const y = event.clientY - rect.top
+    
+    // Create a new comment at this position
+    const createCanvasComment = async () => {
+      try {
+        const newComment = await createProjectComment(projectId, currentUserId, 'Ny kommentar', {
+          positionX: x,
+          positionY: y,
+        })
+        setComments(prev => [...prev, newComment])
+      } catch (error) {
+        console.error('Error creating comment:', error)
+      }
+    }
+    
+    void createCanvasComment()
+  }, [isCommentMode, currentUserId, projectId, canEdit])
 
   const loadProject = async () => {
     try {
@@ -2949,6 +2975,8 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       setCardPositions(prev => {
         if (saveTimer.current) clearTimeout(saveTimer.current)
         saveTimer.current = setTimeout(() => persistLayout(prev), 800)
+        // Immediately broadcast the position change for real-time sync
+        void broadcastBoardRefresh()
         return { ...prev }
       })
     }
@@ -5927,6 +5955,21 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
             Kommentarer
           </button>
           {activeWorkspaceTab === 'board' && (
+            <button
+              style={{
+                ...S.zoomBtn,
+                minWidth: 72,
+                fontSize: 12,
+                fontWeight: 700,
+                background: isCommentMode ? '#10B981' : 'transparent',
+                color: isCommentMode ? '#fff' : '#6B7280',
+              }}
+              onClick={() => setIsCommentMode(!isCommentMode)}
+            >
+              {isCommentMode ? 'Stop kommentar' : 'Tilføj kommentar'}
+            </button>
+          )}
+          {activeWorkspaceTab === 'board' && (
             <Link
               href={`/analytics?${analyticsBoardReturnQs}`}
               style={{
@@ -6962,7 +7005,9 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
               ? 'grab'
               : sectionDrawMode
                 ? 'crosshair'
-                : 'default',
+                : isCommentMode
+                  ? 'crosshair'
+                  : 'default',
           backgroundImage: 'radial-gradient(circle, #C5C1BB 1.2px, transparent 1.2px)',
           backgroundSize: `${24 * zoom}px ${24 * zoom}px`,
           backgroundPosition: `${pan.x % (24 * zoom)}px ${pan.y % (24 * zoom)}px`,
@@ -6983,6 +7028,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           }
           onCanvasMouseUp()
         }}
+        onClick={handleCanvasClick}
         onMouseDown={onCanvasMouseDown}
         onContextMenu={e => {
           const target = e.target as HTMLElement
@@ -8177,6 +8223,23 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
               </div>
             )
           })}
+
+          {/* Comment pins for positioned comments */}
+          {comments
+            .filter(comment => comment.position_x !== null && comment.position_y !== null)
+            .map(comment => (
+              <CommentPin
+                key={comment.id}
+                comment={comment}
+                zoom={zoom}
+                pan={pan}
+                onSelect={(selectedComment) => {
+                  // Switch to comments tab and select the comment
+                  setActiveWorkspaceTab('comments')
+                  // Could add more logic here to highlight the specific comment
+                }}
+              />
+            ))}
 
           {Object.values(liveCursors)
             .filter(cursor => cursor.visible)

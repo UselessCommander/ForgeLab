@@ -146,7 +146,9 @@ function CommentItem({ comment, userId, level = 0 }: { comment: ProjectComment; 
     
     setIsLoading(true)
     try {
-      await createProjectComment(comment.project_id, userId, replyContent.trim(), comment.id)
+      await createProjectComment(comment.project_id, userId, replyContent.trim(), {
+      parentId: comment.id
+    })
       setReplyContent('')
       setIsReplying(false)
       // Force page reload to show new reply

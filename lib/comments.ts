@@ -11,6 +11,11 @@ export interface ProjectComment {
   parent_id: string | null
   user_id: string
   content: string
+  position_x: number | null
+  position_y: number | null
+  resolved: boolean
+  resolved_by: string | null
+  resolved_at: string | null
   created_at: string
   updated_at: string
   deleted_at: string | null
@@ -85,15 +90,21 @@ export async function createProjectComment(
   projectId: string,
   userId: string,
   content: string,
-  parentId?: string
+  options?: {
+    parentId?: string
+    positionX?: number
+    positionY?: number
+  }
 ): Promise<ProjectComment> {
   const { data, error } = await supabase
     .from('project_comments')
     .insert({
       project_id: projectId,
-      parent_id: parentId || null,
+      parent_id: options?.parentId || null,
       user_id: userId,
-      content,
+      content: content.trim(),
+      position_x: options?.positionX || null,
+      position_y: options?.positionY || null,
     })
     .select(`
       *,
@@ -114,6 +125,53 @@ export async function updateProjectComment(
     .from('project_comments')
     .update({
       content,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', commentId)
+    .eq('user_id', userId)
+    .select(`
+      *,
+      user:users(username)
+    `)
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export async function resolveProjectComment(
+  commentId: string,
+  userId: string
+): Promise<ProjectComment> {
+  const { data, error } = await supabase
+    .from('project_comments')
+    .update({
+      resolved: true,
+      resolved_by: userId,
+      resolved_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', commentId)
+    .select(`
+      *,
+      user:users(username)
+    `)
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export async function unresolveProjectComment(
+  commentId: string,
+  userId: string
+): Promise<ProjectComment> {
+  const { data, error } = await supabase
+    .from('project_comments')
+    .update({
+      resolved: false,
+      resolved_by: null,
+      resolved_at: null,
       updated_at: new Date().toISOString(),
     })
     .eq('id', commentId)

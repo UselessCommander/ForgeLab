@@ -1,10 +1,18 @@
--- Project comments with reply functionality
+-- Project comments with reply functionality and canvas positioning
 CREATE TABLE IF NOT EXISTS project_comments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   parent_id UUID NULL REFERENCES project_comments(id) ON DELETE CASCADE,
   user_id TEXT NOT NULL,
   content TEXT NOT NULL,
+  -- Canvas positioning for Figma-like comment pins
+  position_x DECIMAL(10, 2) NULL,
+  position_y DECIMAL(10, 2) NULL,
+  -- Comment state
+  resolved BOOLEAN DEFAULT FALSE,
+  resolved_by TEXT NULL,
+  resolved_at TIMESTAMPTZ NULL,
+  -- Metadata
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   deleted_at TIMESTAMPTZ NULL

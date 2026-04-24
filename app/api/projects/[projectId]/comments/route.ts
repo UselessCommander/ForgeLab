@@ -32,7 +32,7 @@ export async function POST(
 ) {
   try {
     const { projectId } = await params
-    const { content, parentId, userId } = await request.json()
+    const { content, parentId, userId, positionX, positionY } = await request.json()
 
     if (!content || !userId) {
       return NextResponse.json(
@@ -48,6 +48,8 @@ export async function POST(
         parent_id: parentId || null,
         user_id: userId,
         content: content.trim(),
+        position_x: positionX || null,
+        position_y: positionY || null,
       })
       .select(`
         *,
