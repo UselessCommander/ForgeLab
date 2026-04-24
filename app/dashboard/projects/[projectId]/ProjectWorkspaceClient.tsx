@@ -44,6 +44,8 @@ import DesignThinkingDiagram from '@/components/dashboard/DesignThinkingDiagram'
 import GoogleDesignSprintDiagram from '@/components/dashboard/GoogleDesignSprintDiagram'
 import ProjectSlidesTab from '@/components/ProjectSlidesTab'
 import ProjectFilesTab from '@/components/ProjectFilesTab'
+import ProjectComments from '@/components/ProjectComments'
+import { getProjectCommentsWithReplies, type ProjectComment } from '@/lib/comments'
 import StickyNoteBodyEditor from '@/components/StickyNoteBodyEditor'
 import StickyRichToolbar from '@/components/StickyRichToolbar'
 import type { StickyNoteFormat } from '@/lib/stickyNoteRichText'
@@ -766,8 +768,9 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const canEdit =
     project != null && (project.role === 'owner' || project.role === 'editor')
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<
-    'board' | 'planning' | 'slides' | 'survey' | 'card-sorting' | 'qr' | 'files'
+    'board' | 'planning' | 'slides' | 'survey' | 'card-sorting' | 'qr' | 'files' | 'comments'
   >('board')
+  const [comments, setComments] = useState<ProjectComment[]>([])
   const [planningPane, setPlanningPane] = useState<'kanban' | 'gantt'>('kanban')
   const [showAddTool, setShowAddTool] = useState(false)
   const [addToolSearch, setAddToolSearch] = useState('')
@@ -1765,6 +1768,20 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, syncProjectLight])
+
+  useEffect(() => {
+    if (activeWorkspaceTab === 'comments' && projectId) {
+      const loadComments = async () => {
+        try {
+          const commentsData = await getProjectCommentsWithReplies(projectId)
+          setComments(commentsData)
+        } catch (error) {
+          console.error('Error loading comments:', error)
+        }
+      }
+      void loadComments()
+    }
+  }, [activeWorkspaceTab, projectId])
 
   const defaultPos = useCallback(
     (slug: string, idx: number): CardPosition => {
@@ -5896,6 +5913,19 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           >
             PDF
           </button>
+          <button
+            style={{
+              ...S.zoomBtn,
+              minWidth: 72,
+              fontSize: 12,
+              fontWeight: 700,
+              background: activeWorkspaceTab === 'comments' ? '#111827' : 'transparent',
+              color: activeWorkspaceTab === 'comments' ? '#fff' : '#6B7280',
+            }}
+            onClick={() => setActiveWorkspaceTab('comments')}
+          >
+            Kommentarer
+          </button>
           {activeWorkspaceTab === 'board' && (
             <Link
               href={`/analytics?${analyticsBoardReturnQs}`}
@@ -6483,6 +6513,19 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
         />
       ) : activeWorkspaceTab === 'files' ? (
         <ProjectFilesTab projectId={projectId} canEdit={canEdit} />
+      ) : activeWorkspaceTab === 'comments' ? (
+        <div style={{ ...workspaceContentFrame, padding: '28px 32px 40px' }}>
+          <ProjectComments
+            projectId={projectId}
+            userId={currentUserId || ''}
+            comments={comments}
+            onCommentsChange={() => {
+              if (projectId) {
+                getProjectCommentsWithReplies(projectId).then(setComments).catch(console.error)
+              }
+            }}
+          />
+        </div>
       ) : activeWorkspaceTab === 'survey' ? (
       <ToolEmbedProvider projectId={projectId}>
         <div
