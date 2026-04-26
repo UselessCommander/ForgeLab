@@ -68,9 +68,9 @@ const SENTIMENT_OPTIONS: { value: Sentiment; emoji: string; label: string }[] = 
 const sentimentColor = (v: Sentiment) => {
   if (v <= -2) return '#ef4444'
   if (v === -1) return '#f97316'
-  if (v === 0)  return '#94a3b8'
-  if (v === 1)  return '#22c55e'
-  return '#10b981'
+  if (v === 0)  return '#eab308'
+  if (v === 1)  return '#84cc16'
+  return '#22c55e'
 }
 
 const emptyStep = (phaseId: string, index: number): JourneyStep => ({
@@ -100,6 +100,42 @@ const DEFAULT_DATA: JourneyData = {
     emptyStep('fl-ph-2', 1),
     emptyStep('fl-ph-3', 2),
   ],
+}
+
+// ─── Sub-components (defined at module level to avoid re-creation on render) ──
+
+function JourneyLabelCell({ children, cls }: { children: React.ReactNode; cls?: string }) {
+  return (
+    <div className={`flex items-center justify-end pr-4 text-[11px] font-bold uppercase tracking-widest text-gray-400 border-r border-gray-100 ${cls ?? ''}`}>
+      {children}
+    </div>
+  )
+}
+
+function JourneyRow({
+  label, labelCls, bg, gridCols, cellCls, phases, stepsForPhase, children,
+}: {
+  label: string
+  labelCls?: string
+  bg?: string
+  gridCols: string
+  cellCls: string
+  phases: JourneyPhase[]
+  stepsForPhase: (phaseId: string) => JourneyStep[]
+  children: (col: { phase: JourneyPhase; step: JourneyStep; si: number }) => React.ReactNode
+}) {
+  return (
+    <div className={`grid border-b border-gray-100 ${bg ?? ''}`} style={{ gridTemplateColumns: gridCols }}>
+      <JourneyLabelCell cls={labelCls}>{label}</JourneyLabelCell>
+      {phases.flatMap((phase) => {
+        const steps = stepsForPhase(phase.id)
+        if (steps.length === 0) return [<div key={phase.id} className={cellCls} />]
+        return steps.map((step, si) => (
+          <div key={step.id} className={cellCls}>{children({ phase, step, si })}</div>
+        ))
+      })}
+    </div>
+  )
 }
 
 function normalizeData(raw: unknown): JourneyData {
@@ -139,11 +175,11 @@ function normalizeData(raw: unknown): JourneyData {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function BrugerrejsePage() {
-  const [data, setInternal] = useState<JourneyData>(DEFAULT_DATA)
-  const setData = useCallback((next: JourneyData | ((p: JourneyData) => JourneyData)) => {
-    setInternal((prev) => normalizeData(typeof next === 'function' ? next(prev) : next))
+  const [data, setData] = useState<JourneyData>(DEFAULT_DATA)
+  const setNormalized = useCallback((raw: unknown) => {
+    setData(normalizeData(raw))
   }, [])
-  useProjectToolData<JourneyData>('brugerrejse', data, setData)
+  useProjectToolData<JourneyData>('brugerrejse', data, setNormalized as (d: JourneyData) => void)
 
   const [importingPersona, setImportingPersona] = useState(false)
 
@@ -336,7 +372,7 @@ export default function BrugerrejsePage() {
         </section>
 
         {/* ── Journey Map ── */}
-        <section className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+        <section className="rounded-2xl border border-gray-200 bg-white shadow-sm">
           <div className="px-5 py-4 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-semibold text-gray-900">Journey Map</h2>
@@ -351,43 +387,48 @@ export default function BrugerrejsePage() {
             </button>
           </div>
 
-          <div className="overflow-x-auto">
-            <div className="min-w-[640px]">
+          {(() => {
+            // ── Build flat step list in phase order ──
+            const allCols: { phase: JourneyPhase; step: JourneyStep; si: number }[] = []
+            data.phases.forEach((ph) => stepsForPhase(ph.id).forEach((s, si) => allCols.push({ phase: ph, step: s, si })))
+            const totalCols = Math.max(allCols.length, data.phases.length)
+
+            // CSS grid: label col (112px) + one 180px col per step (or 1 per phase if no steps)
+            const stepCols = data.phases.flatMap(ph => {
+              const n = stepsForPhase(ph.id).length
+              return n === 0 ? ['200px'] : Array(n).fill('200px')
+            })
+            const gridCols = `112px ${stepCols.join(' ')}`
+
+            // shared cell padding
+            const cellCls = 'border-l border-gray-100 px-3'
+            const rowProps = { gridCols, cellCls, phases: data.phases, stepsForPhase }
+
+            return (
+          <div>
 
               {/* ── Phase header row ── */}
-              <div className="flex border-b border-gray-100">
-                <div className={ROW_LABEL_W} />
-                {data.phases.map((phase, pi) => {
+              <div className="grid border-b border-gray-100" style={{ gridTemplateColumns: gridCols }}>
+                <div />
+                {data.phases.map((phase) => {
                   const c = getPhaseColor(phase)
-                  const count = Math.max(1, stepsForPhase(phase.id).length)
+                  const n = Math.max(1, stepsForPhase(phase.id).length)
                   return (
-                    <div
-                      key={phase.id}
-                      className="flex-shrink-0 border-l border-gray-100 first:border-l-0"
-                      style={{ width: `${count * 180}px` }}
-                    >
+                    <div key={phase.id} className="border-l border-gray-100 first:border-l-0" style={{ gridColumn: `span ${n}` }}>
                       <div className={`${c.bg} px-3 py-2 flex items-center gap-2`}>
                         <input
                           value={phase.label}
                           onChange={(e) => updatePhase(phase.id, e.target.value)}
-                          className="flex-1 bg-transparent text-white text-xs font-bold placeholder:text-white/60 focus:outline-none border-b border-white/30 focus:border-white/80"
+                          className="flex-1 min-w-0 bg-transparent text-white text-xs font-bold placeholder:text-white/60 focus:outline-none border-b border-white/30 focus:border-white/80"
                           placeholder="Fasenavn"
                         />
-                        <button
-                          type="button"
-                          onClick={() => addStep(phase.id)}
-                          title="Tilføj trin"
-                          className="shrink-0 w-5 h-5 rounded flex items-center justify-center bg-white/20 text-white hover:bg-white/30"
-                        >
+                        <button type="button" onClick={() => addStep(phase.id)} title="Tilføj trin"
+                          className="shrink-0 w-5 h-5 rounded flex items-center justify-center bg-white/20 text-white hover:bg-white/30">
                           <Plus className="w-3 h-3" />
                         </button>
                         {data.phases.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => removePhase(phase.id)}
-                            title="Fjern fase"
-                            className="shrink-0 w-5 h-5 rounded flex items-center justify-center bg-white/20 text-white hover:bg-red-400/60"
-                          >
+                          <button type="button" onClick={() => removePhase(phase.id)} title="Fjern fase"
+                            className="shrink-0 w-5 h-5 rounded flex items-center justify-center bg-white/20 text-white hover:bg-red-400/60">
                             <Trash2 className="w-3 h-3" />
                           </button>
                         )}
@@ -397,260 +438,223 @@ export default function BrugerrejsePage() {
                 })}
               </div>
 
-              {/* ── Helper: render one row across all phases/steps ── */}
-              {(() => {
-                // Build a flat ordered list of [phase, step, stepIndexWithinPhase]
-                const allCols: { phase: JourneyPhase; step: JourneyStep; si: number }[] = []
-                data.phases.forEach((phase) => {
+              {/* ── TOUCHPOINT / TRIN ── */}
+              <div className="grid border-b border-gray-100" style={{ gridTemplateColumns: gridCols }}>
+                <JourneyLabelCell>Touchpoint</JourneyLabelCell>
+                {data.phases.flatMap((phase) => {
                   const steps = stepsForPhase(phase.id)
-                  steps.forEach((step, si) => allCols.push({ phase, step, si }))
-                })
+                  const c = getPhaseColor(phase)
+                  if (steps.length === 0) return [(
+                    <div key={phase.id} className={cellCls + ' py-3 flex items-center justify-center'}>
+                      <button type="button" onClick={() => addStep(phase.id)}
+                        className={`text-xs px-3 py-1.5 rounded-lg border ${c.border} ${c.light} ${c.text} font-medium`}>
+                        + Trin
+                      </button>
+                    </div>
+                  )]
+                  return steps.map((step, si) => (
+                    <div key={step.id} className={cellCls + ' py-3'}>
+                      <div className="flex items-center gap-1">
+                        <span className={`inline-flex w-4 h-4 rounded-full ${c.bg} text-white text-[9px] font-bold items-center justify-center shrink-0`}>
+                          {si + 1}
+                        </span>
+                        <input value={step.name}
+                          onChange={(e) => updateStep(step.id, { name: e.target.value })}
+                          placeholder={`Trin ${si + 1}`}
+                          className="flex-1 min-w-0 text-xs font-semibold text-gray-800 bg-transparent border-b border-transparent hover:border-gray-200 focus:border-amber-400 focus:outline-none py-0.5"
+                        />
+                        <button type="button" onClick={() => removeStep(step.id)}
+                          className="shrink-0 text-gray-300 hover:text-red-400">
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                })}
+              </div>
 
-                // Map phaseId → steps for empty-phase placeholders
-                const phaseStepMap = new Map(data.phases.map(ph => [ph.id, stepsForPhase(ph.id)]))
-
-                // Shared cell style
-                const cell = 'flex-shrink-0 border-l border-gray-100 first:border-l-0 px-3 min-w-[180px] w-[180px]'
-
-                // Render a full row with label + one cell per step
-                const Row = ({
-                  label, labelCls, bg, children,
-                }: {
-                  label: string
-                  labelCls: string
-                  bg?: string
-                  children: (col: { phase: JourneyPhase; step: JourneyStep; si: number }) => React.ReactNode
-                }) => (
-                  <div className={`flex border-b border-gray-100 ${bg ?? ''}`}>
-                    <div className={ROW_LABEL_CLS + ' ' + labelCls}>{label}</div>
-                    <div className="flex flex-1 overflow-x-visible">
-                      {allCols.length === 0
-                        ? data.phases.map(ph => (
-                            <div key={ph.id} className={cell + ' py-3'} />
-                          ))
-                        : allCols.map((col) => (
-                            <div key={col.step.id} className={cell}>
-                              {children(col)}
-                            </div>
-                          ))
-                      }
+              {/* ── OPLEVELSE ── */}
+              {allSteps.length > 0 && (()  => {
+                const H = 100
+                const n = allSteps.length
+                const pts = allSteps.map((s, i) => ({
+                  x: ((i + 0.5) / n) * 100,
+                  y: 10 + ((2 - s.sentiment) / 4) * 80,
+                  sentiment: s.sentiment,
+                }))
+                const avgSentiment = Math.round(pts.reduce((s, p) => s + p.sentiment, 0) / pts.length) as Sentiment
+                const scaledPts = pts.map(p => ({ ...p, x: p.x * 10 }))
+                const path = scaledPts.length < 2 ? '' : scaledPts.map((p, i) => {
+                  if (i === 0) return `M ${p.x} ${p.y}`
+                  const prev = scaledPts[i - 1]
+                  const cpx = (prev.x + p.x) / 2
+                  return `C ${cpx} ${prev.y}, ${cpx} ${p.y}, ${p.x} ${p.y}`
+                }).join(' ')
+                return (
+                  <div className="grid border-b border-gray-100" style={{ gridTemplateColumns: gridCols }}>
+                    <JourneyLabelCell cls="text-gray-500">Oplevelse</JourneyLabelCell>
+                    <div className="border-l border-gray-100 py-3 pr-3" style={{ gridColumn: `span ${stepCols.length}` }}>
+                      <svg viewBox="0 0 1000 100" preserveAspectRatio="none"
+                        style={{ width: '100%', height: 72, display: 'block' }}>
+                        <defs>
+                          {scaledPts.map((p, i) => {
+                            if (i === 0) return null
+                            const prev = scaledPts[i - 1]
+                            return (
+                              <linearGradient key={i} id={`seg-${i}`}
+                                x1={prev.x} y1="0" x2={p.x} y2="0"
+                                gradientUnits="userSpaceOnUse">
+                                <stop offset="0%" stopColor={sentimentColor(scaledPts[i - 1].sentiment)} />
+                                <stop offset="100%" stopColor={sentimentColor(p.sentiment)} />
+                              </linearGradient>
+                            )
+                          })}
+                        </defs>
+                        <line x1="0" y1="50" x2="1000" y2="50" stroke="#e5e7eb" strokeWidth="0.4" vectorEffect="nonScalingStroke" />
+                        {allSteps.map((_, i) => i > 0 && (
+                          <line key={i} x1={(i / n) * 1000} y1="0" x2={(i / n) * 1000} y2={H}
+                            stroke="#f3f4f6" strokeWidth="0.4" vectorEffect="nonScalingStroke" />
+                        ))}
+                        {scaledPts.map((p, i) => {
+                          if (i === 0) return null
+                          const prev = scaledPts[i - 1]
+                          const cpx = (prev.x + p.x) / 2
+                          const d = `M ${prev.x} ${prev.y} C ${cpx} ${prev.y}, ${cpx} ${p.y}, ${p.x} ${p.y}`
+                          return (
+                            <path key={i} d={d} fill="none"
+                              stroke={`url(#seg-${i})`}
+                              strokeWidth="6" strokeLinecap="round" strokeLinejoin="round"
+                              vectorEffect="nonScalingStroke" />
+                          )
+                        })}
+                      </svg>
+                      <div className="grid" style={{ gridTemplateColumns: `repeat(${n}, 1fr)` }}>
+                        {allSteps.map((s, i) => (
+                          <div key={s.id} className="text-center text-[9px] text-gray-400 truncate pt-1">
+                            {s.name || `Trin ${i + 1}`}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 )
-
-                return (
-                  <>
-                    {/* ── TOUCHPOINT / TRIN ── */}
-                    <div className="flex border-b border-gray-100">
-                      <div className={ROW_LABEL_CLS}>Touchpoint</div>
-                      <div className="flex flex-1">
-                        {allCols.length === 0
-                          ? data.phases.map(ph => {
-                              const c = getPhaseColor(ph)
-                              return (
-                                <div key={ph.id} className={cell + ' py-3 flex items-center justify-center'}>
-                                  <button type="button" onClick={() => addStep(ph.id)}
-                                    className={`text-xs px-3 py-1.5 rounded-lg border ${c.border} ${c.light} ${c.text} font-medium`}>
-                                    + Trin
-                                  </button>
-                                </div>
-                              )
-                            })
-                          : allCols.map(({ phase, step, si }) => {
-                              const c = getPhaseColor(phase)
-                              return (
-                                <div key={step.id} className={cell + ' py-3'}>
-                                  <div className="flex items-center gap-1">
-                                    <span className={`inline-flex w-4 h-4 rounded-full ${c.bg} text-white text-[9px] font-bold items-center justify-center shrink-0`}>
-                                      {si + 1}
-                                    </span>
-                                    <input
-                                      value={step.name}
-                                      onChange={(e) => updateStep(step.id, { name: e.target.value })}
-                                      placeholder={`Trin ${si + 1}`}
-                                      className="flex-1 min-w-0 text-xs font-semibold text-gray-800 bg-transparent border-b border-transparent hover:border-gray-200 focus:border-amber-400 focus:outline-none py-0.5"
-                                    />
-                                    <button type="button" onClick={() => removeStep(step.id)}
-                                      className="shrink-0 text-gray-300 hover:text-red-400">
-                                      <Trash2 className="w-3 h-3" />
-                                    </button>
-                                  </div>
-                                </div>
-                              )
-                            })
-                        }
-                      </div>
-                    </div>
-
-                    {/* ── OPLEVELSE (experience curve) — above Handlinger ── */}
-                    {allSteps.length > 0 && (
-                      <div className="flex border-b border-gray-100">
-                        <div className={ROW_LABEL_CLS + ' text-gray-500 self-center'}>Oplevelse</div>
-                        <div className="flex-1 px-4 py-4 border-l border-gray-100">
-                          <div className="relative h-[120px]">
-                            {[0, 25, 50, 75, 100].map((pct) => (
-                              <div key={pct} className="absolute left-0 right-0 border-t border-gray-100" style={{ top: `${pct}%` }} />
-                            ))}
-                            <div className="absolute left-0 top-0 text-[9px] text-gray-400 -translate-y-1/2">😄</div>
-                            <div className="absolute left-0 top-1/2 text-[9px] text-gray-400 -translate-y-1/2">😐</div>
-                            <div className="absolute left-0 bottom-0 text-[9px] text-gray-400 translate-y-1/2">😢</div>
-                            <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 w-full h-full pl-5">
-                              <line x1="0" y1="50" x2="100" y2="50" stroke="#e5e7eb" strokeWidth="0.5" vectorEffect="nonScalingStroke" />
-                              {curvePath && (
-                                <path d={curvePath} fill="none" stroke="url(#curveGrad)" strokeWidth="2"
-                                  strokeLinecap="round" strokeLinejoin="round" vectorEffect="nonScalingStroke" />
-                              )}
-                              <defs>
-                                <linearGradient id="curveGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                                  <stop offset="0%" stopColor="#8b5cf6" />
-                                  <stop offset="50%" stopColor="#f59e0b" />
-                                  <stop offset="100%" stopColor="#10b981" />
-                                </linearGradient>
-                                <linearGradient id="fillGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                                  <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.18" />
-                                  <stop offset="100%" stopColor="#f59e0b" stopOpacity="0" />
-                                </linearGradient>
-                              </defs>
-                              {curvePath && (
-                                <path
-                                  d={`${curvePath} L ${curvePoints[curvePoints.length - 1].x} 100 L ${curvePoints[0].x} 100 Z`}
-                                  fill="url(#fillGrad)"
-                                />
-                              )}
-                              {curvePoints.map((p, i) => (
-                                <circle key={i} cx={p.x} cy={p.y} r={2.5}
-                                  fill={sentimentColor(p.sentiment)} stroke="white" strokeWidth="1.5" vectorEffect="nonScalingStroke" />
-                              ))}
-                            </svg>
-                          </div>
-                          <div className="flex mt-2 pl-5">
-                            {allSteps.map((s, i) => (
-                              <div key={s.id} className="flex-1 text-center text-[9px] text-gray-400 truncate px-1">
-                                {s.name || `Trin ${i + 1}`}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* ── HANDLINGER ── */}
-                    <Row label="Handlinger" labelCls="text-sky-600" bg="bg-sky-50/30">
-                      {({ step }) => (
-                        <div className="py-2">
-                          <textarea value={step.action}
-                            onChange={(e) => updateStep(step.id, { action: e.target.value })}
-                            placeholder="Hvad gør brugeren?"
-                            rows={2}
-                            className="w-full text-xs text-gray-700 bg-white border border-gray-200 rounded-lg px-2 py-1.5 resize-none focus:outline-none focus:ring-2 focus:ring-sky-300 placeholder:text-gray-300"
-                          />
-                        </div>
-                      )}
-                    </Row>
-
-                    {/* ── TANKER ── */}
-                    <Row label="Tanker" labelCls="text-violet-600" bg="bg-violet-50/30">
-                      {({ step }) => (
-                        <div className="py-2">
-                          <textarea value={step.thought}
-                            onChange={(e) => updateStep(step.id, { thought: e.target.value })}
-                            placeholder='"Jeg håber det er nemt..."'
-                            rows={2}
-                            className="w-full text-xs text-gray-700 bg-white border border-gray-200 rounded-lg px-2 py-1.5 resize-none focus:outline-none focus:ring-2 focus:ring-violet-300 placeholder:text-gray-300 italic"
-                          />
-                        </div>
-                      )}
-                    </Row>
-
-                    {/* ── EMOTION ── */}
-                    <Row label="Emotion" labelCls="text-amber-600" bg="bg-amber-50/30">
-                      {({ step }) => (
-                        <div className="py-3 flex items-center gap-1 flex-wrap">
-                          {SENTIMENT_OPTIONS.map((opt) => (
-                            <button key={opt.value} type="button" title={opt.label}
-                              onClick={() => updateStep(step.id, { sentiment: opt.value })}
-                              className={`text-xl leading-none p-1 rounded-lg transition-all ${
-                                step.sentiment === opt.value
-                                  ? 'bg-white shadow-sm scale-125 ring-2 ring-amber-400'
-                                  : 'opacity-40 hover:opacity-70 hover:scale-110'
-                              }`}
-                            >{opt.emoji}</button>
-                          ))}
-                        </div>
-                      )}
-                    </Row>
-
-                    {/* ── PAINS ── */}
-                    <Row label="Pains" labelCls="text-rose-600" bg="bg-rose-50/30">
-                      {({ step }) => (
-                        <div className="py-2 space-y-1">
-                          {step.pains.map((pain, idx) => (
-                            <div key={idx} className="flex items-center gap-1">
-                              <span className="text-rose-400 text-xs shrink-0">—</span>
-                              <input value={pain}
-                                onChange={(e) => updateListItem(step.id, 'pains', idx, e.target.value)}
-                                placeholder="Udfordring..."
-                                className="flex-1 min-w-0 text-xs text-gray-700 bg-white border border-rose-100 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-rose-300 placeholder:text-gray-300"
-                              />
-                              {step.pains.length > 1 && (
-                                <button type="button" onClick={() => removeListItem(step.id, 'pains', idx)}
-                                  className="text-gray-300 hover:text-rose-400 shrink-0">
-                                  <Trash2 className="w-3 h-3" />
-                                </button>
-                              )}
-                            </div>
-                          ))}
-                          <button type="button" onClick={() => addListItem(step.id, 'pains')}
-                            className="text-[10px] text-rose-400 hover:text-rose-600 font-medium">+ Tilføj</button>
-                        </div>
-                      )}
-                    </Row>
-
-                    {/* ── GAINS ── */}
-                    <Row label="Gains" labelCls="text-emerald-600" bg="bg-emerald-50/30">
-                      {({ step }) => (
-                        <div className="py-2 space-y-1">
-                          {step.gains.map((gain, idx) => (
-                            <div key={idx} className="flex items-center gap-1">
-                              <span className="text-emerald-400 text-xs shrink-0">+</span>
-                              <input value={gain}
-                                onChange={(e) => updateListItem(step.id, 'gains', idx, e.target.value)}
-                                placeholder="Mulighed..."
-                                className="flex-1 min-w-0 text-xs text-gray-700 bg-white border border-emerald-100 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-emerald-300 placeholder:text-gray-300"
-                              />
-                              {step.gains.length > 1 && (
-                                <button type="button" onClick={() => removeListItem(step.id, 'gains', idx)}
-                                  className="text-gray-300 hover:text-emerald-500 shrink-0">
-                                  <Trash2 className="w-3 h-3" />
-                                </button>
-                              )}
-                            </div>
-                          ))}
-                          <button type="button" onClick={() => addListItem(step.id, 'gains')}
-                            className="text-[10px] text-emerald-500 hover:text-emerald-700 font-medium">+ Tilføj</button>
-                        </div>
-                      )}
-                    </Row>
-
-                    {/* ── INDSIGT ── */}
-                    <Row label="Indsigt" labelCls="text-amber-700" bg="bg-amber-50/20">
-                      {({ step }) => (
-                        <div className="py-2">
-                          <textarea value={step.opportunity}
-                            onChange={(e) => updateStep(step.id, { opportunity: e.target.value })}
-                            placeholder="Designmulighed / indsigt..."
-                            rows={2}
-                            className="w-full text-xs text-gray-700 bg-amber-50/60 border border-amber-200 rounded-lg px-2 py-1.5 resize-none focus:outline-none focus:ring-2 focus:ring-amber-300 placeholder:text-gray-300"
-                          />
-                        </div>
-                      )}
-                    </Row>
-                  </>
-                )
               })()}
 
+              {/* ── HANDLINGER ── */}
+              <JourneyRow label="Handlinger" labelCls="text-sky-600" bg="bg-sky-50/30" {...rowProps}>
+                {({ step }) => (
+                  <div className="py-2">
+                    <textarea value={step.action}
+                      onChange={(e) => updateStep(step.id, { action: e.target.value })}
+                      placeholder="Hvad gør brugeren?"
+                      rows={2}
+                      className="w-full text-xs text-gray-700 bg-white border border-gray-200 rounded-lg px-2 py-1.5 resize-none focus:outline-none focus:ring-2 focus:ring-sky-300 placeholder:text-gray-300"
+                    />
+                  </div>
+                )}
+              </JourneyRow>
+
+              {/* ── TANKER ── */}
+              <JourneyRow label="Tanker" labelCls="text-violet-600" bg="bg-violet-50/30" {...rowProps}>
+                {({ step }) => (
+                  <div className="py-2">
+                    <textarea value={step.thought}
+                      onChange={(e) => updateStep(step.id, { thought: e.target.value })}
+                      placeholder='"Jeg håber det er nemt..."'
+                      rows={2}
+                      className="w-full text-xs text-gray-700 bg-white border border-gray-200 rounded-lg px-2 py-1.5 resize-none focus:outline-none focus:ring-2 focus:ring-violet-300 placeholder:text-gray-300 italic"
+                    />
+                  </div>
+                )}
+              </JourneyRow>
+
+              {/* ── EMOTION ── */}
+              <JourneyRow label="Emotion" labelCls="text-amber-600" bg="bg-amber-50/30" {...rowProps}>
+                {({ step }) => (
+                  <div className="py-3 flex items-center gap-1 flex-nowrap">
+                    {SENTIMENT_OPTIONS.map((opt) => (
+                      <button key={opt.value} type="button" title={opt.label}
+                        onClick={() => updateStep(step.id, { sentiment: opt.value })}
+                        className={`text-xl leading-none p-1 rounded-lg transition-all ${
+                          step.sentiment === opt.value
+                            ? 'bg-white shadow-sm scale-125 ring-2 ring-amber-400'
+                            : 'opacity-40 hover:opacity-70 hover:scale-110'
+                        }`}
+                      >{opt.emoji}</button>
+                    ))}
+                  </div>
+                )}
+              </JourneyRow>
+
+              {/* ── PAINS ── */}
+              <JourneyRow label="Pains" labelCls="text-rose-600" bg="bg-rose-50/30" {...rowProps}>
+                {({ step }) => (
+                  <div className="py-2 space-y-1">
+                    {step.pains.map((pain, idx) => (
+                      <div key={idx} className="flex items-center gap-1">
+                        <span className="text-rose-400 text-xs shrink-0">—</span>
+                        <input value={pain}
+                          onChange={(e) => updateListItem(step.id, 'pains', idx, e.target.value)}
+                          placeholder="Udfordring..."
+                          className="flex-1 min-w-0 text-xs text-gray-700 bg-white border border-rose-100 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-rose-300 placeholder:text-gray-300"
+                        />
+                        {step.pains.length > 1 && (
+                          <button type="button" onClick={() => removeListItem(step.id, 'pains', idx)}
+                            className="text-gray-300 hover:text-rose-400 shrink-0">
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <button type="button" onClick={() => addListItem(step.id, 'pains')}
+                      className="text-[10px] text-rose-400 hover:text-rose-600 font-medium">+ Tilføj</button>
+                  </div>
+                )}
+              </JourneyRow>
+
+              {/* ── GAINS ── */}
+              <JourneyRow label="Gains" labelCls="text-emerald-600" bg="bg-emerald-50/30" {...rowProps}>
+                {({ step }) => (
+                  <div className="py-2 space-y-1">
+                    {step.gains.map((gain, idx) => (
+                      <div key={idx} className="flex items-center gap-1">
+                        <span className="text-emerald-400 text-xs shrink-0">+</span>
+                        <input value={gain}
+                          onChange={(e) => updateListItem(step.id, 'gains', idx, e.target.value)}
+                          placeholder="Mulighed..."
+                          className="flex-1 min-w-0 text-xs text-gray-700 bg-white border border-emerald-100 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-emerald-300 placeholder:text-gray-300"
+                        />
+                        {step.gains.length > 1 && (
+                          <button type="button" onClick={() => removeListItem(step.id, 'gains', idx)}
+                            className="text-gray-300 hover:text-emerald-500 shrink-0">
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <button type="button" onClick={() => addListItem(step.id, 'gains')}
+                      className="text-[10px] text-emerald-500 hover:text-emerald-700 font-medium">+ Tilføj</button>
+                  </div>
+                )}
+              </JourneyRow>
+
+              {/* ── INDSIGT ── */}
+              <JourneyRow label="Indsigt" labelCls="text-amber-700" bg="bg-amber-50/20" {...rowProps}>
+                {({ step }) => (
+                  <div className="py-2">
+                    <textarea value={step.opportunity}
+                      onChange={(e) => updateStep(step.id, { opportunity: e.target.value })}
+                      placeholder="Designmulighed / indsigt..."
+                      rows={2}
+                      className="w-full text-xs text-gray-700 bg-amber-50/60 border border-amber-200 rounded-lg px-2 py-1.5 resize-none focus:outline-none focus:ring-2 focus:ring-amber-300 placeholder:text-gray-300"
+                    />
+                  </div>
+                )}
+              </JourneyRow>
+
             </div>
-          </div>
+            )
+          })()}
         </section>
 
       </div>

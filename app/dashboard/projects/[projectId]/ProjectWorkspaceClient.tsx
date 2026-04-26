@@ -3814,11 +3814,31 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           selected.map(async slug => {
             const el = cardElementRefs.current[slug]
             if (!el) return null
-            const canvas = await html2canvas(el, {
-              backgroundColor: '#ffffff',
-              scale: Math.max(2, Math.min(3, window.devicePixelRatio || 1)),
-            })
-            return { slug, canvas: padCanvas(canvas) }
+            const w = el.scrollWidth
+            const h = el.scrollHeight
+            // Clone into isolated off-screen container to avoid bleeding from overlapping board elements
+            const wrapper = document.createElement('div')
+            wrapper.style.cssText = `position:fixed;top:-9999px;left:-9999px;width:${w}px;height:${h}px;overflow:visible;background:#ffffff;`
+            const clone = el.cloneNode(true) as HTMLElement
+            clone.style.position = 'relative'
+            clone.style.left = '0'
+            clone.style.top = '0'
+            clone.style.transform = 'none'
+            wrapper.appendChild(clone)
+            document.body.appendChild(wrapper)
+            try {
+              const canvas = await html2canvas(wrapper, {
+                backgroundColor: '#ffffff',
+                scale: Math.max(2, Math.min(3, window.devicePixelRatio || 1)),
+                width: w,
+                height: h,
+                windowWidth: w,
+                windowHeight: h,
+              })
+              return { slug, canvas: padCanvas(canvas) }
+            } finally {
+              document.body.removeChild(wrapper)
+            }
           })
       )
       )
@@ -9480,6 +9500,9 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                 }}
                 onClick={e => {
                   e.stopPropagation()
+                  // Don't toggle selection when clicking interactive elements inside the tool
+                  const target = e.target as HTMLElement
+                  if (target.closest('input, textarea, button, select, a, [contenteditable]')) return
                   if (suppressNextCardClickRef.current) {
                     suppressNextCardClickRef.current = false
                     return
@@ -9507,8 +9530,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                   position: 'absolute',
                   left: pos.x,
                   top: pos.y,
-                  width: 'calc(100vw - 180px)',
-                  maxWidth: 'calc(100vw - 180px)',
+                  width: 'max-content',
                   minWidth: 680,
                   minHeight: 400,
                   display: 'flex',
@@ -9524,8 +9546,8 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                       : 'none',
                   outlineOffset: 4,
                   resize: 'both',
-                  overflow: 'hidden',
-                  userSelect: 'none',
+                  overflow: 'visible',
+                  userSelect: isDragging ? 'none' : 'auto',
                   transition: 'outline-color 0.2s',
                   transform: isDragging ? 'translateY(-2px)' : 'none',
                   opacity: isLocked ? 0.88 : 1,
@@ -9652,8 +9674,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                   style={{
                     flex: 1,
                     padding: 0,
-                    overflowY: 'auto',
-                    overflowX: 'auto',
+                    overflow: 'visible',
                     pointerEvents: isDragging ? 'none' : 'auto',
                     userSelect: 'auto',
                     position: 'relative',
