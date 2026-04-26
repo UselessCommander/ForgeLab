@@ -4,10 +4,17 @@ import Link from 'next/link'
 import { FolderOpen, Trash2 } from 'lucide-react'
 import type { Project } from '@/lib/projects'
 
+export interface ActiveUser {
+  userId: string
+  username: string
+  avatarUrl?: string | null
+}
+
 interface ProjectCardProps {
   project: Project
   onDelete?: (project: Project) => void
   deleting?: boolean
+  activeUsers?: ActiveUser[]
 }
 
 function formatDate(iso: string) {
@@ -20,8 +27,10 @@ function formatDate(iso: string) {
   return d.toLocaleDateString('da-DK', { day: 'numeric', month: 'short' })
 }
 
-export default function ProjectCard({ project, onDelete, deleting = false }: ProjectCardProps) {
+export default function ProjectCard({ project, onDelete, deleting = false, activeUsers = [] }: ProjectCardProps) {
   const toolCount = project.toolIds.length
+  const visibleUsers = activeUsers.slice(0, 4)
+  const overflow = activeUsers.length - visibleUsers.length
 
   return (
     <div className="group relative flex flex-col gap-3 p-5 rounded-2xl border border-gray-200/80 bg-white shadow-sm hover:shadow-lg hover:border-amber-200/70 hover:-translate-y-0.5 transition-all duration-200">
@@ -44,18 +53,49 @@ export default function ProjectCard({ project, onDelete, deleting = false }: Pro
             )}
           </div>
         </div>
-        {onDelete && (
-          <button
-            type="button"
-            onClick={() => onDelete(project)}
-            disabled={deleting}
-            className="relative z-20 inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            aria-label={`Slet projekt ${project.name}`}
-            title="Slet projekt"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
-        )}
+        <div className="relative z-10 flex items-center gap-2 flex-shrink-0">
+          {activeUsers.length > 0 && (
+            <div className="flex items-center" style={{ gap: '-4px' }}>
+              {visibleUsers.map((u, i) => (
+                <div
+                  key={u.userId}
+                  title={u.username}
+                  style={{ marginLeft: i === 0 ? 0 : -6, zIndex: visibleUsers.length - i }}
+                  className="relative w-6 h-6 rounded-full ring-2 ring-white overflow-hidden flex-shrink-0 flex items-center justify-center bg-emerald-500 text-white"
+                >
+                  {u.avatarUrl ? (
+                    <img src={u.avatarUrl} alt={u.username} className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-[9px] font-bold leading-none">
+                      {u.username.charAt(0).toUpperCase()}
+                    </span>
+                  )}
+                  <span className="absolute bottom-0 right-0 w-1.5 h-1.5 rounded-full bg-emerald-400 ring-1 ring-white" />
+                </div>
+              ))}
+              {overflow > 0 && (
+                <div
+                  style={{ marginLeft: -6, zIndex: 0 }}
+                  className="w-6 h-6 rounded-full ring-2 ring-white bg-gray-200 flex items-center justify-center text-[9px] font-bold text-gray-600 flex-shrink-0"
+                >
+                  +{overflow}
+                </div>
+              )}
+            </div>
+          )}
+          {onDelete && (
+            <button
+              type="button"
+              onClick={() => onDelete(project)}
+              disabled={deleting}
+              className="relative z-20 inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              aria-label={`Slet projekt ${project.name}`}
+              title="Slet projekt"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
+        </div>
       </div>
       <div className="relative z-10 flex items-center gap-3 text-[11px] text-gray-400">
         <span className="inline-flex items-center gap-1">
@@ -66,6 +106,15 @@ export default function ProjectCard({ project, onDelete, deleting = false }: Pro
         <span>
           {toolCount} værktøj{toolCount !== 1 ? 'er' : ''}
         </span>
+        {activeUsers.length > 0 && (
+          <>
+            <span>·</span>
+            <span className="inline-flex items-center gap-1 text-emerald-500 font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              {activeUsers.length} online
+            </span>
+          </>
+        )}
       </div>
     </div>
   )

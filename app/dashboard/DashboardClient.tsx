@@ -31,6 +31,9 @@ import {
 } from '@/lib/frameworks'
 import { getToolIcon } from '@/lib/vaerktoejer-icons'
 import { hasFunctionalStorageConsent } from '@/lib/cookie-consent'
+import { getStoredForgeTheme, type ForgeTheme } from '@/lib/theme'
+import { supabase } from '@/lib/supabase'
+import type { ActiveUser } from '@/components/dashboard/ProjectCard'
 import { Bell, AlertTriangle, Plus, ArrowRight, Folder, FolderOpen, Users, Wrench, Sparkles, TrendingUp, ChevronRight, Clock } from 'lucide-react'
 
 type FrameworkSelection = DoubleDiamondPhase | GoogleDesignSprintPhase | DesignThinkingPhase | 'hmw'
@@ -89,13 +92,63 @@ export default function DashboardClient() {
   const [showNotifications, setShowNotifications] = useState(false)
   const [inviteNotifications, setInviteNotifications] = useState<ProjectInviteNotification[]>([])
   const [mentionNotifications, setMentionNotifications] = useState<ProjectMentionNotification[]>([])
+  const [heroTheme, setHeroTheme] = useState<ForgeTheme>('default')
+  const [activeUsersByProject, setActiveUsersByProject] = useState<Record<string, ActiveUser[]>>({})
+  const [currentUserId, setCurrentUserId] = useState<string>('')
+  const [currentUserAvatar, setCurrentUserAvatar] = useState<string | null>(null)
 
   useEffect(() => {
     loadProjects()
     loadInviteNotifications()
     loadMentionNotifications()
     loadCurrentUser()
+    setHeroTheme(getStoredForgeTheme())
   }, [])
+
+  useEffect(() => {
+    if (!username) return
+
+    const channel = supabase.channel('dashboard-presence', {
+      config: { presence: { key: currentUserId || username } },
+    })
+
+    channel
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState() as Record<string, any[]>
+        const byProject: Record<string, ActiveUser[]> = {}
+        for (const presences of Object.values(state)) {
+          for (const p of presences) {
+            const pid = p.projectId as string | undefined
+            if (!pid) continue
+            const user: ActiveUser = {
+              userId: p.userId || p.username || 'unknown',
+              username: p.username || 'Bruger',
+              avatarUrl: p.avatarUrl || null,
+            }
+            if (!byProject[pid]) byProject[pid] = []
+            if (!byProject[pid].some(u => u.userId === user.userId)) {
+              byProject[pid].push(user)
+            }
+          }
+        }
+        setActiveUsersByProject(byProject)
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await channel.track({
+            userId: currentUserId || username,
+            username,
+            avatarUrl: currentUserAvatar,
+            projectId: null,
+            onDashboard: true,
+          })
+        }
+      })
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [username, currentUserId, currentUserAvatar])
 
   useEffect(() => {
     // Keep bell notifications fresh without manual reload.
@@ -127,6 +180,8 @@ export default function DashboardClient() {
           ? payload.username.trim()
           : ''
       setUsername(nextUsername)
+      if (typeof payload?.id === 'string') setCurrentUserId(payload.id)
+      if (typeof payload?.avatarUrl === 'string' && payload.avatarUrl) setCurrentUserAvatar(payload.avatarUrl)
     } catch (error) {
       console.warn('Kunne ikke hente nuværende bruger:', error)
     }
@@ -664,13 +719,32 @@ export default function DashboardClient() {
         {/* Hero / topsektion */}
         <section className="mb-10">
           <div
-            className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-amber-500 via-amber-500 to-orange-600 text-white p-7 md:p-10"
-            style={{ boxShadow: '0 8px 48px -8px rgba(245,158,11,0.45)' }}
+            className="relative overflow-hidden rounded-3xl text-white p-7 md:p-10"
+            style={{
+              background: ({
+                'default': 'linear-gradient(135deg, #f59e0b 0%, #f59e0b 40%, #ea580c 100%)',
+                'emerald': 'linear-gradient(135deg, #10b981 0%, #059669 40%, #047857 100%)',
+                'chelsea': 'linear-gradient(135deg, #3b82f6 0%, #2563eb 40%, #1d4ed8 100%)',
+                'arsenal': 'linear-gradient(135deg, #ef4444 0%, #dc2626 40%, #b91c1c 100%)',
+                'sunset': 'linear-gradient(135deg, #f97316 0%, #ea580c 40%, #c2410c 100%)',
+                'lightning-purple': 'linear-gradient(135deg, #a855f7 0%, #7c3aed 40%, #5b21b6 100%)',
+                'pink-cherry': 'linear-gradient(135deg, #ec4899 0%, #db2777 40%, #9d174d 100%)',
+              } as Record<ForgeTheme, string>)[heroTheme],
+              boxShadow: ({
+                'default': '0 8px 48px -8px rgba(245,158,11,0.45)',
+                'emerald': '0 8px 48px -8px rgba(16,185,129,0.45)',
+                'chelsea': '0 8px 48px -8px rgba(59,130,246,0.45)',
+                'arsenal': '0 8px 48px -8px rgba(239,68,68,0.45)',
+                'sunset': '0 8px 48px -8px rgba(249,115,22,0.45)',
+                'lightning-purple': '0 8px 48px -8px rgba(168,85,247,0.45)',
+                'pink-cherry': '0 8px 48px -8px rgba(236,72,153,0.45)',
+              } as Record<ForgeTheme, string>)[heroTheme],
+            }}
           >
             {/* Decorative bg elements */}
             <div className="pointer-events-none absolute inset-0">
               <div className="absolute -top-16 -right-16 w-64 h-64 rounded-full bg-white/10" />
-              <div className="absolute bottom-0 left-1/3 w-80 h-40 rounded-full bg-orange-600/30 blur-2xl" />
+              <div className="absolute bottom-0 left-1/3 w-80 h-40 rounded-full bg-black/15 blur-2xl" />
               <div className="absolute top-6 right-1/4 w-3 h-3 rounded-full bg-white/30" />
               <div className="absolute top-12 right-1/3 w-1.5 h-1.5 rounded-full bg-white/20" />
               <div className="absolute bottom-8 right-16 w-2 h-2 rounded-full bg-white/25" />
@@ -683,14 +757,22 @@ export default function DashboardClient() {
             <div className="relative z-10 flex flex-col lg:flex-row lg:items-start lg:justify-between gap-8">
               {/* Left: greeting + actions */}
               <div className="flex-1 max-w-2xl">
-                <div className="inline-flex items-center gap-1.5 bg-white/15 border border-white/20 rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-widest text-amber-100 mb-4">
+                <div className="inline-flex items-center gap-1.5 bg-white/15 border border-white/20 rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-widest text-white/80 mb-4">
                   <Sparkles className="w-3 h-3" />
-                  ForgeLab Dashboard
+                  {({
+                    'default': 'Forge Amber',
+                    'emerald': 'Emerald Green',
+                    'chelsea': 'Chelsea Blue',
+                    'arsenal': 'Arsenal Red',
+                    'sunset': 'Sunset Orange',
+                    'lightning-purple': 'Lightning Purple',
+                    'pink-cherry': 'Pink Cherry',
+                  } as Record<ForgeTheme, string>)[heroTheme]}
                 </div>
                 <h1 className="text-2xl md:text-3xl lg:text-[2.15rem] font-extrabold tracking-tight leading-tight mb-3">
                   {greetingWithName}, klar til<br className="hidden md:block" /> næste eksperiment?
                 </h1>
-                <p className="text-sm md:text-base text-amber-50/80 max-w-xl leading-relaxed mb-7">
+                <p className="text-sm md:text-base text-white/75 max-w-xl leading-relaxed mb-7">
                   Opret et projekt, tilknyt dine designtools og se resultater direkte i Analytics.
                 </p>
                 <div className="flex flex-wrap items-center gap-3">
@@ -704,7 +786,7 @@ export default function DashboardClient() {
                   {latestProject && (
                     <Link
                       href={`/dashboard/projects/${latestProject.id}`}
-                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/12 text-amber-50 text-sm font-medium hover:bg-white/20 border border-white/20 transition-all"
+                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/12 text-white/90 text-sm font-medium hover:bg-white/20 border border-white/20 transition-all"
                     >
                       <Clock className="w-3.5 h-3.5 opacity-70" />
                       <span className="truncate max-w-[160px]">{latestProject.name}</span>
@@ -722,12 +804,12 @@ export default function DashboardClient() {
                   { icon: Wrench, label: 'Tilg. værktøjer', value: VAERKTOEJER.length, sub: 'klar til brug' },
                 ].map(({ icon: Icon, label, value, sub }) => (
                   <div key={label} className="rounded-2xl bg-white/12 border border-white/15 px-4 py-3.5 backdrop-blur-sm">
-                    <div className="flex items-center gap-1.5 text-amber-100/70 text-[10px] font-semibold uppercase tracking-wide mb-2">
+                    <div className="flex items-center gap-1.5 text-white/60 text-[10px] font-semibold uppercase tracking-wide mb-2">
                       <Icon className="w-3 h-3" />
                       {label}
                     </div>
                     <p className="text-3xl font-extrabold leading-none text-white mb-1">{value}</p>
-                    <p className="text-[11px] text-amber-100/50">{sub}</p>
+                    <p className="text-[11px] text-white/50">{sub}</p>
                   </div>
                 ))}
               </div>
@@ -802,6 +884,7 @@ export default function DashboardClient() {
                           project={p}
                           onDelete={handleDeleteProject}
                           deleting={deletingProjectId === p.id}
+                          activeUsers={activeUsersByProject[p.id] || []}
                         />
                       ))}
                     </div>
@@ -824,6 +907,7 @@ export default function DashboardClient() {
                           key={p.id}
                           project={p}
                           deleting={false}
+                          activeUsers={activeUsersByProject[p.id] || []}
                         />
                       ))}
                     </div>

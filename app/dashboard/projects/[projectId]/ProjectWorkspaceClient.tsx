@@ -2020,6 +2020,27 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   }, [currentUserId, currentUsername, detectOrbitAndCollabUnlocks, maybeSpawnNightCreature, projectId])
 
   useEffect(() => {
+    if (!currentUserId || !currentUsername || !projectId) return
+    const dashChannel: any = supabase.channel('dashboard-presence', {
+      config: { presence: { key: currentUserId } },
+    })
+    dashChannel
+      .on('presence', { event: 'sync' }, () => {})
+      .subscribe(async (status: string) => {
+        if (status !== 'SUBSCRIBED') return
+        await dashChannel.track({
+          userId: currentUserId,
+          username: currentUsername,
+          avatarUrl: currentUserAvatar || null,
+          projectId,
+        })
+      })
+    return () => {
+      void dashChannel.unsubscribe()
+    }
+  }, [currentUserId, currentUsername, currentUserAvatar, projectId])
+
+  useEffect(() => {
     if (showPanel !== 'live-chat') return
     chatScrollRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [liveChatMessages, showPanel])
