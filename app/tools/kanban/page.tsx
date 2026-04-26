@@ -225,10 +225,8 @@ export default function KanbanPage() {
     updateTask(columnId, taskId, { toolSlug: toolSlug || undefined })
     if (!projectId || !toolSlug) return
     try {
-      const added = await addToolToProject(projectId, toolSlug)
-      if (added) {
-        window.dispatchEvent(new CustomEvent('forgelab-reload-project-tools'))
-      }
+      await addToolToProject(projectId, toolSlug)
+      window.dispatchEvent(new CustomEvent('forgelab-reload-project-tools'))
     } catch (error) {
       console.error('Kunne ikke tilføje værktøj fra Kanban:', error)
     }
