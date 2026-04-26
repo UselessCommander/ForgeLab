@@ -34,6 +34,8 @@ import { hasFunctionalStorageConsent } from '@/lib/cookie-consent'
 import { getStoredForgeTheme, type ForgeTheme } from '@/lib/theme'
 import { supabase } from '@/lib/supabase'
 import type { ActiveUser } from '@/components/dashboard/ProjectCard'
+import WorkspacesSection from '@/components/dashboard/WorkspacesSection'
+import { getWorkspaces, type Workspace } from '@/lib/workspaces'
 import { Bell, AlertTriangle, Plus, ArrowRight, Folder, FolderOpen, Users, Wrench, Sparkles, TrendingUp, ChevronRight, Clock } from 'lucide-react'
 
 type FrameworkSelection = DoubleDiamondPhase | GoogleDesignSprintPhase | DesignThinkingPhase | 'hmw'
@@ -96,12 +98,14 @@ export default function DashboardClient() {
   const [activeUsersByProject, setActiveUsersByProject] = useState<Record<string, ActiveUser[]>>({})
   const [currentUserId, setCurrentUserId] = useState<string>('')
   const [currentUserAvatar, setCurrentUserAvatar] = useState<string | null>(null)
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([])
 
   useEffect(() => {
     loadProjects()
     loadInviteNotifications()
     loadMentionNotifications()
     loadCurrentUser()
+    loadWorkspaces()
     setHeroTheme(getStoredForgeTheme())
   }, [])
 
@@ -161,6 +165,15 @@ export default function DashboardClient() {
       document.removeEventListener('visibilitychange', onVisibility)
     }
   }, [])
+
+  const loadWorkspaces = async () => {
+    try {
+      const ws = await getWorkspaces()
+      setWorkspaces(ws)
+    } catch {
+      // silently ignore — workspaces are optional
+    }
+  }
 
   const loadCurrentUser = async () => {
     try {
@@ -807,6 +820,15 @@ export default function DashboardClient() {
               </div>
             </div>
           </div>
+        </section>
+
+        {/* Workspaces */}
+        <section>
+          <WorkspacesSection
+            workspaces={workspaces}
+            projects={projects}
+            onWorkspacesChange={loadWorkspaces}
+          />
         </section>
 
         {/* Primær indhold: projekter */}
