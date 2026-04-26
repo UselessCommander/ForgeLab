@@ -16,6 +16,8 @@ type KanbanTask = {
   assigneeUserId?: string
   assigneeName?: string
   toolSlug?: string
+  labels?: string[]
+  dueDate?: string
 }
 
 type KanbanColumn = {
@@ -32,9 +34,9 @@ const createId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
 const DEFAULT_DATA: KanbanData = {
   columns: [
-    { id: 'todo',        title: 'To do',   tasks: [{ id: createId(), title: 'Definér næste sprintmål',       description: '' }] },
-    { id: 'in-progress', title: 'I gang',  tasks: [{ id: createId(), title: 'Lav wireframe til onboarding',  description: '' }] },
-    { id: 'done',        title: 'Færdig',  tasks: [{ id: createId(), title: 'Kickoff afholdt',               description: '' }] },
+    { id: 'todo',        title: 'To do',   tasks: [{ id: createId(), title: 'Definér næste sprintmål',       description: '', labels: [], dueDate: '' }] },
+    { id: 'in-progress', title: 'I gang',  tasks: [{ id: createId(), title: 'Lav wireframe til onboarding',  description: '', labels: [], dueDate: '' }] },
+    { id: 'done',        title: 'Færdig',  tasks: [{ id: createId(), title: 'Kickoff afholdt',               description: '', labels: [], dueDate: '' }] },
   ],
 }
 
@@ -115,7 +117,7 @@ export default function KanbanPage() {
         col.id === columnId
           ? {
               ...col,
-              tasks: [...col.tasks, { id: createId(), title: '', description: '' }],
+              tasks: [...col.tasks, { id: createId(), title: '', description: '', labels: [], dueDate: '' }],
             }
           : col
       ),
@@ -125,7 +127,7 @@ export default function KanbanPage() {
   const updateTask = (
     columnId: KanbanColumnId,
     taskId: string,
-    patch: Partial<Pick<KanbanTask, 'title' | 'description' | 'assigneeUserId' | 'assigneeName' | 'toolSlug'>>
+    patch: Partial<Pick<KanbanTask, 'title' | 'description' | 'assigneeUserId' | 'assigneeName' | 'toolSlug' | 'labels' | 'dueDate'>>
   ) => {
     setData((prev) => ({
       columns: prev.columns.map((col) =>
@@ -293,6 +295,8 @@ export default function KanbanPage() {
                   const isDropAfter  = dropTarget?.toId === column.id && dropTarget.index === taskIndex + 1
                   const assigneeLabel = task.assigneeName || (task.assigneeUserId ? memberOptions.find(m => m.id === task.assigneeUserId)?.label : null)
                   const toolLabel = task.toolSlug ? toolOptions.find(t => t.slug === task.toolSlug)?.title : null
+                  const taskLabels = task.labels || []
+                  const overdue = task.dueDate && new Date(task.dueDate) < new Date()
 
                   return (
                     <div key={task.id}>
@@ -362,10 +366,11 @@ export default function KanbanPage() {
                             <span style={{ fontSize: 13, fontWeight: 500, color: task.title ? '#111827' : '#9CA3AF', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {task.title || 'Opgave'}
                             </span>
-                            {(assigneeLabel || toolLabel) && (
-                              <div style={{ display: 'flex', gap: 4, marginTop: 3, flexWrap: 'wrap' }}>
+                            {(assigneeLabel || toolLabel || taskLabels.length > 0 || task.dueDate) && (
+                              <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
+                                {taskLabels.map(l => <span key={l} style={{ fontSize: 10, background: c.pill, color: c.pillTxt, borderRadius: 5, padding: '1px 5px', fontWeight: 600 }}>{l}</span>)}
                                 {assigneeLabel && <span style={{ fontSize: 10, background: '#F3F4F6', color: '#6B7280', borderRadius: 5, padding: '1px 5px' }}>{assigneeLabel}</span>}
-                                {toolLabel     && <span style={{ fontSize: 10, background: c.pill, color: c.pillTxt, borderRadius: 5, padding: '1px 5px' }}>{toolLabel}</span>}
+                                {task.dueDate  && <span style={{ fontSize: 10, background: overdue ? '#FEF2F2' : '#F3F4F6', color: overdue ? '#DC2626' : '#6B7280', borderRadius: 5, padding: '1px 5px' }}>📅 {new Date(task.dueDate).toLocaleDateString('da-DK', { day: 'numeric', month: 'short' })}</span>}
                               </div>
                             )}
                           </div>
@@ -381,122 +386,172 @@ export default function KanbanPage() {
         })}
       </div>
 
-      {/* Slide-over backdrop */}
-      {expandedTask && expandedCol && (
-        <>
-          <div
-            onClick={() => setExpandedTaskId(null)}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.18)', zIndex: 40, backdropFilter: 'blur(1px)' }}
-          />
-          <div style={{
-            position: 'fixed', top: 0, right: 0, bottom: 0, width: '100%', maxWidth: 480,
-            background: '#fff', zIndex: 50,
-            boxShadow: '-16px 0 48px rgba(0,0,0,0.12)',
-            display: 'flex', flexDirection: 'column',
-            overflowY: 'auto',
-          }}>
-            {/* Panel header */}
-            <div style={{ padding: '22px 24px 18px', borderBottom: '1px solid #F3F4F6' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                <span style={{ width: 7, height: 7, borderRadius: '50%', background: COL[expandedCol.id].dot, flexShrink: 0, display: 'inline-block' }} />
-                <span style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{expandedCol.title}</span>
-                <button
-                  type="button"
-                  onClick={() => setExpandedTaskId(null)}
-                  style={{ marginLeft: 'auto', border: 'none', background: '#F3F4F6', borderRadius: 8, width: 30, height: 30, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6B7280', flexShrink: 0 }}
-                >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </button>
-              </div>
-              <input
-                suppressHydrationWarning
-                autoFocus
-                value={expandedTask.title}
-                onChange={e => updateTask(expandedCol.id, expandedTask.id, { title: e.target.value })}
-                onKeyDown={e => deleteEmptyFieldRow(e, expandedTask.title, true, () => { removeTask(expandedCol.id, expandedTask.id); setExpandedTaskId(null) })}
-                placeholder="Opgavetitel"
-                style={{ width: '100%', border: 'none', outline: 'none', fontSize: 20, fontWeight: 700, color: '#111827', background: 'transparent', padding: 0, fontFamily: 'inherit' }}
-              />
-            </div>
-
-            {/* Panel body */}
-            <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 18, flex: 1 }}>
-              <div>
-                <FieldLabel>Beskrivelse</FieldLabel>
-                <textarea
+      {/* Centered modal */}
+      {expandedTask && expandedCol && (() => {
+        const ac = COL[expandedCol.id]
+        const labelOptions = ['Vigtig', 'Design', 'Udvikling', 'Research', 'Feedback', 'Bug']
+        const taskLabels = expandedTask.labels || []
+        const toggleLabel = (l: string) => {
+          const next = taskLabels.includes(l) ? taskLabels.filter(x => x !== l) : [...taskLabels, l]
+          updateTask(expandedCol.id, expandedTask.id, { labels: next })
+        }
+        return (
+          <>
+            {/* Backdrop */}
+            <div
+              onClick={() => setExpandedTaskId(null)}
+              style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 40, backdropFilter: 'blur(2px)' }}
+            />
+            {/* Modal */}
+            <div style={{
+              position: 'fixed', top: '50%', left: '50%',
+              transform: 'translate(-50%, -50%)',
+              width: '100%', maxWidth: 560,
+              maxHeight: '90vh', overflowY: 'auto',
+              background: '#fff', borderRadius: 20,
+              boxShadow: '0 32px 80px rgba(0,0,0,0.18)',
+              zIndex: 50, display: 'flex', flexDirection: 'column',
+            }}>
+              {/* Modal header */}
+              <div style={{ padding: '24px 24px 16px', borderBottom: '1px solid #F3F4F6' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: ac.dot, flexShrink: 0, display: 'inline-block' }} />
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{expandedCol.title}</span>
+                  <button
+                    type="button"
+                    onClick={() => setExpandedTaskId(null)}
+                    style={{ marginLeft: 'auto', border: 'none', background: '#F3F4F6', borderRadius: 8, width: 30, height: 30, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6B7280', flexShrink: 0 }}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
+                <input
                   suppressHydrationWarning
-                  value={expandedTask.description}
-                  onChange={e => updateTask(expandedCol.id, expandedTask.id, { description: e.target.value })}
-                  placeholder="Tilføj beskrivelse…"
-                  rows={4}
-                  style={{ ...inputStyle, resize: 'vertical', background: '#FAFAFA' }}
-                  onFocus={e => (e.currentTarget.style.borderColor = COL[expandedCol.id].border)}
-                  onBlur={e => (e.currentTarget.style.borderColor = '#E5E7EB')}
+                  autoFocus
+                  value={expandedTask.title}
+                  onChange={e => updateTask(expandedCol.id, expandedTask.id, { title: e.target.value })}
+                  onKeyDown={e => deleteEmptyFieldRow(e, expandedTask.title, true, () => { removeTask(expandedCol.id, expandedTask.id); setExpandedTaskId(null) })}
+                  placeholder="Opgavetitel"
+                  style={{ width: '100%', border: 'none', outline: 'none', fontSize: 19, fontWeight: 700, color: '#111827', background: 'transparent', padding: 0, fontFamily: 'inherit', boxSizing: 'border-box' }}
                 />
               </div>
 
-              <div>
-                <FieldLabel>Ansvarlig</FieldLabel>
-                {isInProject ? (
-                  <select
-                    value={expandedTask.assigneeUserId || ''}
-                    onChange={e => {
-                      const userId = e.target.value
-                      const selected = memberOptions.find(m => m.id === userId)
-                      updateTask(expandedCol.id, expandedTask.id, { assigneeUserId: userId || undefined, assigneeName: userId ? selected?.label || '' : undefined })
-                    }}
-                    style={inputStyle}
-                    onFocus={e => (e.currentTarget.style.borderColor = COL[expandedCol.id].border)}
-                    onBlur={e => (e.currentTarget.style.borderColor = '#E5E7EB')}
-                  >
-                    <option value="">Ikke tildelt</option>
-                    {memberOptions.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
-                  </select>
-                ) : (
-                  <input
-                    value={expandedTask.assigneeName || ''}
-                    onChange={e => updateTask(expandedCol.id, expandedTask.id, { assigneeUserId: undefined, assigneeName: e.target.value })}
-                    placeholder="Navn på ansvarlig"
-                    style={inputStyle}
-                    onFocus={e => (e.currentTarget.style.borderColor = COL[expandedCol.id].border)}
+              {/* Modal body */}
+              <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+                {/* Description */}
+                <div>
+                  <FieldLabel>Beskrivelse</FieldLabel>
+                  <textarea
+                    suppressHydrationWarning
+                    value={expandedTask.description}
+                    onChange={e => updateTask(expandedCol.id, expandedTask.id, { description: e.target.value })}
+                    placeholder="Tilføj beskrivelse…"
+                    rows={3}
+                    style={{ ...inputStyle, resize: 'vertical', background: '#FAFAFA' }}
+                    onFocus={e => (e.currentTarget.style.borderColor = ac.border)}
                     onBlur={e => (e.currentTarget.style.borderColor = '#E5E7EB')}
                   />
-                )}
-              </div>
+                </div>
 
-              <div>
-                <FieldLabel>Værktøj</FieldLabel>
-                <select
-                  value={expandedTask.toolSlug || ''}
-                  onChange={e => { void assignToolToTask(expandedCol.id, expandedTask.id, e.target.value) }}
-                  style={inputStyle}
-                  onFocus={e => (e.currentTarget.style.borderColor = COL[expandedCol.id].border)}
-                  onBlur={e => (e.currentTarget.style.borderColor = '#E5E7EB')}
+                {/* Two-col row: Ansvarlig + Deadline */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div>
+                    <FieldLabel>Ansvarlig</FieldLabel>
+                    {isInProject ? (
+                      <select
+                        value={expandedTask.assigneeUserId || ''}
+                        onChange={e => {
+                          const userId = e.target.value
+                          const selected = memberOptions.find(m => m.id === userId)
+                          updateTask(expandedCol.id, expandedTask.id, { assigneeUserId: userId || undefined, assigneeName: userId ? selected?.label || '' : undefined })
+                        }}
+                        style={inputStyle}
+                        onFocus={e => (e.currentTarget.style.borderColor = ac.border)}
+                        onBlur={e => (e.currentTarget.style.borderColor = '#E5E7EB')}
+                      >
+                        <option value="">Ikke tildelt</option>
+                        {memberOptions.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+                      </select>
+                    ) : (
+                      <input
+                        value={expandedTask.assigneeName || ''}
+                        onChange={e => updateTask(expandedCol.id, expandedTask.id, { assigneeUserId: undefined, assigneeName: e.target.value })}
+                        placeholder="Navn på ansvarlig"
+                        style={inputStyle}
+                        onFocus={e => (e.currentTarget.style.borderColor = ac.border)}
+                        onBlur={e => (e.currentTarget.style.borderColor = '#E5E7EB')}
+                      />
+                    )}
+                  </div>
+                  <div>
+                    <FieldLabel>Deadline</FieldLabel>
+                    <input
+                      type="date"
+                      value={expandedTask.dueDate || ''}
+                      onChange={e => updateTask(expandedCol.id, expandedTask.id, { dueDate: e.target.value })}
+                      style={inputStyle}
+                      onFocus={e => (e.currentTarget.style.borderColor = ac.border)}
+                      onBlur={e => (e.currentTarget.style.borderColor = '#E5E7EB')}
+                    />
+                  </div>
+                </div>
+
+                {/* Labels */}
+                <div>
+                  <FieldLabel>Labels</FieldLabel>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {labelOptions.map(l => {
+                      const active = taskLabels.includes(l)
+                      return (
+                        <button
+                          key={l}
+                          type="button"
+                          onClick={() => toggleLabel(l)}
+                          style={{
+                            border: `1.5px solid ${active ? ac.border : '#E5E7EB'}`,
+                            borderRadius: 8, padding: '4px 12px',
+                            fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                            background: active ? ac.pill : '#fff',
+                            color: active ? ac.pillTxt : '#6B7280',
+                            transition: 'all 0.1s',
+                          }}
+                        >{l}</button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Værktøj */}
+                <div>
+                  <FieldLabel>Værktøj</FieldLabel>
+                  <select
+                    value={expandedTask.toolSlug || ''}
+                    onChange={e => { void assignToolToTask(expandedCol.id, expandedTask.id, e.target.value) }}
+                    style={inputStyle}
+                    onFocus={e => (e.currentTarget.style.borderColor = ac.border)}
+                    onBlur={e => (e.currentTarget.style.borderColor = '#E5E7EB')}
+                  >
+                    <option value="">Ingen</option>
+                    {toolOptions.map(tool => <option key={tool.slug} value={tool.slug}>{tool.title}</option>)}
+                  </select>
+                </div>
+
+                {/* Delete */}
+                <button
+                  type="button"
+                  onClick={() => { removeTask(expandedCol.id, expandedTask.id); setExpandedTaskId(null) }}
+                  style={{ width: '100%', padding: '10px', border: 'none', borderRadius: 10, background: '#FEF2F2', color: '#DC2626', fontSize: 13, fontWeight: 600, cursor: 'pointer', marginTop: 4 }}
+                  onMouseEnter={e => (e.currentTarget.style.background = '#FEE2E2')}
+                  onMouseLeave={e => (e.currentTarget.style.background = '#FEF2F2')}
                 >
-                  <option value="">Ingen</option>
-                  {toolOptions.map(tool => <option key={tool.slug} value={tool.slug}>{tool.title}</option>)}
-                </select>
-                {isInProject && expandedTask.toolSlug && (
-                  <p style={{ margin: '5px 0 0', fontSize: 11, color: '#9CA3AF' }}>Bliver automatisk tilføjet til projektets board.</p>
-                )}
+                  Slet opgave
+                </button>
               </div>
             </div>
-
-            {/* Delete */}
-            <div style={{ padding: '0 24px 24px' }}>
-              <button
-                type="button"
-                onClick={() => { removeTask(expandedCol.id, expandedTask.id); setExpandedTaskId(null) }}
-                style={{ width: '100%', padding: '10px', border: 'none', borderRadius: 10, background: '#FEF2F2', color: '#DC2626', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-                onMouseEnter={e => (e.currentTarget.style.background = '#FEE2E2')}
-                onMouseLeave={e => (e.currentTarget.style.background = '#FEF2F2')}
-              >
-                Slet opgave
-              </button>
-            </div>
-          </div>
-        </>
-      )}
+          </>
+        )
+      })()}
     </ToolLayout>
   )
 }
