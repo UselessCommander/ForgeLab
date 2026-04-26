@@ -390,8 +390,12 @@ export default function AiChatCompanion({
         }
       },
     }),
-    maxSteps: kimiOnlyMode ? 8 : 3,
+    maxSteps: kimiOnlyMode ? 8 : 6,
     async onToolCall({ toolCall }: { toolCall: any }) {
+      if (toolCall.toolName === 'readToolData') {
+        // readToolData is executed server-side; this client handler is a no-op passthrough
+        return undefined
+      }
       if (toolCall.toolName === 'addTool') {
         const slug =
           (toolCall?.args && typeof toolCall.args.slug === 'string' ? toolCall.args.slug : undefined) ||
@@ -460,49 +464,18 @@ export default function AiChatCompanion({
       }
 
       if (toolCall.toolName === 'updateToolData') {
+        // Server-side execute already wrote to DB. Trigger board reload so UI updates live.
         const payload = toolCall?.args || toolCall?.input || {}
         const toolSlug = typeof payload?.toolSlug === 'string' ? payload.toolSlug : ''
-        const data = payload?.data
+        const description = typeof payload?.description === 'string' ? payload.description : ''
 
-        if (!toolSlug) return 'Kunne ikke opdatere værktøj: toolSlug mangler.'
-        if (data === undefined) return `Kunne ikke opdatere ${toolSlug}: data mangler.`
+        if (!toolSlug) return 'toolSlug mangler i updateToolData.'
 
-        const hasTool = projectTools.some(t => t.slug === toolSlug)
-        if (!hasTool) {
-          if (availableToolSlugs.includes(toolSlug)) {
-            await onAddTool(toolSlug)
-          } else {
-            return `Kunne ikke opdatere ${toolSlug}: værktøjet er ikke aktivt og kan ikke tilføjes lige nu.`
-          }
-        }
+        // Dispatch custom event so board panels reload their tool data
+        window.dispatchEvent(new CustomEvent('forgelab-ai-tool-updated', { detail: { toolSlug } }))
+        window.dispatchEvent(new CustomEvent('forgelab-reload-board-tool', { detail: { toolSlug } }))
 
-        const existingResponse = await fetch(`/api/projects/${projectId}/tools/${toolSlug}/data`)
-        if (!existingResponse.ok) {
-          return `Kunne ikke læse eksisterende data for ${toolSlug}.`
-        }
-        const existingPayload = await existingResponse.json()
-        const existingData = existingPayload?.data
-
-        if (existingData === undefined || isEmptyObject(existingData)) {
-          return `Kan ikke lave sikker 1:1 opdatering af ${toolSlug} endnu. Åbn værktøjet én gang først, så skabelonen gemmes.`
-        }
-
-        const shapeErrors = validateShapeExact(existingData, data)
-        if (shapeErrors.length > 0) {
-          return `Afvist for ${toolSlug}: data matcher ikke 1:1 skemaet. (${shapeErrors.slice(0, 3).join(' | ')})`
-        }
-
-        const response = await fetch(`/api/projects/${projectId}/tools/${toolSlug}/data`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ data }),
-        })
-
-        if (!response.ok) {
-          return `Kunne ikke gemme data i ${toolSlug}.`
-        }
-
-        return `Opdaterede indhold i ${toolSlug}.`
+        return description || `Opdaterede ${toolSlug} direkte i boardet.`
       }
       if (toolCall.toolName === 'editProjectDocs') {
         const payload = toolCall?.args || toolCall?.input || {}
@@ -713,6 +686,9 @@ export default function AiChatCompanion({
     'Skitserer næste skridt',
     'Bygger forslag til dit board',
     'Forfiner et stærkt svar',
+    'Redigerer boardet direkte…',
+    'Henter og analyserer data',
+    'Skriver indhold til dit tool',
   ]
 
   useEffect(() => {
@@ -1029,8 +1005,8 @@ export default function AiChatCompanion({
       >
         {isOpen && (
           <div style={{
-            width: kimiOnlyMode ? 420 : 400, height: 500, background: '#fff', borderRadius: 24,
-            boxShadow: '0 20px 40px rgba(0,0,0,0.15)', border: '1px solid #E5E7EB',
+            width: kimiOnlyMode ? 480 : 460, height: 580, background: '#fff', borderRadius: 24,
+            boxShadow: '0 20px 48px rgba(0,0,0,0.18)', border: '1px solid #E5E7EB',
             display: 'flex', flexDirection: 'column', overflow: 'hidden'
           }}>
             {/* Header */}
@@ -1196,8 +1172,15 @@ export default function AiChatCompanion({
                     </>
                   ) : (
                     <>
-                      <p>Hej! Jeg er din design-makker.</p>
-                      <p>Spørg mig om hjælp til dit projekt, eller bed mig om at oprette nye lærred-værktøjer for dig.</p>
+                      <p style={{ margin: '0 0 10px', fontWeight: 600, color: '#374151', fontSize: 15 }}>Hej! Jeg er din AI-makker ✨</p>
+                      <p style={{ margin: '0 0 8px', lineHeight: 1.6 }}>Jeg kan <strong>redigere dine tools direkte</strong> — bare bed mig om det.</p>
+                      <div style={{ textAlign: 'left', fontSize: 12, color: '#4B5563', background: '#F9FAFB', borderRadius: 10, padding: '10px 12px', border: '1px solid #E5E7EB', marginTop: 4 }}>
+                        <div style={{ marginBottom: 4 }}>✏️ &quot;Udfyld SWOT for en kaffebar&quot;</div>
+                        <div style={{ marginBottom: 4 }}>📋 &quot;Lav en Kanban med onboarding-opgaver&quot;</div>
+                        <div style={{ marginBottom: 4 }}>🧠 &quot;Strukturer mine noter i Affinity Diagram&quot;</div>
+                        <div style={{ marginBottom: 4 }}>👤 &quot;Skriv en persona baseret på dette&quot;</div>
+                        <div>📄 &quot;Analyser denne PDF og udfyld relevante tools&quot;</div>
+                      </div>
                     </>
                   )}
                 </div>
@@ -1269,20 +1252,45 @@ export default function AiChatCompanion({
                         </div>
                       )
                     }
+                    if (toolInvocation.toolName === 'readToolData' && 'result' in toolInvocation) {
+                      const slug =
+                        (toolInvocation?.args?.toolSlug) ||
+                        (toolInvocation?.input?.toolSlug) || 'værktøj'
+                      const result = toolInvocation.result as any
+                      return (
+                        <div key={toolCallId} style={{ marginTop: 8, padding: '8px 12px', background: '#F5F3FF', borderRadius: 8, fontSize: 12, color: '#5B21B6', border: '1px solid #DDD6FE' }}>
+                          🔍 Læste {slug}{result?.isEmpty ? ' (tomt — udfylder med nyt indhold)' : ' — analyserer…'}
+                        </div>
+                      )
+                    }
+                    if (toolInvocation.toolName === 'readToolData') {
+                      const slug = toolInvocation?.args?.toolSlug || toolInvocation?.input?.toolSlug || 'værktøj'
+                      return (
+                        <div key={toolCallId} style={{ marginTop: 8, fontSize: 12, color: '#6B7280', fontStyle: 'italic' }}>
+                          🔍 Læser indhold i {slug}…
+                        </div>
+                      )
+                    }
                     if (toolInvocation.toolName === 'updateToolData' && 'result' in toolInvocation) {
                       const slug =
                         (toolInvocation?.args && typeof toolInvocation.args.toolSlug === 'string' ? toolInvocation.args.toolSlug : undefined) ||
                         (toolInvocation?.input && typeof toolInvocation.input.toolSlug === 'string' ? toolInvocation.input.toolSlug : 'værktøj')
+                      const desc =
+                        (toolInvocation?.args?.description) ||
+                        (toolInvocation?.input?.description)
+                      const result = toolInvocation.result as any
+                      const ok = result?.ok !== false
                       return (
-                        <div key={toolCallId} style={{ marginTop: 8, padding: '8px 12px', background: '#EFF6FF', borderRadius: 8, fontSize: 12, color: '#1E3A8A', border: '1px solid #BFDBFE' }}>
-                          ✓ AI opdaterede indhold i {slug}.
+                        <div key={toolCallId} style={{ marginTop: 8, padding: '8px 12px', background: ok ? '#EFF6FF' : '#FEF2F2', borderRadius: 8, fontSize: 12, color: ok ? '#1E3A8A' : '#991B1B', border: `1px solid ${ok ? '#BFDBFE' : '#FECACA'}` }}>
+                          {ok ? `✏️ Redigerede ${slug}${desc ? ` — ${desc}` : ''}` : `❌ Fejl ved opdatering af ${slug}: ${result?.reason || 'ukendt fejl'}`}
                         </div>
                       )
                     }
                     if (toolInvocation.toolName === 'updateToolData') {
+                      const slug = toolInvocation?.args?.toolSlug || toolInvocation?.input?.toolSlug || 'værktøj'
                       return (
                         <div key={toolCallId} style={{ marginTop: 8, fontSize: 12, color: '#6B7280', fontStyle: 'italic' }}>
-                          Opdaterer værktøjsindhold...
+                          ✏️ Skriver indhold til {slug}…
                         </div>
                       )
                     }

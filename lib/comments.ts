@@ -102,12 +102,12 @@ export async function getProjectCommentsWithReplies(
   const rootComments: ProjectComment[] = []
 
   // First pass: create map of all comments
-  data.forEach(comment => {
+  data.forEach((comment: ProjectComment) => {
     commentsMap.set(comment.id, { ...comment, replies: [] })
   })
 
   // Second pass: build hierarchy
-  data.forEach(comment => {
+  data.forEach((comment: ProjectComment) => {
     const commentWithReplies = commentsMap.get(comment.id)!
     if (comment.parent_id) {
       const parent = commentsMap.get(comment.parent_id)

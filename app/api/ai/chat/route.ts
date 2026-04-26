@@ -51,6 +51,26 @@ const ALLOWED_TOOL_SLUGS = [
   'persona-canvas',
   'gantt-chart',
   'business-model-canvas',
+  'affinity-diagram',
+  'tows-matrix',
+  'porters-five-forces',
+  'value-proposition-canvas',
+  'scamper',
+  'hmw',
+  'five-whys',
+  'brugerrejse',
+  'dikw-pyramiden',
+  'pestel',
+  'pirate-funnel',
+  'smuk-model',
+  'aaker-identity-model',
+  'gallup-kompasrose',
+  'project-docs',
+  'project-slides',
+  'ab-test',
+  'survey-template',
+  'qr-generator',
+  'card-sorting',
 ] as const
 
 const SUPPORTED_MIME_PREFIXES = ['image/', 'text/']
@@ -258,90 +278,151 @@ export async function POST(req: Request) {
       }
     }
 
-    // Provide context about the current ForgeLab projects/board to the model
+    // Tool data schema reference for the AI
+    const TOOL_SCHEMAS = `
+## DATASTRUKTURER FOR HVERT VÆRKTØJ (brug readToolData for at se faktisk indhold)
+
+### kanban
+{ columns: [{ id, title, cards: [{ id, title, description?, color? }] }] }
+Eksempel: { columns: [{ id:"1", title:"To Do", cards:[{ id:"c1", title:"Researche konkurrenter", description:"" }] }, { id:"2", title:"I gang", cards:[] }, { id:"3", title:"Færdig", cards:[] }] }
+
+### swot-generator
+{ strengths: string[], weaknesses: string[], opportunities: string[], threats: string[] }
+Eksempel: { strengths:["Stærkt brand","Erfaret team"], weaknesses:["Lav kapital"], opportunities:["Voksende marked"], threats:["Stor konkurrence"] }
+
+### brainstorming
+{ ideas: [{ id, text, votes?, category? }], categories?: string[] }
+Eksempel: { ideas:[{ id:"1", text:"Ny onboarding-flow" }, { id:"2", text:"Loyalty program" }] }
+
+### empathy-map
+{ says: string[], thinks: string[], does: string[], feels: string[], pains: string[], gains: string[] }
+
+### persona-canvas
+{ name: string, age?: string, occupation?: string, bio?: string, goals: string[], frustrations: string[], motivations: string[], behaviors: string[], quote?: string, demographics?: Record<string,string> }
+
+### gantt-chart
+{ tasks: [{ id, title, start: "YYYY-MM-DD", end: "YYYY-MM-DD", progress?: number, color?: string, dependencies?: string[] }] }
+
+### business-model-canvas
+{ keyPartners: string[], keyActivities: string[], keyResources: string[], valuePropositions: string[], customerRelationships: string[], channels: string[], customerSegments: string[], costStructure: string[], revenueStreams: string[] }
+
+### tows-matrix
+{ so: string[], st: string[], wo: string[], wt: string[] }
+
+### porters-five-forces
+{ competitive: { rating: number, notes: string }, newEntrants: { rating: number, notes: string }, substitutes: { rating: number, notes: string }, buyerPower: { rating: number, notes: string }, supplierPower: { rating: number, notes: string } }
+(rating er 1-5, 5=høj styrke)
+
+### value-proposition-canvas
+{ customerJobs: string[], pains: string[], gains: string[], products: string[], painRelievers: string[], gainCreators: string[] }
+
+### affinity-diagram
+{ groups: [{ id, title, notes: [{ id, text }] }], ungrouped: [{ id, text }] }
+
+### scamper
+{ subject?: string, substitute: string[], combine: string[], adapt: string[], modify: string[], putToOtherUses: string[], eliminate: string[], reverse: string[] }
+
+### hmw
+{ challenge?: string, questions: [{ id, text, votes?: number }] }
+
+### five-whys
+{ problem: string, whys: [{ id, question: string, answer: string }], rootCause?: string }
+
+### brugerrejse
+{ persona?: string, phases: [{ id, name, actions: string[], thoughts: string[], emotions: string[], touchpoints: string[], opportunities: string[] }] }
+
+### dikw-pyramiden
+{ data: string[], information: string[], knowledge: string[], wisdom: string[] }
+
+### pestel
+{ political: string[], economic: string[], social: string[], technological: string[], environmental: string[], legal: string[] }
+
+### pirate-funnel
+{ acquisition: { description: string, metric: string, value: string }, activation: { description: string, metric: string, value: string }, retention: { description: string, metric: string, value: string }, revenue: { description: string, metric: string, value: string }, referral: { description: string, metric: string, value: string } }
+
+### smuk-model
+{ segments: [{ id, name, size: string, growth: string, opportunities: string, costs: string, competition: string, score?: number }] }
+
+### aaker-identity-model
+{ brandEssence: string, coreIdentity: string[], extendedIdentity: { asProduct: string[], asOrganization: string[], asPerson: string[], asSymbol: string[] } }
+
+### gallup-kompasrose
+{ values: [{ id, label: string, dimension: "modern"|"traditional"|"community"|"individual", score?: number, description?: string }] }
+`
+
     const systemPrompt =
       workspaceTab === 'slides'
         ? [
-            'Du er ForgeLabs præsentations-assistent i projektets Slides-fane.',
-            'Nedenfor får du JSON-kontekst (bl.a. slidesContextMode, slidesIncludedToolSlugs, slidesProjectContextDigest med udtræk af Projekt Docs og board-værktøjer, samt board-metadata).',
+            'Du er ForgeLabs SUPERCHARGED præsentations-assistent. Du er ekspert i at skabe kraftfulde præsentationer direkte fra projektets data.',
+            'Kontekst:',
             safeContext,
             '',
             'Svar altid på dansk.',
             '',
             'KRITISK — INGEN NETSØGNING:',
-            '- Du må ALDRIG søge på internettet eller påstå du har fundet data online. Skriv aldrig "søger", "Searching", "på nettet", "website", "Google" som kilde.',
-            '- Brug KUN: (1) brugerens vedhæftede filer i chatbeskeder, (2) slidesProjectContextDigest og øvrig medsendt projektkontekst.',
-            '- Hvis kilder mangler, sig det ærligt og bed brugeren vedhæfte PDF/billeder eller beskrive hvilke dele af projektet der skal vægtes.',
+            '- Brug KUN: (1) brugerens vedhæftede filer, (2) slidesProjectContextDigest og projektkontekst.',
+            '- Mangler du kilder, bed brugeren om at vedhæfte dem.',
             ragContextText
-              ? `\nRETRIEVED PROJEKTKONTEKST (brug dette først):\n${ragContextText}`
-              : '\nRETRIEVED PROJEKTKONTEKST: Ingen relevante snippets fundet.',
+              ? `\nRETRIEVED PROJEKTKONTEKST:\n${ragContextText}`
+              : '\nRETRIEVED PROJEKTKONTEKST: Ingen snippets fundet.',
             '',
-            'STEP-BY-STEP (outline → godkendelse → slides):',
-            '1) Kort analyse i punktform: sprog, emne, målgruppe, evt. visuel stil og ca. antal slides hvis ikke angivet.',
-            '2) Kald proposeSlideDeckOutline med analysisSummary (kort) og slides: array med order (1,2,3…), title, valgfri slideType (fx Cover, Agenda, Indhold, Afslutning), summary (detaljeret disposition pr. slide baseret på kilderne).',
-            '3) Efter proposeSlideDeckOutline: afslut med én kort besked om at brugeren skal gennemse og redigere outline i UI og trykke "Opret slides".',
-            '4) Kald IKKE editProjectSlides for at oprette et helt nyt deck i samme svar som outline — brugeren bekræfter først i UI.',
-            '5) editProjectSlides må kun bruges til små, konkrete rettelser på ét slide når deck allerede findes og brugeren beder om en præcis ændring.',
+            'WORKFLOW:',
+            '1) Kort analyse: emne, målgruppe, visuel stil, antal slides.',
+            '2) Kald proposeSlideDeckOutline med analysisSummary + slides-array (order, title, slideType, summary).',
+            '3) Afslut med besked om at gennemse outline i UI og trykke "Opret slides".',
+            '4) Kald IKKE editProjectSlides til nyt deck — kun til præcise rettelser på ét eksisterende slide.',
           ].join('\n')
         : [
-            'Du er ForgeLabs dedikerede AI-assistent. Din opgave er at hjælpe brugeren med at tænke kreativt og handlingsorienteret med deres projekt.',
-            'Kontekst fra brugerens nuværende board:',
+            '# ForgeLab AI-assistent — SUPERCHARGED',
+            '',
+            'Du er en kraftfuld AI-assistent integreret direkte i ForgeLabs projekt-board.',
+            'Din PRIMÆRE styrke er at redigere, udfylde og forbedre værktøjer direkte i boardet via dine tools.',
+            'Du SKAL bruge dine tools aktivt og proaktivt — det er det der gør dig værdifuld.',
+            '',
+            '## Boardkontekst',
             safeContext,
             ragContextText
-              ? `\nRETRIEVED PROJEKTKONTEKST (mest relevante bidder):\n${ragContextText}`
-              : '\nRETRIEVED PROJEKTKONTEKST: Ingen relevante snippets fundet.',
+              ? `\n## Retrieved projektkontekst\n${ragContextText}`
+              : '',
             '',
-            'Svar altid på dansk.',
+            '## Dine tools og hvornår du bruger dem',
             '',
-            'Hvis brugeren spørger hvad du kan (fx: "hvad kan du", "hvad kan du hjælpe med", "hvad kan jeg bruge dig til"), så overstyr standardformatet og svar med:',
-            '1) "Det kan jeg hjælpe med:"',
-            '2) 5-8 konkrete punkter med handlinger du faktisk kan udføre i ForgeLab.',
-            '3) Inkludér altid disse evner i listen, når de er relevante:',
-            '- Udfylde og forbedre modeller/værktøjer direkte i boardet.',
-            '- Hjælpe med at vælge den rigtige AI-model/provider til opgaven (kvalitet, hastighed, pris).',
-            '- Strukturere input til fx Affinity Diagram, docs og slides.',
-            '- Foreslå næste skridt ud fra projektets nuværende kontekst.',
-            '4) Afslut med én kort linje: "Skriv hvad du vil opnå, så starter jeg med det samme."',
+            '### readToolData — LÆS ALTID FØR DU REDIGERER',
+            '- Kald dette tool FØRSTE gang du skal redigere et tool, for at se den faktiske datastruktur.',
+            '- Brug outputtet som skabelon til updateToolData.',
+            '- Fortæl brugeren hvad du finder og hvad du vil gøre.',
             '',
-            'Skriv svar i dette format:',
-            '1) Hvad jeg forstår (1 kort linje)',
-            '2) Forslag (2-3 konkrete punkter)',
-            '3) Næste skridt (1 konkret handling brugeren kan tage nu)',
+            '### updateToolData — DIN KERNEKRAFT',
+            '- Brug dette aktivt og selvsikkert. Du MÅ og SKAL redigere tools direkte.',
+            '- Workflow: readToolData → analyser → updateToolData med komplet dataobjekt.',
+            '- Send ALTID et komplet dataobjekt (ikke kun ændrede felter) — samme struktur som det du læste.',
+            '- Fortæl kort hvad du ændrede efterfølgende.',
+            '- Fungerer på: kanban, swot-generator, brainstorming, empathy-map, persona-canvas, gantt-chart, business-model-canvas, tows-matrix, porters-five-forces, value-proposition-canvas, scamper, hmw, five-whys, brugerrejse, dikw-pyramiden, pestel, pirate-funnel, smuk-model, aaker-identity-model, gallup-kompasrose OG ALLE ANDRE aktive tools.',
             '',
-            'Vær kort og konkret. Hvis brugerens mål er uklart, så stil præcis ét afklarende spørgsmål.',
+            '### editProjectDocs — skriv til projekt-dokumentation',
+            '- mode="append": tilføj nyt afsnit til eksisterende side.',
+            '- mode="replace": erstat hele siden (kun når brugeren eksplicit beder om det).',
+            '- pageTitle: brug en specifik docs-side eller opret en ny.',
             '',
-            'Du har evnen til at tilføje værktøjer direkte til projekt-boardet via funktionen "addTool".',
-            'Regler for addTool:',
-            '- Brug kun addTool når brugeren udtrykkeligt beder om at oprette et modul.',
-            `- Brug kun én af disse slugs: ${ALLOWED_TOOL_SLUGS.join(', ')}.`,
-            '- Tilføj ikke et modul, der allerede er aktivt i boardet.',
-            '- Hvis anmodningen er tvetydig, spørg først i stedet for at kalde addTool.',
+            '### populateAffinityDiagram — strukturer idéer hurtigt',
+            '- Brug når brugeren har rå input/noter der skal grupperes i temaer.',
             '',
-            'Ekstra regler for PDF:',
-            `- Hvis seneste brugerbesked indeholder en PDF (${latestUserMessageHasPdf ? 'ja' : 'nej'}), må du proaktivt tilføje maks ét relevant modul, hvis det giver tydelig værdi.`,
-            `- Prioritér moduler fra denne aktuelle "mulige værktøjer"-liste: ${availableToolSlugs.length > 0 ? availableToolSlugs.join(', ') : 'ingen liste modtaget'}.`,
-            '- Hvis intet relevant modul findes i den mulige liste, så foreslå i stedet et modul uden at kalde addTool.',
+            '### addTool — tilføj nyt modul',
+            `- Brug kun når brugeren eksplicit beder om et nyt modul.`,
+            `- Tilgængelige slugs: ${activeToolSlugs.join(', ') || '(se kontekst)'}.`,
             '',
-            'Når du arbejder med Affinity Diagram:',
-            '- Du må bruge værktøjet "populateAffinityDiagram" til at oprette temaer og noter automatisk.',
-            '- Brug det når brugeren beder om at strukturere input, eller når en PDF naturligt kan opsummeres i temaer.',
-            '- Hold det kort og konkret: 3-6 temaer, 2-8 noter per tema.',
-            '- Skriv stadig en kort forklaring til brugeren efter værktøjskaldet.',
+            TOOL_SCHEMAS,
             '',
-            'Du må også bruge værktøjet "updateToolData" til at redigere indhold i alle værktøjer:',
-            '- Brug det når brugeren beder om at udfylde/rette et værktøj.',
-            '- Hvis værktøjet ikke er aktivt endnu, tilføj det først med addTool (hvis muligt).',
-            '- Send komplette felter i data-objektet i samme struktur som værktøjets eksisterende data.',
-            '- Brug aldrig ekstra/ukendte felter eller "gæt"-nøgler.',
-            '- Hvis du mangler input for at udfylde et værktøj meningsfuldt, spørg kort først.',
+            '## Adfærdsregler',
+            '- Svar ALTID på dansk.',
+            '- Vær kort og handlingsorienteret. Undgå lange forklaringer medmindre brugeren beder om det.',
+            '- Brug tools proaktivt — foreslå ikke bare, GØR det.',
+            '- Hvis du er i tvivl om datastruktur, kald readToolData FØRST.',
+            '- Hvis du mangler information for at gøre noget meningsfuldt, stil præcis ÉT spørgsmål.',
+            '- Efter at have redigeret et tool: beskriv kort hvad du ændrede og hvad brugeren kan gøre nu.',
+            `- PDF vedhæftet: ${latestUserMessageHasPdf ? 'JA — analyser den og udfyld relevante tools proaktivt.' : 'Nej.'}`,
             '',
-            'Du må bruge værktøjet "editProjectDocs" når brugeren vil skrive, omskrive eller udvide projektets docs:',
-            '- Brug mode="append" for at tilføje nyt afsnit.',
-            '- Brug mode="replace" kun når brugeren tydeligt beder om at erstatte hele siden.',
-            '- Brug pageTitle hvis en specifik docs-fane nævnes eller skal oprettes.',
-            '- Hold indholdet struktureret og klart i dansk sprog.',
-            '',
-            `Aktiv tab lige nu: ${workspaceTab}.`,
+            `Aktiv fane: ${workspaceTab}. Aktive tools: ${activeToolSlugs.join(', ') || 'ingen endnu'}.`,
           ].join('\n')
 
     const normalizedMessages: ModelMessage[] = []
@@ -496,82 +577,94 @@ export async function POST(req: Request) {
 
     const tools = {
       addTool: tool({
-        description: 'Tilføjer et værktøj direct til projekt-lærredet (boardet).',
+        description: 'Tilføjer et værktøj direkte til projekt-boardet. Brug kun når brugeren eksplicit beder om et nyt modul.',
         inputSchema: z.object({
-          slug: z.string().describe('Kort-ID (slug) for modulet. Fx "kanban", "swot-generator" osv.'),
+          slug: z.string().describe('Slug for modulet, fx "kanban", "swot-generator", "brainstorming" osv.'),
         }),
         execute: async ({ slug }) => {
           if (!ALLOWED_TOOL_SLUGS.includes(slug as (typeof ALLOWED_TOOL_SLUGS)[number])) {
             return { ok: false, reason: `Ugyldigt modul-slug: ${slug}` }
           }
-
           if (activeToolSlugs.includes(slug)) {
             return { ok: false, reason: `Modulet "${slug}" er allerede aktivt.` }
           }
-
           if (availableToolSlugs.length > 0 && !availableToolSlugs.includes(slug)) {
-            return { ok: false, reason: `Modulet "${slug}" er ikke blandt mulige værktøjer lige nu.` }
+            return { ok: false, reason: `Modulet "${slug}" er ikke tilgængeligt i dette board.` }
           }
-
           return { ok: true, slug }
         },
       }),
-      populateAffinityDiagram: tool({
+
+      readToolData: tool({
         description:
-          'Udfylder Affinity Diagram med temaer og noter baseret på brugerens input/PDF. Kræver at affinity-diagram er aktivt eller kan tilføjes.',
+          'Læser det aktuelle indhold af et værktøj på boardet. Brug dette FØR updateToolData for at forstå eksisterende datastruktur og nuværende indhold, så du kan lave præcise, meningsfulde opdateringer.',
         inputSchema: z.object({
-          themes: z
-            .array(
-              z.object({
-                title: z.string().min(1).max(80),
-                notes: z.array(z.string().min(1).max(280)).max(12),
-              })
-            )
-            .min(1)
-            .max(8),
+          toolSlug: z.string().min(1).describe('Slug for det værktøj du vil læse, fx "kanban", "swot-generator"'),
+        }),
+        execute: async ({ toolSlug }) => {
+          if (!projectId) return { ok: false, reason: 'Intet projektId tilgængeligt.' }
+          try {
+            const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || 'http://localhost:3000'
+            const res = await fetch(`${baseUrl}/api/projects/${projectId}/tools/${toolSlug}/data`, {
+              headers: { Cookie: req.headers.get('cookie') || '' },
+            })
+            if (!res.ok) return { ok: false, reason: `Kunne ikke hente data for ${toolSlug} (HTTP ${res.status}).` }
+            const payload = await res.json()
+            const data = payload?.data
+            return { ok: true, toolSlug, data: data ?? null, isEmpty: !data || (typeof data === 'object' && Object.keys(data).length === 0) }
+          } catch (err) {
+            return { ok: false, reason: `Fejl ved læsning af ${toolSlug}: ${err instanceof Error ? err.message : 'ukendt'}` }
+          }
+        },
+      }),
+
+      updateToolData: tool({
+        description: `Skriver/opdaterer data i et vilkårligt værktøj på boardet. Du KAN og BØR bruge dette tool aktivt til at udfylde, forbedre og redigere tools direkte — det er netop din kernekraft. Kald readToolData først for at se eksisterende struktur, og send derefter et komplet opdateret dataobjekt. Fungerer på alle aktive tools.`,
+        inputSchema: z.object({
+          toolSlug: z.string().min(1).describe('Slug for det værktøj der skal opdateres'),
+          data: z.unknown().describe('Det komplette nye dataobjekt der skal gemmes — samme struktur som eksisterende data'),
+          description: z.string().max(200).optional().describe('Kort beskrivelse af hvad du ændrer (vises til brugeren)'),
+        }),
+        execute: async ({ toolSlug, data, description }) => {
+          if (!ALLOWED_TOOL_SLUGS.includes(toolSlug as (typeof ALLOWED_TOOL_SLUGS)[number])) {
+            return { ok: false, reason: `Ukendt tool-slug: ${toolSlug}` }
+          }
+          if (!projectId) return { ok: false, reason: 'Intet projektId.' }
+          try {
+            const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || 'http://localhost:3000'
+            const res = await fetch(`${baseUrl}/api/projects/${projectId}/tools/${toolSlug}/data`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json', Cookie: req.headers.get('cookie') || '' },
+              body: JSON.stringify({ data }),
+            })
+            if (!res.ok) return { ok: false, reason: `Kunne ikke gemme data i ${toolSlug} (HTTP ${res.status}).` }
+            return { ok: true, toolSlug, description: description || `Opdaterede ${toolSlug}` }
+          } catch (err) {
+            return { ok: false, reason: `Fejl ved gemning: ${err instanceof Error ? err.message : 'ukendt'}` }
+          }
+        },
+      }),
+
+      populateAffinityDiagram: tool({
+        description: 'Udfylder Affinity Diagram med temaer og noter. Hurtig genvej der auto-strukturerer input i grupper.',
+        inputSchema: z.object({
+          themes: z.array(z.object({
+            title: z.string().min(1).max(80),
+            notes: z.array(z.string().min(1).max(280)).max(14),
+          })).min(1).max(10),
           ungrouped: z.array(z.string().min(1).max(280)).max(20).optional(),
         }),
-        execute: async ({ themes, ungrouped }) => {
-          return {
-            ok: true,
-            themes,
-            ungrouped: ungrouped || [],
-          }
-        },
+        execute: async ({ themes, ungrouped }) => ({ ok: true, themes, ungrouped: ungrouped || [] }),
       }),
-      updateToolData: tool({
-        description:
-          'Opdaterer data for et vilkårligt værktøj på boardet. Bruges til at udfylde/rette indhold i værktøjer.',
-        inputSchema: z.object({
-          toolSlug: z.string().min(1).describe('Slug for værktøjet der skal opdateres'),
-          data: z.unknown().describe('Nyt dataobjekt der skal gemmes for værktøjet'),
-        }),
-        execute: async ({ toolSlug, data }) => {
-          if (!ALLOWED_TOOL_SLUGS.includes(toolSlug as (typeof ALLOWED_TOOL_SLUGS)[number])) {
-            return { ok: false, reason: `Ugyldigt værktøj: ${toolSlug}` }
-          }
 
-          if (availableToolSlugs.length > 0 && !availableToolSlugs.includes(toolSlug) && !activeToolSlugs.includes(toolSlug)) {
-            return { ok: false, reason: `Værktøjet "${toolSlug}" er ikke tilgængeligt i dette board lige nu.` }
-          }
-
-          return { ok: true, toolSlug, data }
-        },
-      }),
       editProjectDocs: tool({
-        description:
-          'Redigerer projektets docs-indhold (append/replace) og kan vælge en specifik docs-fane via pageTitle.',
+        description: 'Redigerer projektets docs-sider — tilføj, erstat eller opret nye sider med struktureret indhold.',
         inputSchema: z.object({
           mode: z.enum(['append', 'replace']).default('append'),
-          content: z.string().min(1).max(12000),
+          content: z.string().min(1).max(16000),
           pageTitle: z.string().min(1).max(120).optional(),
         }),
-        execute: async ({ mode, content, pageTitle }) => ({
-          ok: true,
-          mode,
-          content,
-          pageTitle,
-        }),
+        execute: async ({ mode, content, pageTitle }) => ({ ok: true, mode, content, pageTitle }),
       }),
       ...(workspaceTab === 'slides'
         ? {
