@@ -1135,6 +1135,10 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const [onlineMemberIds, setOnlineMemberIds] = useState<string[]>([])
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState<'editor' | 'viewer'>('editor')
+  const [inviteLink, setInviteLink] = useState<{ id: string; token: string; role: 'editor' | 'viewer'; url: string } | null>(null)
+  const [inviteLinkLoading, setInviteLinkLoading] = useState(false)
+  const [inviteLinkRole, setInviteLinkRole] = useState<'editor' | 'viewer'>('viewer')
+  const [inviteLinkCopied, setInviteLinkCopied] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [currentUsername, setCurrentUsername] = useState<string>('Dig')
   const [currentUserAvatar, setCurrentUserAvatar] = useState<string | null>(null)
@@ -6316,6 +6320,53 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     }
   }
 
+  const loadInviteLink = async () => {
+    if (!projectId) return
+    try {
+      const res = await fetch(`/api/projects/${projectId}/invite-link`)
+      if (!res.ok) return
+      const d = await res.json()
+      setInviteLink(d.link || null)
+      if (d.link) setInviteLinkRole(d.link.role)
+    } catch {}
+  }
+
+  const handleGenerateInviteLink = async () => {
+    setInviteLinkLoading(true)
+    try {
+      const res = await fetch(`/api/projects/${projectId}/invite-link`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: inviteLinkRole }),
+      })
+      const d = await res.json()
+      if (d.link) setInviteLink(d.link)
+    } catch {}
+    finally { setInviteLinkLoading(false) }
+  }
+
+  const handleDeleteInviteLink = async () => {
+    if (!inviteLink) return
+    setInviteLinkLoading(true)
+    try {
+      await fetch(`/api/projects/${projectId}/invite-link`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ linkId: inviteLink.id }),
+      })
+      setInviteLink(null)
+    } catch {}
+    finally { setInviteLinkLoading(false) }
+  }
+
+  const handleCopyInviteLink = () => {
+    if (!inviteLink) return
+    navigator.clipboard.writeText(inviteLink.url).then(() => {
+      setInviteLinkCopied(true)
+      setTimeout(() => setInviteLinkCopied(false), 2000)
+    })
+  }
+
   const handleRemoveMember = async (userId: string) => {
     if (!isOwner) return
     try {
@@ -6451,6 +6502,13 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       : (DOUBLE_DIAMOND_PHASES.some(phase => phase.id === activeAddToolCategory)
           ? (activeAddToolCategory as DoubleDiamondPhase)
           : 'discover')
+
+  useEffect(() => {
+    if (showPanel === 'settings' && project?.role === 'owner') {
+      void loadInviteLink()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showPanel, project?.role])
 
   const toolCount = projectTools.length
   const isOwner = project.role === 'owner'
@@ -9749,6 +9807,42 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                 <Section label="Samarbejde">
                   {isOwner ? (
                     <>
+                      {/* Invite link */}
+                      <p style={{ margin: '0 0 6px', fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Del-link</p>
+                      {inviteLink ? (
+                        <div style={{ background: '#F9FAFB', border: '1.5px solid #E5E7EB', borderRadius: 10, padding: '10px 12px', marginBottom: 8 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                            <span style={{ flex: 1, fontSize: 11, color: '#6B7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'monospace' }}>{inviteLink.url}</span>
+                          </div>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: inviteLink.role === 'editor' ? '#DBEAFE' : '#F3F4F6', color: inviteLink.role === 'editor' ? '#1D4ED8' : '#374151', borderRadius: 6, padding: '3px 8px', fontSize: 11, fontWeight: 700 }}>
+                              {inviteLink.role === 'editor' ? 'Editor' : 'Viewer'}
+                            </span>
+                            <button onClick={handleCopyInviteLink} style={{ flex: 1, border: 'none', borderRadius: 7, background: '#111827', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer', padding: '4px 10px' }}>
+                              {inviteLinkCopied ? '✓ Kopieret' : 'Kopiér link'}
+                            </button>
+                            <button onClick={handleDeleteInviteLink} disabled={inviteLinkLoading} style={{ border: 'none', borderRadius: 7, background: '#FEE2E2', color: '#DC2626', fontSize: 11, fontWeight: 700, cursor: 'pointer', padding: '4px 10px' }}>Slet</button>
+                          </div>
+                        </div>
+                      ) : null}
+                      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                        <select
+                          value={inviteLinkRole}
+                          onChange={e => setInviteLinkRole(e.target.value as 'editor' | 'viewer')}
+                          style={{ flex: 1, padding: '7px 10px', borderRadius: 10, border: '1.5px solid #E5E7EB', fontSize: 12, background: 'white' }}
+                        >
+                          <option value="viewer">Viewer-link</option>
+                          <option value="editor">Editor-link</option>
+                        </select>
+                        <button
+                          onClick={() => { void handleGenerateInviteLink() }}
+                          disabled={inviteLinkLoading}
+                          style={{ padding: '0 14px', borderRadius: 10, border: 'none', background: '#6366F1', color: 'white', fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                        >
+                          {inviteLink ? 'Nyt link' : 'Generer link'}
+                        </button>
+                      </div>
+                      <p style={{ margin: '0 0 6px', fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Invitér direkte</p>
                       <p style={{ margin: '0 0 8px', fontSize: 11, color: '#9CA3AF' }}>Invitér et nyt medlem</p>
                       <input
                         value={inviteEmail}

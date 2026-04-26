@@ -471,9 +471,8 @@ export default function AiChatCompanion({
 
         if (!toolSlug) return 'toolSlug mangler i updateToolData.'
 
-        // Dispatch custom event so board panels reload their tool data
-        window.dispatchEvent(new CustomEvent('forgelab-ai-tool-updated', { detail: { toolSlug } }))
-        window.dispatchEvent(new CustomEvent('forgelab-reload-board-tool', { detail: { toolSlug } }))
+        // Dispatch the event that ProjectWorkspaceClient listens on to reload tool data
+        window.dispatchEvent(new CustomEvent('forgelab-reload-project-tools', { detail: { toolSlug } }))
 
         return description || `Opdaterede ${toolSlug} direkte i boardet.`
       }

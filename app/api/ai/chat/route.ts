@@ -387,6 +387,12 @@ Eksempel: { ideas:[{ id:"1", text:"Ny onboarding-flow" }, { id:"2", text:"Loyalt
             '',
             '## Dine tools og hvornår du bruger dem',
             '',
+            '### readProjectFiles — LÆS GEMTE PDF\'ER FRA PROJEKTET',
+            '- Kald dette tool når brugeren nævner en PDF/fil de har uploadet til projektet.',
+            '- Returnerer en liste med filnavne og signerede downloadUrl\'er.',
+            '- Hent PDFen via downloadUrl og analyser indholdet direkte — bed IKKE brugeren om at kopiere teksten.',
+            '- Brug indholdet til at udfylde relevante tools med updateToolData.',
+            '',
             '### readToolData — LÆS ALTID FØR DU REDIGERER',
             '- Kald dette tool FØRSTE gang du skal redigere et tool, for at se den faktiske datastruktur.',
             '- Brug outputtet som skabelon til updateToolData.',
@@ -592,6 +598,38 @@ Eksempel: { ideas:[{ id:"1", text:"Ny onboarding-flow" }, { id:"2", text:"Loyalt
             return { ok: false, reason: `Modulet "${slug}" er ikke tilgængeligt i dette board.` }
           }
           return { ok: true, slug }
+        },
+      }),
+
+      readProjectFiles: tool({
+        description:
+          'Lister alle gemte PDF-filer i projektet og returnerer signerede download-URL\'er. Brug dette når brugeren beder dig om at læse, analysere eller bruge indhold fra projektets gemte PDF-filer. Returnerer URL\'er du kan vedhæfte i din analyse.',
+        inputSchema: z.object({}),
+        execute: async () => {
+          if (!projectId) return { ok: false, reason: 'Intet projektId tilgængeligt.' }
+          try {
+            const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || 'http://localhost:3000'
+            const res = await fetch(`${baseUrl}/api/projects/${projectId}/files`, {
+              headers: { Cookie: req.headers.get('cookie') || '' },
+            })
+            if (!res.ok) return { ok: false, reason: `Kunne ikke hente filer (HTTP ${res.status}).` }
+            const payload = await res.json()
+            const files = payload?.files || []
+            if (files.length === 0) return { ok: true, files: [], message: 'Ingen PDF-filer er uploadet til dette projekt endnu.' }
+            return {
+              ok: true,
+              files: files.map((f: any) => ({
+                id: f.id,
+                filename: f.filename,
+                sizeBytes: f.sizeBytes,
+                createdAt: f.createdAt,
+                downloadUrl: f.downloadUrl,
+              })),
+              message: `Fandt ${files.length} PDF-fil(er) i projektet. Brug downloadUrl til at hente og analysere indholdet.`,
+            }
+          } catch (err) {
+            return { ok: false, reason: `Fejl ved hentning af filer: ${err instanceof Error ? err.message : 'ukendt'}` }
+          }
         },
       }),
 
