@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
 import { useProjectToolData } from '@/lib/useProjectToolData'
 import { deleteEmptyFieldRow } from '@/lib/deleteRowKeyboard'
 import type { CardSortResponseRecord, CardSortResponseSessionMeta } from '@/lib/card-sorting-analytics'
@@ -211,28 +210,6 @@ export default function CardSorting() {
   return (
     <div className="min-h-screen px-4 py-8 md:py-12 bg-gradient-to-br from-gray-50 to-gray-100">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <header className="mb-8">
-          <div className="bg-white rounded-2xl p-6 md:p-10 shadow-sm border border-gray-200">
-            <Link 
-              href="/dashboard" 
-              className="inline-flex items-center gap-2 text-gray-700 font-medium mb-6 hover:text-gray-900 transition-colors"
-            >
-              <span>←</span>
-              <span>Tilbage til Dashboard</span>
-            </Link>
-            <div className="flex items-center gap-4 mb-2">
-              <span className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-amber-500 text-white text-xl font-extrabold shadow-sm shadow-amber-500/30 select-none">F</span>
-              <h1 className="text-3xl md:text-4xl font-semibold text-gray-900">
-                Card Sorting Test
-              </h1>
-            </div>
-            <p className="text-gray-600">
-              Test informationsarkitektur med kort sortering
-            </p>
-          </div>
-        </header>
-
         <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 mb-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-2">Test &amp; analytics</h2>
           <p className="text-sm text-gray-600 mb-4">
