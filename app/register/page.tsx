@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import ForgeLabLogo from '@/components/ForgeLabLogo'
 import RegisterFormClient from './RegisterFormClient'
 
 export default function RegisterPage() {
@@ -24,11 +23,9 @@ export default function RegisterPage() {
         <nav className="border-b border-gray-200/80 bg-white/70 backdrop-blur-md sticky top-0 z-50 transition-shadow hover:shadow-sm">
           <div className="container mx-auto px-6 py-4">
             <div className="flex justify-between items-center">
-              <Link href="/" className="flex items-center gap-3 group">
-                <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 group-hover:bg-amber-500/20 transition-all duration-300 group-hover:scale-105">
-                  <ForgeLabLogo size={28} />
-                </div>
-                <span className="text-xl font-semibold text-gray-900 tracking-tight">ForgeLab</span>
+              <Link href="/" className="flex items-center gap-2 group">
+                <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-amber-500 text-white text-xs font-extrabold shadow-sm shadow-amber-500/30 select-none">F</span>
+                <span className="text-base font-extrabold text-gray-900 tracking-tight">ForgeLab</span>
               </Link>
               <Link
                 href="/login"
@@ -45,7 +42,7 @@ export default function RegisterPage() {
             <div className="bg-white/95 backdrop-blur-sm rounded-3xl border border-amber-100/80 shadow-xl shadow-amber-500/10 p-8 md:p-10 animate-glow-pulse">
               <div className="text-center mb-8">
                 <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-lg shadow-amber-500/30 mb-5 animate-logo-float">
-                  <ForgeLabLogo size={36} />
+                  <span className="text-2xl font-extrabold select-none">F</span>
                 </div>
                 <h1 className="text-2xl font-bold text-gray-900">Opret bruger</h1>
                 <p className="text-gray-600 mt-1">Opret en konto og kom i gang</p>

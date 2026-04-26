@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { Link2, Zap, Factory, Gift, Heart, Truck, User, Tag, Banknote } from 'lucide-react'
-import ForgeLabLogo from '@/components/ForgeLabLogo'
 import { useProjectToolData } from '@/lib/useProjectToolData'
 import { useToolEmbed } from '@/components/ToolEmbedContext'
 
@@ -128,7 +127,7 @@ export default function BusinessModelCanvasPage() {
             <span>Tilbage til dashboard</span>
           </Link>
           <div className="mb-2 flex items-center gap-3">
-            <ForgeLabLogo size={36} />
+            <span className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-amber-500 text-white text-sm font-extrabold shadow-sm shadow-amber-500/30 select-none">F</span>
             <p className="text-sm text-gray-600">Business Model Canvas</p>
           </div>
         </div>

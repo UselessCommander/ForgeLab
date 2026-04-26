@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import Script from 'next/script'
-import ForgeLabLogo from '@/components/ForgeLabLogo'
 import { useProjectToolData } from '@/lib/useProjectToolData'
 
 declare global {
@@ -546,7 +545,7 @@ export default function QRGenerator() {
               {/* Header */}
               <div className="text-center mb-8">
                 <div className="flex items-center justify-center gap-3 mb-4">
-                  <ForgeLabLogo size={48} />
+                  <span className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-amber-500 text-white text-xl font-extrabold shadow-sm shadow-amber-500/30 select-none">F</span>
                   <h1 className="text-3xl md:text-4xl font-semibold text-gray-900">
                     QR Code Generator
                   </h1>

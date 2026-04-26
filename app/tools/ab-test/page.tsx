@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import ForgeLabLogo from '@/components/ForgeLabLogo'
 import { Link2, ImagePlus, Plus, Copy, Check } from 'lucide-react'
 import { useProjectToolData } from '@/lib/useProjectToolData'
 import { deleteEmptyFieldRow } from '@/lib/deleteRowKeyboard'

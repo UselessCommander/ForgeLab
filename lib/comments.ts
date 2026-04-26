@@ -1,9 +1,46 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+// Mock Supabase client for development without environment variables
+const supabase = process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  ? createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    )
+  : {
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            order: () => ({
+              data: [],
+              error: new Error('Supabase not configured')
+            })
+          })
+        })
+      }),
+      insert: () => ({
+        select: () => ({
+          single: () => ({
+            data: null,
+            error: new Error('Supabase not configured')
+          })
+        })
+      }),
+      update: () => ({
+        eq: () => ({
+          select: () => ({
+            single: () => ({
+              data: null,
+              error: new Error('Supabase not configured')
+            })
+          })
+        })
+      }),
+      delete: () => ({
+        eq: () => ({
+          error: null
+        })
+      })
+    } as any
 
 export interface ProjectComment {
   id: string

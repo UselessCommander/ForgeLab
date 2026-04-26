@@ -2,7 +2,6 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import ForgeLabLogo from '@/components/ForgeLabLogo'
 
 interface SiteNavProps {
   /** Right-side CTA: "Log ind" vs "Dashboard" etc. */
@@ -31,13 +30,9 @@ export default function SiteNav({ rightSlot, showLoginCta = true }: SiteNavProps
     <nav className="forgelab-site-nav border-b border-gray-200/80 backdrop-blur-md sticky top-0 z-50">
       <div className="layout-page py-4">
         <div className="flex justify-between items-center">
-          <Link href={brandHref} className="flex items-center gap-3 group">
-            <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 group-hover:bg-amber-500/20 transition-colors">
-              <ForgeLabLogo size={28} />
-            </div>
-            <span className="text-xl font-semibold text-gray-900 tracking-tight">
-              ForgeLab
-            </span>
+          <Link href={brandHref} className="flex items-center gap-2 group">
+            <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-amber-500 text-white text-xs font-extrabold shadow-sm shadow-amber-500/30 select-none">F</span>
+            <span className="text-base font-extrabold text-gray-900 tracking-tight">ForgeLab</span>
           </Link>
           {rightSlot !== undefined ? (
             rightSlot

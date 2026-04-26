@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import LogoutButton from '@/components/LogoutButton'
+import ForgeLabLogo from '@/components/ForgeLabLogo'
 import PageShell from '@/components/PageShell'
 import SiteNav from '@/components/SiteNav'
 import ProjectCard from '@/components/dashboard/ProjectCard'
@@ -30,7 +31,7 @@ import {
 } from '@/lib/frameworks'
 import { getToolIcon } from '@/lib/vaerktoejer-icons'
 import { hasFunctionalStorageConsent } from '@/lib/cookie-consent'
-import { Bell, AlertTriangle } from 'lucide-react'
+import { Bell, AlertTriangle, Plus, ArrowRight, Folder, FolderOpen, Users, Wrench, Sparkles, TrendingUp, ChevronRight, Clock } from 'lucide-react'
 
 type FrameworkSelection = DoubleDiamondPhase | GoogleDesignSprintPhase | DesignThinkingPhase | 'hmw'
 type ProjectInviteNotification = {
@@ -552,21 +553,44 @@ export default function DashboardClient() {
     )
   }
   return (
-    <PageShell>
-      <SiteNav
-        rightSlot={
-          <div className="flex items-center gap-3">
+    <div className="min-h-screen bg-[#f5f5f4]">
+      {/* ── TOP NAV ── */}
+      <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-xl border-b border-gray-200/60">
+        <div className="max-w-[1600px] mx-auto px-5 h-14 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-6">
+            <Link href="/" className="flex items-center gap-2 group">
+              <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-amber-500 text-white shadow-sm shadow-amber-500/30 select-none">
+                <ForgeLabLogo size={16} className="text-white" />
+              </span>
+              <span className="text-base font-extrabold tracking-tight text-gray-900">ForgeLab</span>
+            </Link>
+            <nav className="hidden md:flex items-center gap-0.5">
+              {([
+                ['/dashboard', 'Dashboard'],
+                ['/tools/kanban', 'Kanban'],
+                ['/tools/gantt', 'Gantt'],
+              ] as [string, string][]).map(([h, l]) => (
+                <Link key={h} href={h} className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${h === '/dashboard' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-800 hover:bg-gray-50'}`}>{l}</Link>
+              ))}
+            </nav>
+          </div>
+          <div className="flex items-center gap-2">
+            {isOffline && (
+              <span className="hidden sm:inline-flex items-center gap-1.5 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full">
+                <AlertTriangle size={11} strokeWidth={2.5} />
+                Demo-tilstand
+              </span>
+            )}
             <div className="relative">
               <button
                 type="button"
                 onClick={openNotifications}
-                className="relative inline-flex items-center justify-center w-10 h-10 rounded-xl border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition-colors"
-                title="Notifikationer"
+                className="relative inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-colors"
                 aria-label="Notifikationer"
               >
-                <Bell size={17} strokeWidth={2.2} />
+                <Bell size={15} strokeWidth={2.2} />
                 {unreadNotificationCount > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold leading-[18px] text-center">
+                  <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-bold leading-4 text-center">
                     {unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}
                   </span>
                 )}
@@ -575,160 +599,137 @@ export default function DashboardClient() {
                 <div className="absolute right-0 mt-2 w-80 rounded-2xl border border-gray-200 bg-white shadow-xl z-50 overflow-hidden">
                   <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
                     <p className="text-sm font-semibold text-gray-900">Notifikationer</p>
-                    <span className="text-xs text-gray-500">{inviteProjects.length + mentionProjects.length}</span>
+                    <span className="text-xs text-gray-400">{inviteProjects.length + mentionProjects.length}</span>
                   </div>
-                  <div className="max-h-80 overflow-y-auto">
+                  <div className="max-h-80 overflow-y-auto divide-y divide-gray-50">
                     {inviteProjects.length === 0 && mentionProjects.length === 0 ? (
-                      <div className="px-4 py-6 text-sm text-gray-500">Ingen notifikationer endnu.</div>
+                      <div className="px-4 py-8 text-sm text-gray-400 text-center">Ingen notifikationer endnu.</div>
                     ) : (
                       <>
-                      {mentionProjects.map((mention) => {
-                        const isUnread = !mention.readAt
-                        const preview = (mention.mentionContext || mention.mentionText || '').trim()
-                        return (
-                          <Link
-                            key={mention.id}
-                            href={`/dashboard/projects/${mention.projectId}`}
-                            onClick={() => {
-                              void markMentionsAsSeen([mention.id])
-                              setShowNotifications(false)
-                            }}
-                            className={`block px-4 py-3 border-b transition-colors ${
-                              isUnread ? 'bg-blue-50/60 hover:bg-blue-50' : 'bg-white hover:bg-gray-50'
-                            }`}
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <p className="text-sm font-medium text-gray-900 truncate">{mention.projectName}</p>
-                                <p className="text-xs text-gray-600 mt-0.5">
-                                  {mention.mentionedByName} nævnte dig i {mention.sourceType === 'comment' ? 'en kommentar' : 'board-tekst'}.
-                                </p>
-                                {preview ? (
-                                  <p className="text-xs text-gray-500 mt-1 truncate">{preview}</p>
-                                ) : null}
+                        {mentionProjects.map((mention) => {
+                          const isUnread = !mention.readAt
+                          const preview = (mention.mentionContext || mention.mentionText || '').trim()
+                          return (
+                            <Link
+                              key={mention.id}
+                              href={`/dashboard/projects/${mention.projectId}`}
+                              onClick={() => { void markMentionsAsSeen([mention.id]); setShowNotifications(false) }}
+                              className={`block px-4 py-3 transition-colors ${isUnread ? 'bg-blue-50/50 hover:bg-blue-50' : 'hover:bg-gray-50'}`}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="text-sm font-semibold text-gray-900 truncate">{mention.projectName}</p>
+                                  <p className="text-xs text-gray-500 mt-0.5">{mention.mentionedByName} nævnte dig i {mention.sourceType === 'comment' ? 'en kommentar' : 'board-tekst'}.</p>
+                                  {preview && <p className="text-xs text-gray-400 mt-1 truncate">{preview}</p>}
+                                </div>
+                                {isUnread && <span className="mt-1.5 w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />}
                               </div>
-                              {isUnread && (
-                                <span className="mt-1 inline-block w-2.5 h-2.5 rounded-full bg-blue-500" />
-                              )}
-                            </div>
-                          </Link>
-                        )
-                      })}
-                      {inviteProjects.map((project) => {
-                        const isUnread = !project.readAt
-                        return (
-                          <Link
-                            key={project.id}
-                            href={`/dashboard/projects/${project.projectId}`}
-                            onClick={() => {
-                              void markInvitesAsSeen([project.id])
-                              setShowNotifications(false)
-                            }}
-                            className={`block px-4 py-3 border-b last:border-b-0 transition-colors ${
-                              isUnread ? 'bg-amber-50/60 hover:bg-amber-50' : 'bg-white hover:bg-gray-50'
-                            }`}
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                              <p className="text-sm font-medium text-gray-900 truncate">{project.projectName}</p>
-                                <p className="text-xs text-gray-600 mt-0.5">
-                                  {project.invitedByName} inviterede dig som {project.role === 'viewer' ? 'viewer' : 'editor'}.
-                                </p>
+                            </Link>
+                          )
+                        })}
+                        {inviteProjects.map((project) => {
+                          const isUnread = !project.readAt
+                          return (
+                            <Link
+                              key={project.id}
+                              href={`/dashboard/projects/${project.projectId}`}
+                              onClick={() => { void markInvitesAsSeen([project.id]); setShowNotifications(false) }}
+                              className={`block px-4 py-3 transition-colors ${isUnread ? 'bg-amber-50/50 hover:bg-amber-50' : 'hover:bg-gray-50'}`}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="text-sm font-semibold text-gray-900 truncate">{project.projectName}</p>
+                                  <p className="text-xs text-gray-500 mt-0.5">{project.invitedByName} inviterede dig som {project.role === 'viewer' ? 'viewer' : 'editor'}.</p>
+                                </div>
+                                {isUnread && <span className="mt-1.5 w-2 h-2 rounded-full bg-amber-500 flex-shrink-0" />}
                               </div>
-                              {isUnread && (
-                                <span className="mt-1 inline-block w-2.5 h-2.5 rounded-full bg-amber-500" />
-                              )}
-                            </div>
-                          </Link>
-                        )
-                      })}
+                            </Link>
+                          )
+                        })}
                       </>
                     )}
                   </div>
                 </div>
               )}
             </div>
-            <Link href="/profile" className="text-sm text-gray-600 hover:text-gray-900 font-medium transition-colors">
-              Profil
+            <Link href="/profile" className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 bg-white text-xs font-bold text-gray-700 hover:bg-gray-50 transition-colors uppercase">
+              {username ? username[0] : 'U'}
             </Link>
             <LogoutButton />
           </div>
-        }
-      />
-      {/* Offline banner */}
-      {isOffline && (
-        <div style={{
-          background: 'linear-gradient(90deg, #FEF3C7, #FDE68A)',
-          borderBottom: '1px solid #FCD34D',
-          padding: '7px 16px',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-          fontSize: 12, color: '#92400E', fontWeight: 500,
-        }}>
-          <AlertTriangle size={14} strokeWidth={2.2} />
-          <span>
-            {hasFunctionalStorageConsent()
-              ? 'Demo-tilstand aktiv — ingen database. Projekter gemmes kun i denne browser (localStorage).'
-              : 'Demo-tilstand aktiv — uden samtykke til valgfri browser-lagring vises ingen gemte demo-projekter, og nye demo-projekter kan ikke oprettes.'}
-          </span>
         </div>
-      )}
-      <div className="layout-page py-12">
+      </header>
+
+      <div className="max-w-[1600px] mx-auto px-5 py-8">
         {/* Hero / topsektion */}
         <section className="mb-10">
           <div
-            className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-amber-500 via-amber-500/90 to-amber-600 text-white p-6 md:p-8"
-            style={{ boxShadow: 'var(--forge-hero-shadow)' }}
+            className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-amber-500 via-amber-500 to-orange-600 text-white p-7 md:p-10"
+            style={{ boxShadow: '0 8px 48px -8px rgba(245,158,11,0.45)' }}
           >
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-              <div className="max-w-2xl md:max-w-3xl">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-100/90 mb-1">
-                  Dit ForgeLab dashboard
-                </p>
-                <h1 className="text-2xl md:text-3xl lg:text-4xl font-semibold tracking-tight mb-2">
-                  {greetingWithName}, klar til næste eksperiment?
+            {/* Decorative bg elements */}
+            <div className="pointer-events-none absolute inset-0">
+              <div className="absolute -top-16 -right-16 w-64 h-64 rounded-full bg-white/10" />
+              <div className="absolute bottom-0 left-1/3 w-80 h-40 rounded-full bg-orange-600/30 blur-2xl" />
+              <div className="absolute top-6 right-1/4 w-3 h-3 rounded-full bg-white/30" />
+              <div className="absolute top-12 right-1/3 w-1.5 h-1.5 rounded-full bg-white/20" />
+              <div className="absolute bottom-8 right-16 w-2 h-2 rounded-full bg-white/25" />
+              <svg className="absolute bottom-0 right-0 opacity-10 w-64 h-32" viewBox="0 0 200 100" fill="none">
+                <circle cx="180" cy="80" r="60" stroke="white" strokeWidth="1.5"/>
+                <circle cx="180" cy="80" r="40" stroke="white" strokeWidth="1"/>
+              </svg>
+            </div>
+
+            <div className="relative z-10 flex flex-col lg:flex-row lg:items-start lg:justify-between gap-8">
+              {/* Left: greeting + actions */}
+              <div className="flex-1 max-w-2xl">
+                <div className="inline-flex items-center gap-1.5 bg-white/15 border border-white/20 rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-widest text-amber-100 mb-4">
+                  <Sparkles className="w-3 h-3" />
+                  ForgeLab Dashboard
+                </div>
+                <h1 className="text-2xl md:text-3xl lg:text-[2.15rem] font-extrabold tracking-tight leading-tight mb-3">
+                  {greetingWithName}, klar til<br className="hidden md:block" /> næste eksperiment?
                 </h1>
-                <p className="text-sm md:text-base text-amber-50/90 max-w-2xl">
-                  Opret et nyt projekt på få sekunder, tilføj værktøjer som A/B/N test eller spørgeskemaer – og følg resultaterne direkte i Analytics.
+                <p className="text-sm md:text-base text-amber-50/80 max-w-xl leading-relaxed mb-7">
+                  Opret et projekt, tilknyt dine designtools og se resultater direkte i Analytics.
                 </p>
-                <div className="flex flex-wrap items-center gap-3 mt-5">
+                <div className="flex flex-wrap items-center gap-3">
                   <button
                     onClick={() => setShowCreateModal(true)}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gray-900 text-white text-sm md:text-base font-semibold shadow-lg shadow-black/40 hover:bg-black transition-all duration-150"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-bold shadow-lg shadow-black/30 hover:bg-black transition-all"
                   >
-                    Opret nyt projekt
+                    <Plus className="w-4 h-4" />
+                    Nyt projekt
                   </button>
                   {latestProject && (
                     <Link
                       href={`/dashboard/projects/${latestProject.id}`}
-                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 text-amber-50 text-sm font-medium hover:bg-white/15 border border-white/20 backdrop-blur"
+                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/12 text-amber-50 text-sm font-medium hover:bg-white/20 border border-white/20 transition-all"
                     >
-                      Fortsæt seneste projekt
-                      <span className="hidden sm:inline text-amber-100/80 truncate max-w-[180px]">
-                        “{latestProject.name}”
-                      </span>
+                      <Clock className="w-3.5 h-3.5 opacity-70" />
+                      <span className="truncate max-w-[160px]">{latestProject.name}</span>
+                      <ChevronRight className="w-3.5 h-3.5 opacity-60 flex-shrink-0" />
                     </Link>
                   )}
                 </div>
               </div>
-              <div className="flex-shrink-0 grid grid-cols-2 gap-3 text-xs md:text-sm">
-                <div className="rounded-2xl bg-white/10 px-4 py-3">
-                  <p className="text-amber-100/80 text-[11px] font-medium uppercase tracking-wide mb-1">
-                    Aktive projekter
-                  </p>
-                  <p className="text-2xl font-semibold leading-tight">{projectCount}</p>
-                  <p className="text-amber-100/70 text-[11px] mt-1">
-                    Samler alle dine værktøjer ét sted.
-                  </p>
-                </div>
-                <div className="rounded-2xl bg-white/10 px-4 py-3">
-                  <p className="text-amber-100/80 text-[11px] font-medium uppercase tracking-wide mb-1">
-                    Tilgængelige værktøjer
-                  </p>
-                  <p className="text-2xl font-semibold leading-tight">{VAERKTOEJER.length}</p>
-                  <p className="text-amber-100/70 text-[11px] mt-1">
-                    Klar til at blive tilknyttet dine projekter.
-                  </p>
-                </div>
+
+              {/* Right: stat cards */}
+              <div className="flex-shrink-0 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 gap-3">
+                {[
+                  { icon: Folder, label: 'Mine projekter', value: ownedProjects.length, sub: 'projekter du ejer' },
+                  { icon: Users, label: 'Delt med mig', value: sharedProjects.length, sub: 'delte projekter' },
+                  { icon: Wrench, label: 'Tilg. værktøjer', value: VAERKTOEJER.length, sub: 'klar til brug' },
+                ].map(({ icon: Icon, label, value, sub }) => (
+                  <div key={label} className="rounded-2xl bg-white/12 border border-white/15 px-4 py-3.5 backdrop-blur-sm">
+                    <div className="flex items-center gap-1.5 text-amber-100/70 text-[10px] font-semibold uppercase tracking-wide mb-2">
+                      <Icon className="w-3 h-3" />
+                      {label}
+                    </div>
+                    <p className="text-3xl font-extrabold leading-none text-white mb-1">{value}</p>
+                    <p className="text-[11px] text-amber-100/50">{sub}</p>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -738,34 +739,45 @@ export default function DashboardClient() {
         <section className="mb-12">
           {/* Projekter */}
           <div>
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-lg md:text-xl font-semibold text-gray-900">Dine projekter</h2>
-                <p className="text-xs md:text-sm text-gray-500">
-                  Saml værktøjer, eksperimenter og resultater i projekter, så du holder overblik.
-                </p>
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200/60 flex items-center justify-center">
+                  <FolderOpen className="w-4.5 h-4.5 text-amber-600 w-[18px] h-[18px]" />
+                </div>
+                <div>
+                  <h2 className="text-base md:text-lg font-extrabold text-gray-900 tracking-tight">Dine projekter</h2>
+                  <p className="text-xs text-gray-400">
+                    Saml alle dine designtools og eksperimenter samlet.
+                  </p>
+                </div>
               </div>
               <button
                 onClick={() => setShowCreateModal(true)}
-                className="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-amber-500/50 text-amber-600 text-sm font-medium hover:bg-amber-50/70 transition-colors"
+                className="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500 text-white text-sm font-bold hover:bg-amber-600 transition-all shadow-sm shadow-amber-500/30"
               >
-                + Nyt projekt
+                <Plus className="w-3.5 h-3.5" />
+                Nyt projekt
               </button>
             </div>
             {loading ? (
               <div className="rounded-2xl border border-dashed border-gray-200/80 bg-white p-10 text-center shadow-sm">
-                <p className="text-gray-500 text-sm">Indlæser dine projekter…</p>
+                <div className="w-8 h-8 rounded-full border-2 border-amber-400 border-t-transparent animate-spin mx-auto mb-3" />
+                <p className="text-gray-400 text-sm font-medium">Indlæser dine projekter...</p>
               </div>
             ) : projects.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-amber-200/70 bg-amber-50/60 p-8 text-center shadow-sm">
-                <h3 className="text-base font-semibold text-gray-900 mb-1">Kom i gang på få sekunder</h3>
-                <p className="text-sm text-gray-700 mb-4">
-                  Opret dit første projekt og tilføj de værktøjer, du vil teste eller analysere.
+              <div className="rounded-2xl border-2 border-dashed border-amber-200 bg-gradient-to-br from-amber-50/80 to-orange-50/40 p-10 text-center">
+                <div className="w-12 h-12 rounded-2xl bg-amber-100 border border-amber-200 flex items-center justify-center mx-auto mb-4">
+                  <Sparkles className="w-5 h-5 text-amber-600" />
+                </div>
+                <h3 className="text-base font-extrabold text-gray-900 mb-1.5">Klar til dit første projekt?</h3>
+                <p className="text-sm text-gray-500 mb-5 max-w-xs mx-auto">
+                  Opret et projekt og tilknyt de designtools du vil bruge.
                 </p>
                 <button
                   onClick={() => setShowCreateModal(true)}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 text-white text-sm font-semibold hover:bg-amber-600 transition-colors shadow-md shadow-amber-500/30"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 text-white text-sm font-bold hover:bg-amber-600 transition-all shadow-lg shadow-amber-500/25"
                 >
+                  <Plus className="w-4 h-4" />
                   Opret dit første projekt
                 </button>
               </div>
@@ -773,15 +785,17 @@ export default function DashboardClient() {
               <div className="space-y-8">
                 <div>
                   <div className="mb-3 flex items-center justify-between">
-                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Mine projekter</h3>
-                    <span className="text-xs text-gray-400">{ownedProjects.length}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold uppercase tracking-widest text-gray-400">Mine projekter</span>
+                      <span className="text-[10px] font-bold bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">{ownedProjects.length}</span>
+                    </div>
                   </div>
                   {ownedProjects.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-gray-200 bg-white p-5 text-sm text-gray-500">
+                    <div className="rounded-xl border border-dashed border-gray-200 bg-white/60 p-5 text-sm text-gray-400 text-center">
                       Du ejer ingen projekter endnu.
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                       {ownedProjects.map((p) => (
                         <ProjectCard
                           key={p.id}
@@ -795,16 +809,16 @@ export default function DashboardClient() {
                 </div>
 
                 <div>
-                  <div className="mb-3 mt-6 pt-4 border-t border-gray-200/60 flex items-center justify-between">
-                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Delt med mig</h3>
-                    <span className="text-xs text-gray-400">{sharedProjects.length}</span>
+                  <div className="mb-3 pt-6 border-t border-gray-100 flex items-center gap-2">
+                    <span className="text-xs font-bold uppercase tracking-widest text-gray-400">Delt med mig</span>
+                    <span className="text-[10px] font-bold bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">{sharedProjects.length}</span>
                   </div>
                   {sharedProjects.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-gray-200 bg-white p-5 text-sm text-gray-500">
+                    <div className="rounded-xl border border-dashed border-gray-200 bg-white/60 p-5 text-sm text-gray-400 text-center">
                       Ingen delte projekter endnu.
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                       {sharedProjects.map((p) => (
                         <ProjectCard
                           key={p.id}
@@ -822,23 +836,31 @@ export default function DashboardClient() {
 
         {/* Tilgængelige værktøjer */}
         <section className="mb-4">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-lg md:text-xl font-semibold text-gray-900">
-              Værktøjer i{' '}
-              {activeFrameworkView === 'google-design-sprint'
-                ? 'Google Design Sprint'
-                : activeFrameworkView === 'design-thinking'
-                  ? 'Design Thinking'
-                  : 'Double Diamond'}
-            </h2>
-            <div className="inline-flex rounded-xl bg-white/70 p-1">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-gray-900 flex items-center justify-center flex-shrink-0">
+                <Wrench className="w-[18px] h-[18px] text-white" />
+              </div>
+              <div>
+                <h2 className="text-base md:text-lg font-extrabold text-gray-900 tracking-tight">
+                  Værktøjer i{' '}
+                  {activeFrameworkView === 'google-design-sprint'
+                    ? 'Google Design Sprint'
+                    : activeFrameworkView === 'design-thinking'
+                      ? 'Design Thinking'
+                      : 'Double Diamond'}
+                </h2>
+                <p className="text-xs text-gray-400">Vælg en fase og se relevante metoder.</p>
+              </div>
+            </div>
+            <div className="inline-flex rounded-xl bg-gray-100/80 border border-gray-200/60 p-1 self-start sm:self-auto">
               <button
                 type="button"
                 onClick={() => setActiveFrameworkView('double-diamond')}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
                   activeFrameworkView === 'double-diamond'
-                    ? 'bg-neutral-900 text-white'
-                    : 'text-neutral-600 hover:bg-white'
+                    ? 'bg-gray-900 text-white shadow-sm'
+                    : 'text-gray-500 hover:text-gray-800 hover:bg-white/70'
                 }`}
               >
                 Double Diamond
@@ -846,10 +868,10 @@ export default function DashboardClient() {
               <button
                 type="button"
                 onClick={() => setActiveFrameworkView('google-design-sprint')}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
                   activeFrameworkView === 'google-design-sprint'
-                    ? 'bg-neutral-900 text-white'
-                    : 'text-neutral-600 hover:bg-white'
+                    ? 'bg-gray-900 text-white shadow-sm'
+                    : 'text-gray-500 hover:text-gray-800 hover:bg-white/70'
                 }`}
               >
                 Google Design Sprint
@@ -857,19 +879,16 @@ export default function DashboardClient() {
               <button
                 type="button"
                 onClick={() => setActiveFrameworkView('design-thinking')}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
                   activeFrameworkView === 'design-thinking'
-                    ? 'bg-neutral-900 text-white'
-                    : 'text-neutral-600 hover:bg-white'
+                    ? 'bg-gray-900 text-white shadow-sm'
+                    : 'text-gray-500 hover:text-gray-800 hover:bg-white/70'
                 }`}
               >
                 Design Thinking
               </button>
             </div>
           </div>
-          <p className="text-xs md:text-sm text-gray-500 mb-5 max-w-4xl">
-            Vælg en fase i modellen og se relevante værktøjer i stedet for en lang liste.
-          </p>
 
           <div className="swiss-panel p-4 md:p-6 mb-5">
             <div
@@ -1061,6 +1080,6 @@ export default function DashboardClient() {
           </div>
         </div>
       )}
-    </PageShell>
+    </div>
   )
 }

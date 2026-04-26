@@ -3,7 +3,6 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import ForgeLabLogo from '@/components/ForgeLabLogo'
 import AuthGraphic from '@/components/AuthGraphic'
 import CookieConsent from '@/components/CookieConsent'
 import { supabase } from '@/lib/supabase'
@@ -20,6 +19,7 @@ function LoginFormInner({
   const [password, setPassword] = useState('')
   const [rememberMe, setRememberMe] = useState(false)
   const [, setConsentRevision] = useState(0)
+  const [mounted, setMounted] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [loading, setLoading] = useState(false)
@@ -58,6 +58,10 @@ function LoginFormInner({
       cancelled = true
     }
   }, [router])
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -191,11 +195,9 @@ function LoginFormInner({
       }`}
     >
       <div className="relative z-10 w-full max-w-md">
-        <Link href="/" className="inline-flex items-center gap-3 mb-10">
-          <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-amber-500/10 text-amber-600">
-            <ForgeLabLogo size={28} />
-          </div>
-          <span className="text-xl font-semibold text-gray-900">ForgeLab</span>
+        <Link href="/" className="inline-flex items-center gap-2 mb-10">
+          <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-amber-500 text-white text-sm font-extrabold shadow-sm shadow-amber-500/30 select-none">F</span>
+          <span className="text-xl font-extrabold text-gray-900 tracking-tight">ForgeLab</span>
         </Link>
         {!isForgotPassword ? (
           <>
@@ -239,7 +241,7 @@ function LoginFormInner({
                     type="checkbox"
                     id="rememberMe"
                     checked={rememberMe}
-                    disabled={!hasFunctionalStorageConsent()}
+                    disabled={mounted ? !hasFunctionalStorageConsent() : true}
                     onChange={(e) => setRememberMe(e.target.checked)}
                     className="w-4 h-4 text-amber-600 border-gray-300 rounded focus:ring-amber-500 focus:ring-2 disabled:opacity-40"
                   />
@@ -247,7 +249,7 @@ function LoginFormInner({
                     Husk mig i et år
                   </label>
                 </div>
-                {!hasFunctionalStorageConsent() && (
+                {mounted && !hasFunctionalStorageConsent() && (
                   <p className="text-xs text-gray-500 pl-6">
                     Kræver samtykke til valgfri browser-lagring. Vælg &quot;Accepter alle&quot; eller slå til under
                     cookie-indstillinger på forsiden.
@@ -371,9 +373,14 @@ function RegisterFormInner({
   const [confirmPassword, setConfirmPassword] = useState('')
   const [rememberMe, setRememberMe] = useState(false)
   const [, setConsentRevision] = useState(0)
+  const [mounted, setMounted] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   useEffect(() => {
     const onConsent = () => {
@@ -476,11 +483,9 @@ function RegisterFormInner({
       }`}
     >
       <div className="relative z-10 w-full max-w-md ml-auto">
-        <Link href="/" className="inline-flex items-center gap-3 mb-10">
-          <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-amber-500/10 text-amber-600">
-            <ForgeLabLogo size={28} />
-          </div>
-          <span className="text-xl font-semibold text-gray-900">ForgeLab</span>
+        <Link href="/" className="inline-flex items-center gap-2 mb-10">
+          <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-amber-500 text-white text-sm font-extrabold shadow-sm shadow-amber-500/30 select-none">F</span>
+          <span className="text-xl font-extrabold text-gray-900 tracking-tight">ForgeLab</span>
         </Link>
         <h1 className="text-3xl font-bold text-gray-900 mb-1">Opret bruger</h1>
         <p className="text-gray-500 mb-6">
@@ -576,7 +581,7 @@ function RegisterFormInner({
                 type="checkbox"
                 id="registerRememberMe"
                 checked={rememberMe}
-                disabled={!hasFunctionalStorageConsent()}
+                disabled={mounted ? !hasFunctionalStorageConsent() : true}
                 onChange={(e) => setRememberMe(e.target.checked)}
                 className="w-4 h-4 text-amber-600 border-gray-300 rounded focus:ring-amber-500 focus:ring-2 disabled:opacity-40"
               />
@@ -584,7 +589,7 @@ function RegisterFormInner({
                 Husk mig i et år
               </label>
             </div>
-            {!hasFunctionalStorageConsent() && (
+            {mounted && !hasFunctionalStorageConsent() && (
               <p className="text-xs text-gray-500 pl-6">
                 Kræver samtykke til valgfri browser-lagring. Vælg &quot;Accepter alle&quot; eller slå til under
                 cookie-indstillinger på forsiden.

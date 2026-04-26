@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import ForgeLabLogo from '@/components/ForgeLabLogo'
 import CookieConsent from '@/components/CookieConsent'
 import CookieConsentOpenButton from '@/components/CookieConsentOpenButton'
 
@@ -16,11 +15,9 @@ export default function LegalDocumentLayout({ title, lastUpdated, children }: Pr
       <div className="relative z-10">
         <nav className="border-b border-gray-200/80 bg-white/80 backdrop-blur-md sticky top-0 z-20">
           <div className="container mx-auto px-6 py-4 flex flex-wrap items-center justify-between gap-3">
-            <Link href="/" className="flex items-center gap-3 text-gray-900 hover:text-amber-700 transition-colors">
-              <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-amber-500/10 text-amber-600">
-                <ForgeLabLogo size={28} />
-              </div>
-              <span className="text-lg font-semibold tracking-tight">ForgeLab</span>
+            <Link href="/" className="flex items-center gap-2 text-gray-900 hover:text-amber-700 transition-colors">
+              <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-amber-500 text-white text-xs font-extrabold shadow-sm shadow-amber-500/30 select-none">F</span>
+              <span className="text-base font-extrabold tracking-tight">ForgeLab</span>
             </Link>
             <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
               <Link href="/privatliv" className="hover:text-gray-900">

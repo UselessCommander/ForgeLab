@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import ForgeLabLogo from '@/components/ForgeLabLogo'
 import { useProjectToolData } from '@/lib/useProjectToolData'
 
 export default function GallupKompasrose() {
@@ -267,7 +266,7 @@ export default function GallupKompasrose() {
                 <span>Tilbage til Dashboard</span>
               </Link>
               <div className="flex items-center gap-4 mb-2">
-                <ForgeLabLogo size={48} />
+                <span className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-amber-500 text-white text-base font-extrabold shadow-sm shadow-amber-500/30 select-none">F</span>
                 <h1 className="text-3xl md:text-4xl font-semibold text-gray-900">
                   Gallup Kompasrose
                 </h1>

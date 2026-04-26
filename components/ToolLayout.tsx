@@ -1,7 +1,6 @@
 'use client'
 
 import Link from 'next/link'
-import ForgeLabLogo from '@/components/ForgeLabLogo'
 
 interface ToolLayoutProps {
   title: string
@@ -59,8 +58,8 @@ export default function ToolLayout({
                 <span>{backLabel}</span>
               </Link>
               <div className="flex items-center gap-4 mb-2">
-                <div className="w-12 h-12 flex items-center justify-center rounded-xl bg-amber-500/10 text-amber-600">
-                  <ForgeLabLogo size={32} />
+                <div className="w-12 h-12 flex items-center justify-center rounded-xl bg-amber-500 text-white shadow-sm shadow-amber-500/30">
+                  <span className="text-lg font-extrabold select-none">F</span>
                 </div>
                 <h1 className="text-3xl md:text-4xl font-bold text-gray-900 tracking-tight">{title}</h1>
               </div>

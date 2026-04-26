@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import ForgeLabLogo from '@/components/ForgeLabLogo'
 import { useProjectToolData } from '@/lib/useProjectToolData'
 import { getProjectToolData } from '@/lib/projects'
 import { deleteEmptyFieldRow } from '@/lib/deleteRowKeyboard'
@@ -129,7 +128,7 @@ export default function TOWSMatrix() {
               <span>Tilbage til Dashboard</span>
             </Link>
             <div className="flex items-center gap-4 mb-2">
-              <ForgeLabLogo size={48} />
+              <span className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-amber-500 text-white text-xl font-extrabold shadow-sm shadow-amber-500/30 select-none">F</span>
               <h1 className="text-3xl md:text-4xl font-semibold text-gray-900">
                 TOWS Matrix
               </h1>

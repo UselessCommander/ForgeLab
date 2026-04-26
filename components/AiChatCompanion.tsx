@@ -25,6 +25,7 @@ interface AiChatCompanionProps {
     | 'comments'
   framework: string
   role: string
+  zIndex?: number
   onAddTool: (slug: string) => void
 }
 
@@ -36,6 +37,7 @@ export default function AiChatCompanion({
   workspaceTab = 'board',
   framework,
   role,
+  zIndex: zIndexProp,
   onAddTool,
 }: AiChatCompanionProps) {
   const MODEL_OPTIONS: Record<string, string[]> = {
@@ -1021,7 +1023,7 @@ export default function AiChatCompanion({
       <div
         onMouseDown={e => e.stopPropagation()}
         style={{
-          position: 'fixed', bottom: 30, right: 30, zIndex: 9999,
+          position: 'fixed', bottom: 30, right: 30, zIndex: zIndexProp ?? 9999,
           display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 16
         }}
       >

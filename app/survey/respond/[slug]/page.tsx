@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import ForgeLabLogo from '@/components/ForgeLabLogo'
 
 type QuestionType = 'short_text' | 'long_text' | 'single_choice' | 'multiple_choice' | 'scale'
 
@@ -288,7 +287,7 @@ export default function SurveyRespondPage() {
 
       <div className="max-w-2xl mx-auto mt-8 text-center">
         <Link href="/" className="inline-flex items-center gap-2 text-gray-500 hover:text-gray-700 text-sm">
-          <ForgeLabLogo size={20} />
+          <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-amber-500 text-white text-[9px] font-extrabold select-none">F</span>
           ForgeLab
         </Link>
       </div>

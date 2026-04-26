@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import ForgeLabLogo from '@/components/ForgeLabLogo'
 
 const ROLE_OPTIONS = [
   'Founder',
@@ -136,11 +135,9 @@ export default function OnboardingClient() {
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#f0f1f3_1px,transparent_1px),linear-gradient(to_bottom,#f0f1f3_1px,transparent_1px)] bg-[size:24px_24px] opacity-60 pointer-events-none" />
       <header className="relative z-10 border-b border-gray-200/80 bg-white/80 backdrop-blur-sm">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Link href="/" className="inline-flex items-center gap-2 text-gray-900">
-            <div className="w-9 h-9 flex items-center justify-center rounded-lg bg-amber-500/10 text-amber-600">
-              <ForgeLabLogo size={24} />
-            </div>
-            <span className="font-semibold">ForgeLab</span>
+          <Link href="/" className="inline-flex items-center gap-2">
+            <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-amber-500 text-white text-xs font-extrabold shadow-sm shadow-amber-500/30 select-none">F</span>
+            <span className="text-base font-extrabold text-gray-900 tracking-tight">ForgeLab</span>
           </Link>
           <span className="text-xs font-medium text-gray-500">
             Trin {step + 1} / {STEPS}
