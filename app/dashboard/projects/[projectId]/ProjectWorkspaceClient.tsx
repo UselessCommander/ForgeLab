@@ -6380,6 +6380,13 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     }
   }
 
+  useEffect(() => {
+    if (showPanel === 'settings' && project?.role === 'owner') {
+      void loadInviteLink()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showPanel, project?.role])
+
   // ── Loading / not found ────────────────────────────────────────────
   if (loading) {
     return (
@@ -6502,13 +6509,6 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       : (DOUBLE_DIAMOND_PHASES.some(phase => phase.id === activeAddToolCategory)
           ? (activeAddToolCategory as DoubleDiamondPhase)
           : 'discover')
-
-  useEffect(() => {
-    if (showPanel === 'settings' && project?.role === 'owner') {
-      void loadInviteLink()
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showPanel, project?.role])
 
   const toolCount = projectTools.length
   const isOwner = project.role === 'owner'
