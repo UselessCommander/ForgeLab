@@ -32,28 +32,32 @@ const createId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
 const DEFAULT_DATA: KanbanData = {
   columns: [
-    {
-      id: 'todo',
-      title: 'To do',
-      tasks: [{ id: createId(), title: 'Definér næste sprintmål', description: '' }],
-    },
-    {
-      id: 'in-progress',
-      title: 'I gang',
-      tasks: [{ id: createId(), title: 'Lav wireframe til onboarding', description: '' }],
-    },
-    {
-      id: 'done',
-      title: 'Færdig',
-      tasks: [{ id: createId(), title: 'Kickoff afholdt', description: '' }],
-    },
+    { id: 'todo',        title: 'To do',   tasks: [{ id: createId(), title: 'Definér næste sprintmål',       description: '' }] },
+    { id: 'in-progress', title: 'I gang',  tasks: [{ id: createId(), title: 'Lav wireframe til onboarding',  description: '' }] },
+    { id: 'done',        title: 'Færdig',  tasks: [{ id: createId(), title: 'Kickoff afholdt',               description: '' }] },
   ],
 }
 
-const COLUMN_ACCENT: Record<KanbanColumnId, { dot: string; badge: string; badgeText: string; ring: string }> = {
-  'todo':        { dot: '#94A3B8', badge: '#F1F5F9', badgeText: '#475569', ring: '#CBD5E1' },
-  'in-progress': { dot: '#F59E0B', badge: '#FEF3C7', badgeText: '#92400E', ring: '#FCD34D' },
-  'done':        { dot: '#10B981', badge: '#D1FAE5', badgeText: '#065F46', ring: '#6EE7B7' },
+const COL: Record<KanbanColumnId, { dot: string; pill: string; pillTxt: string; border: string }> = {
+  'todo':        { dot: '#94A3B8', pill: '#F1F5F9', pillTxt: '#64748B', border: '#E2E8F0' },
+  'in-progress': { dot: '#F59E0B', pill: '#FEF3C7', pillTxt: '#92400E', border: '#FCD34D' },
+  'done':        { dot: '#10B981', pill: '#D1FAE5', pillTxt: '#065F46', border: '#6EE7B7' },
+}
+
+const inputStyle: React.CSSProperties = {
+  width: '100%', boxSizing: 'border-box',
+  border: '1px solid #E5E7EB', borderRadius: 10, padding: '9px 12px',
+  fontSize: 13, color: '#1F2937', background: '#fff',
+  outline: 'none', fontFamily: 'inherit', lineHeight: 1.5,
+  transition: 'border-color 0.15s',
+}
+
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p style={{ margin: '0 0 5px', fontSize: 10, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+      {children}
+    </p>
+  )
 }
 
 export default function KanbanPage() {
@@ -226,68 +230,51 @@ export default function KanbanPage() {
     }
   }
 
+  // Find task + column for slide-over
+  const expandedCol = expandedTaskId ? data.columns.find(c => c.tasks.some(t => t.id === expandedTaskId)) ?? null : null
+  const expandedTask = expandedCol ? expandedCol.tasks.find(t => t.id === expandedTaskId) ?? null : null
+
   return (
     <ToolLayout
       title="Kanban"
-      description="Planlæg og flyt opgaver visuelt gennem workflowet."
+      description="Planlæg og flyt opgaver visuelt."
       backHref="/dashboard"
       backLabel="Tilbage til Dashboard"
     >
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
+      {/* Board */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
         {data.columns.map((column) => {
-          const accent = COLUMN_ACCENT[column.id]
+          const c = COL[column.id]
           return (
-            <section
-              key={column.id}
-              style={{
-                background: '#FAFAFA',
-                border: '1px solid #E5E7EB',
-                borderRadius: 16,
-                padding: '14px 12px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 0,
-              }}
-            >
-              {/* Column header */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: accent.dot, flexShrink: 0, display: 'inline-block' }} />
-                  <span style={{ fontSize: 13, fontWeight: 700, color: '#111827', letterSpacing: '-0.01em' }}>{column.title}</span>
-                  <span style={{ fontSize: 11, fontWeight: 600, background: accent.badge, color: accent.badgeText, borderRadius: 999, padding: '1px 7px' }}>
-                    {column.tasks.length}
-                  </span>
+            <section key={column.id} style={{ background: '#F8F9FA', borderRadius: 14, padding: '12px 10px', display: 'flex', flexDirection: 'column', gap: 0 }}>
+              {/* Header */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, padding: '0 2px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: c.dot, flexShrink: 0, display: 'inline-block' }} />
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#374151', letterSpacing: '0.01em' }}>{column.title}</span>
+                  <span style={{ fontSize: 10, fontWeight: 600, background: c.pill, color: c.pillTxt, borderRadius: 99, padding: '1px 6px' }}>{column.tasks.length}</span>
                 </div>
                 <button
                   type="button"
-                  onClick={() => { addTask(column.id); setExpandedTaskId('__new__') }}
-                  style={{
-                    border: 'none', borderRadius: 8, background: 'transparent',
-                    color: '#6B7280', fontSize: 20, lineHeight: 1, cursor: 'pointer',
-                    width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    transition: 'background 0.12s',
-                  }}
-                  onMouseEnter={e => (e.currentTarget.style.background = '#F3F4F6')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  onClick={() => addTask(column.id)}
                   title="Tilføj opgave"
-                >
-                  +
-                </button>
+                  style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9CA3AF', fontSize: 18, lineHeight: 1, padding: '2px 4px', borderRadius: 6 }}
+                  onMouseEnter={e => (e.currentTarget.style.color = '#374151')}
+                  onMouseLeave={e => (e.currentTarget.style.color = '#9CA3AF')}
+                >+</button>
               </div>
 
-              {/* Drop zone */}
+              {/* Task list drop zone */}
               <div
                 data-drop-col={column.id}
                 style={{
-                  display: 'flex', flexDirection: 'column', gap: 6, minHeight: 48,
-                  borderRadius: 10,
-                  outline: dropTarget?.toId === column.id && typeof dropTarget.index !== 'number'
-                    ? `2px solid ${accent.ring}` : 'none',
+                  display: 'flex', flexDirection: 'column', gap: 5, minHeight: 40, borderRadius: 8,
+                  outline: dropTarget?.toId === column.id && typeof dropTarget.index !== 'number' ? `2px dashed ${c.border}` : 'none',
                   outlineOffset: 2,
                 }}
-                onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
-                onDragEnter={(e) => { e.preventDefault(); setDropTarget({ toId: column.id }) }}
-                onDrop={(e) => {
+                onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
+                onDragEnter={e => { e.preventDefault(); setDropTarget({ toId: column.id }) }}
+                onDrop={e => {
                   e.preventDefault()
                   const payload = getActivePayload(e.dataTransfer.getData('text/plain'))
                   if (!payload) return
@@ -296,40 +283,35 @@ export default function KanbanPage() {
                 }}
               >
                 {column.tasks.length === 0 && (
-                  <div style={{ borderRadius: 10, border: '1.5px dashed #E5E7EB', padding: '12px 10px', textAlign: 'center', fontSize: 12, color: '#9CA3AF' }}>
-                    Ingen opgaver endnu
+                  <div style={{ borderRadius: 8, border: '1.5px dashed #E5E7EB', padding: '10px', textAlign: 'center', fontSize: 12, color: '#C4C9D4' }}>
+                    Ingen opgaver
                   </div>
                 )}
-
                 {column.tasks.map((task, taskIndex) => {
-                  const isExpanded = expandedTaskId === task.id
                   const isDragging = draggingTaskId === task.id
                   const isDropBefore = dropTarget?.toId === column.id && dropTarget.index === taskIndex
-                  const isDropAfter = dropTarget?.toId === column.id && dropTarget.index === taskIndex + 1
+                  const isDropAfter  = dropTarget?.toId === column.id && dropTarget.index === taskIndex + 1
                   const assigneeLabel = task.assigneeName || (task.assigneeUserId ? memberOptions.find(m => m.id === task.assigneeUserId)?.label : null)
                   const toolLabel = task.toolSlug ? toolOptions.find(t => t.slug === task.toolSlug)?.title : null
 
                   return (
                     <div key={task.id}>
-                      {isDropBefore && <div style={{ height: 3, borderRadius: 99, background: accent.ring, margin: '0 4px' }} />}
-
+                      {isDropBefore && <div style={{ height: 2, borderRadius: 99, background: c.border, margin: '0 2px' }} />}
                       <article
                         data-drop-col={column.id}
                         data-drop-index={taskIndex}
-                        onDragOver={(e) => {
+                        onDragOver={e => {
                           e.preventDefault()
                           const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                          const insertIndex = e.clientY > rect.top + rect.height / 2 ? taskIndex + 1 : taskIndex
-                          if (dropTarget?.toId !== column.id || dropTarget.index !== insertIndex) {
-                            setDropTarget({ toId: column.id, index: insertIndex })
-                          }
+                          const idx = e.clientY > rect.top + rect.height / 2 ? taskIndex + 1 : taskIndex
+                          if (dropTarget?.toId !== column.id || dropTarget.index !== idx) setDropTarget({ toId: column.id, index: idx })
                         }}
-                        onDragEnter={(e) => {
+                        onDragEnter={e => {
                           e.preventDefault()
                           const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
                           setDropTarget({ toId: column.id, index: e.clientY > rect.top + rect.height / 2 ? taskIndex + 1 : taskIndex })
                         }}
-                        onDrop={(e) => {
+                        onDrop={e => {
                           e.preventDefault(); e.stopPropagation()
                           const payload = getActivePayload(e.dataTransfer.getData('text/plain'))
                           if (!payload) return
@@ -338,23 +320,22 @@ export default function KanbanPage() {
                           setDropTarget(null); setDraggingTaskId(null); setDragPayload(null)
                         }}
                         style={{
-                          background: isDragging ? '#F9FAFB' : '#fff',
-                          border: `1px solid ${isExpanded ? accent.ring : '#E5E7EB'}`,
-                          borderRadius: 12,
+                          background: isDragging ? '#F3F4F6' : '#fff',
+                          border: '1px solid #EBEBEB',
+                          borderRadius: 10,
+                          opacity: isDragging ? 0.45 : 1,
+                          cursor: 'pointer',
+                          transition: 'box-shadow 0.12s',
                           overflow: 'hidden',
-                          opacity: isDragging ? 0.5 : 1,
-                          boxShadow: isExpanded ? `0 0 0 3px ${accent.ring}30` : '0 1px 3px rgba(0,0,0,0.05)',
-                          transition: 'box-shadow 0.15s, border-color 0.15s',
                         }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.07)' }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.boxShadow = 'none' }}
                       >
-                        {/* Collapsed row — drag handle + title + meta */}
-                        <div
-                          style={{ display: 'flex', alignItems: 'center', gap: 0, minHeight: 44 }}
-                        >
-                          {/* Drag handle */}
+                        <div style={{ display: 'flex', alignItems: 'center', minHeight: 40 }}>
+                          {/* Drag grip */}
                           <div
                             draggable
-                            onDragStart={(e) => {
+                            onDragStart={e => {
                               setDraggingTaskId(task.id)
                               const p = { fromId: column.id, taskId: task.id }
                               setDragPayload(p)
@@ -363,162 +344,34 @@ export default function KanbanPage() {
                               e.dataTransfer.effectAllowed = 'move'
                             }}
                             onDragEnd={() => { setDropTarget(null); setDraggingTaskId(null); setDragPayload(null) }}
-                            style={{
-                              padding: '0 8px 0 10px', cursor: 'grab', color: '#D1D5DB',
-                              display: 'flex', alignItems: 'center', alignSelf: 'stretch',
-                              flexShrink: 0, userSelect: 'none',
-                            }}
-                            title="Træk for at flytte"
+                            style={{ padding: '0 8px 0 10px', cursor: 'grab', color: '#D1D5DB', display: 'flex', alignItems: 'center', alignSelf: 'stretch', flexShrink: 0, userSelect: 'none' }}
+                            onClick={e => e.stopPropagation()}
                           >
-                            <svg width="10" height="16" viewBox="0 0 10 16" fill="currentColor">
-                              <circle cx="3" cy="3" r="1.5"/><circle cx="7" cy="3" r="1.5"/>
-                              <circle cx="3" cy="8" r="1.5"/><circle cx="7" cy="8" r="1.5"/>
-                              <circle cx="3" cy="13" r="1.5"/><circle cx="7" cy="13" r="1.5"/>
+                            <svg width="8" height="14" viewBox="0 0 8 14" fill="currentColor">
+                              <circle cx="2" cy="2" r="1.2"/><circle cx="6" cy="2" r="1.2"/>
+                              <circle cx="2" cy="7" r="1.2"/><circle cx="6" cy="7" r="1.2"/>
+                              <circle cx="2" cy="12" r="1.2"/><circle cx="6" cy="12" r="1.2"/>
                             </svg>
                           </div>
 
-                          {/* Title — click to expand */}
+                          {/* Title + chips */}
                           <div
-                            style={{ flex: 1, cursor: 'pointer', padding: '10px 6px 10px 0', minWidth: 0 }}
-                            onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}
+                            style={{ flex: 1, padding: '9px 6px 9px 0', minWidth: 0 }}
+                            onClick={() => setExpandedTaskId(task.id)}
                           >
-                            {isExpanded ? (
-                              <input
-                                suppressHydrationWarning
-                                autoFocus
-                                value={task.title}
-                                onChange={(e) => updateTask(column.id, task.id, { title: e.target.value })}
-                                onKeyDown={(e) => deleteEmptyFieldRow(e, task.title, true, () => removeTask(column.id, task.id))}
-                                placeholder="Opgavetitel"
-                                onClick={(e) => e.stopPropagation()}
-                                style={{
-                                  width: '100%', border: 'none', outline: 'none',
-                                  fontSize: 13, fontWeight: 600, color: '#111827',
-                                  background: 'transparent', padding: 0,
-                                }}
-                              />
-                            ) : (
-                              <span style={{ fontSize: 13, fontWeight: 600, color: task.title ? '#111827' : '#9CA3AF', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {task.title || 'Opgavetitel'}
-                              </span>
-                            )}
-                            {/* Meta chips — only when collapsed */}
-                            {!isExpanded && (assigneeLabel || toolLabel) && (
+                            <span style={{ fontSize: 13, fontWeight: 500, color: task.title ? '#111827' : '#9CA3AF', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {task.title || 'Opgave'}
+                            </span>
+                            {(assigneeLabel || toolLabel) && (
                               <div style={{ display: 'flex', gap: 4, marginTop: 3, flexWrap: 'wrap' }}>
-                                {assigneeLabel && (
-                                  <span style={{ fontSize: 10, background: '#F3F4F6', color: '#6B7280', borderRadius: 6, padding: '1px 6px', fontWeight: 500 }}>
-                                    {assigneeLabel}
-                                  </span>
-                                )}
-                                {toolLabel && (
-                                  <span style={{ fontSize: 10, background: accent.badge, color: accent.badgeText, borderRadius: 6, padding: '1px 6px', fontWeight: 500 }}>
-                                    {toolLabel}
-                                  </span>
-                                )}
+                                {assigneeLabel && <span style={{ fontSize: 10, background: '#F3F4F6', color: '#6B7280', borderRadius: 5, padding: '1px 5px' }}>{assigneeLabel}</span>}
+                                {toolLabel     && <span style={{ fontSize: 10, background: c.pill, color: c.pillTxt, borderRadius: 5, padding: '1px 5px' }}>{toolLabel}</span>}
                               </div>
                             )}
                           </div>
-
-                          {/* Expand chevron + delete */}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 2, paddingRight: 8, flexShrink: 0 }}>
-                            <button
-                              type="button"
-                              onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}
-                              style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9CA3AF', padding: 4, display: 'flex', alignItems: 'center', borderRadius: 6, transition: 'color 0.1s' }}
-                              title={isExpanded ? 'Luk' : 'Rediger'}
-                            >
-                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                {isExpanded
-                                  ? <><polyline points="18 15 12 9 6 15" /></>
-                                  : <><polyline points="6 9 12 15 18 9" /></>
-                                }
-                              </svg>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => { removeTask(column.id, task.id); if (isExpanded) setExpandedTaskId(null) }}
-                              style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#D1D5DB', padding: 4, display: 'flex', alignItems: 'center', borderRadius: 6, transition: 'color 0.1s' }}
-                              onMouseEnter={e => (e.currentTarget.style.color = '#EF4444')}
-                              onMouseLeave={e => (e.currentTarget.style.color = '#D1D5DB')}
-                              title="Slet opgave"
-                            >
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                              </svg>
-                            </button>
-                          </div>
                         </div>
-
-                        {/* Expanded detail panel */}
-                        {isExpanded && (
-                          <div style={{ borderTop: '1px solid #F3F4F6', padding: '12px 14px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                            <textarea
-                              suppressHydrationWarning
-                              value={task.description}
-                              onChange={(e) => updateTask(column.id, task.id, { description: e.target.value })}
-                              placeholder="Beskrivelse (valgfri)"
-                              rows={2}
-                              style={{
-                                width: '100%', boxSizing: 'border-box', resize: 'vertical',
-                                border: '1px solid #E5E7EB', borderRadius: 8, padding: '7px 10px',
-                                fontSize: 12, color: '#374151', outline: 'none', fontFamily: 'inherit',
-                                background: '#FAFAFA', lineHeight: 1.5,
-                              }}
-                              onFocus={e => (e.currentTarget.style.borderColor = accent.ring)}
-                              onBlur={e => (e.currentTarget.style.borderColor = '#E5E7EB')}
-                            />
-
-                            <div>
-                              <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Værktøj</label>
-                              <select
-                                value={task.toolSlug || ''}
-                                onChange={(e) => { void assignToolToTask(column.id, task.id, e.target.value) }}
-                                style={{ width: '100%', border: '1px solid #E5E7EB', borderRadius: 8, padding: '7px 10px', fontSize: 12, background: '#fff', color: '#374151', outline: 'none' }}
-                                onFocus={e => (e.currentTarget.style.borderColor = accent.ring)}
-                                onBlur={e => (e.currentTarget.style.borderColor = '#E5E7EB')}
-                              >
-                                <option value="">Ingen</option>
-                                {toolOptions.map((tool) => (
-                                  <option key={tool.slug} value={tool.slug}>{tool.title}</option>
-                                ))}
-                              </select>
-                            </div>
-
-                            <div>
-                              <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Ansvarlig</label>
-                              {isInProject ? (
-                                <select
-                                  value={task.assigneeUserId || ''}
-                                  onChange={(e) => {
-                                    const userId = e.target.value
-                                    const selected = memberOptions.find((m) => m.id === userId)
-                                    updateTask(column.id, task.id, { assigneeUserId: userId || undefined, assigneeName: userId ? selected?.label || '' : undefined })
-                                  }}
-                                  style={{ width: '100%', border: '1px solid #E5E7EB', borderRadius: 8, padding: '7px 10px', fontSize: 12, background: '#fff', color: '#374151', outline: 'none' }}
-                                  onFocus={e => (e.currentTarget.style.borderColor = accent.ring)}
-                                  onBlur={e => (e.currentTarget.style.borderColor = '#E5E7EB')}
-                                >
-                                  <option value="">Ikke tildelt</option>
-                                  {memberOptions.map((m) => (
-                                    <option key={m.id} value={m.id}>{m.label}</option>
-                                  ))}
-                                </select>
-                              ) : (
-                                <input
-                                  value={task.assigneeName || ''}
-                                  onChange={(e) => updateTask(column.id, task.id, { assigneeUserId: undefined, assigneeName: e.target.value })}
-                                  placeholder="Navn på ansvarlig"
-                                  style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #E5E7EB', borderRadius: 8, padding: '7px 10px', fontSize: 12, background: '#fff', color: '#374151', outline: 'none' }}
-                                  onFocus={e => (e.currentTarget.style.borderColor = accent.ring)}
-                                  onBlur={e => (e.currentTarget.style.borderColor = '#E5E7EB')}
-                                />
-                              )}
-                            </div>
-                          </div>
-                        )}
                       </article>
-
-                      {isDropAfter && <div style={{ height: 3, borderRadius: 99, background: accent.ring, margin: '0 4px' }} />}
+                      {isDropAfter && <div style={{ height: 2, borderRadius: 99, background: c.border, margin: '0 2px' }} />}
                     </div>
                   )
                 })}
@@ -527,6 +380,123 @@ export default function KanbanPage() {
           )
         })}
       </div>
+
+      {/* Slide-over backdrop */}
+      {expandedTask && expandedCol && (
+        <>
+          <div
+            onClick={() => setExpandedTaskId(null)}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.18)', zIndex: 40, backdropFilter: 'blur(1px)' }}
+          />
+          <div style={{
+            position: 'fixed', top: 0, right: 0, bottom: 0, width: '100%', maxWidth: 480,
+            background: '#fff', zIndex: 50,
+            boxShadow: '-16px 0 48px rgba(0,0,0,0.12)',
+            display: 'flex', flexDirection: 'column',
+            overflowY: 'auto',
+          }}>
+            {/* Panel header */}
+            <div style={{ padding: '22px 24px 18px', borderBottom: '1px solid #F3F4F6' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: COL[expandedCol.id].dot, flexShrink: 0, display: 'inline-block' }} />
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{expandedCol.title}</span>
+                <button
+                  type="button"
+                  onClick={() => setExpandedTaskId(null)}
+                  style={{ marginLeft: 'auto', border: 'none', background: '#F3F4F6', borderRadius: 8, width: 30, height: 30, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6B7280', flexShrink: 0 }}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+              <input
+                suppressHydrationWarning
+                autoFocus
+                value={expandedTask.title}
+                onChange={e => updateTask(expandedCol.id, expandedTask.id, { title: e.target.value })}
+                onKeyDown={e => deleteEmptyFieldRow(e, expandedTask.title, true, () => { removeTask(expandedCol.id, expandedTask.id); setExpandedTaskId(null) })}
+                placeholder="Opgavetitel"
+                style={{ width: '100%', border: 'none', outline: 'none', fontSize: 20, fontWeight: 700, color: '#111827', background: 'transparent', padding: 0, fontFamily: 'inherit' }}
+              />
+            </div>
+
+            {/* Panel body */}
+            <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 18, flex: 1 }}>
+              <div>
+                <FieldLabel>Beskrivelse</FieldLabel>
+                <textarea
+                  suppressHydrationWarning
+                  value={expandedTask.description}
+                  onChange={e => updateTask(expandedCol.id, expandedTask.id, { description: e.target.value })}
+                  placeholder="Tilføj beskrivelse…"
+                  rows={4}
+                  style={{ ...inputStyle, resize: 'vertical', background: '#FAFAFA' }}
+                  onFocus={e => (e.currentTarget.style.borderColor = COL[expandedCol.id].border)}
+                  onBlur={e => (e.currentTarget.style.borderColor = '#E5E7EB')}
+                />
+              </div>
+
+              <div>
+                <FieldLabel>Ansvarlig</FieldLabel>
+                {isInProject ? (
+                  <select
+                    value={expandedTask.assigneeUserId || ''}
+                    onChange={e => {
+                      const userId = e.target.value
+                      const selected = memberOptions.find(m => m.id === userId)
+                      updateTask(expandedCol.id, expandedTask.id, { assigneeUserId: userId || undefined, assigneeName: userId ? selected?.label || '' : undefined })
+                    }}
+                    style={inputStyle}
+                    onFocus={e => (e.currentTarget.style.borderColor = COL[expandedCol.id].border)}
+                    onBlur={e => (e.currentTarget.style.borderColor = '#E5E7EB')}
+                  >
+                    <option value="">Ikke tildelt</option>
+                    {memberOptions.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+                  </select>
+                ) : (
+                  <input
+                    value={expandedTask.assigneeName || ''}
+                    onChange={e => updateTask(expandedCol.id, expandedTask.id, { assigneeUserId: undefined, assigneeName: e.target.value })}
+                    placeholder="Navn på ansvarlig"
+                    style={inputStyle}
+                    onFocus={e => (e.currentTarget.style.borderColor = COL[expandedCol.id].border)}
+                    onBlur={e => (e.currentTarget.style.borderColor = '#E5E7EB')}
+                  />
+                )}
+              </div>
+
+              <div>
+                <FieldLabel>Værktøj</FieldLabel>
+                <select
+                  value={expandedTask.toolSlug || ''}
+                  onChange={e => { void assignToolToTask(expandedCol.id, expandedTask.id, e.target.value) }}
+                  style={inputStyle}
+                  onFocus={e => (e.currentTarget.style.borderColor = COL[expandedCol.id].border)}
+                  onBlur={e => (e.currentTarget.style.borderColor = '#E5E7EB')}
+                >
+                  <option value="">Ingen</option>
+                  {toolOptions.map(tool => <option key={tool.slug} value={tool.slug}>{tool.title}</option>)}
+                </select>
+                {isInProject && expandedTask.toolSlug && (
+                  <p style={{ margin: '5px 0 0', fontSize: 11, color: '#9CA3AF' }}>Bliver automatisk tilføjet til projektets board.</p>
+                )}
+              </div>
+            </div>
+
+            {/* Delete */}
+            <div style={{ padding: '0 24px 24px' }}>
+              <button
+                type="button"
+                onClick={() => { removeTask(expandedCol.id, expandedTask.id); setExpandedTaskId(null) }}
+                style={{ width: '100%', padding: '10px', border: 'none', borderRadius: 10, background: '#FEF2F2', color: '#DC2626', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+                onMouseEnter={e => (e.currentTarget.style.background = '#FEE2E2')}
+                onMouseLeave={e => (e.currentTarget.style.background = '#FEF2F2')}
+              >
+                Slet opgave
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </ToolLayout>
   )
 }
