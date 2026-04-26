@@ -3364,6 +3364,17 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
         ))
         .map(box => box.id)
 
+      const COMMENT_PIN_SIZE = 42
+      const selectedCommentIdsFromBox = boardComments
+        .filter(c => !c.parentId && !c.resolved)
+        .filter(c => (
+          c.x + COMMENT_PIN_SIZE >= minX &&
+          c.x <= maxX &&
+          c.y + COMMENT_PIN_SIZE >= minY &&
+          c.y <= maxY
+        ))
+        .map(c => c.id)
+
       if (Math.abs(maxX - minX) < epsilon && Math.abs(maxY - minY) < epsilon) {
         if (!marqueeIsAdditiveRef.current) {
           setSelectedCardSlugs([])
@@ -3380,12 +3391,14 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
         setSelectedFlowNodeIds(prev => Array.from(new Set([...prev, ...selectedFlowNodeIdsFromBox])))
         setSelectedStickyNoteIds(prev => Array.from(new Set([...prev, ...selectedStickyNoteIdsFromBox])))
         setSelectedFreeTextIds(prev => Array.from(new Set([...prev, ...selectedFreeTextIdsFromBox])))
+        setSelectedCommentIds(prev => Array.from(new Set([...prev, ...selectedCommentIdsFromBox])))
       } else {
         setSelectedCardSlugs(selectedCardSlugsFromBox)
         setSelectedFlowNodeIds(selectedFlowNodeIdsFromBox)
         setSelectedFlowNodeId(selectedFlowNodeIdsFromBox[0] || null)
         setSelectedStickyNoteIds(selectedStickyNoteIdsFromBox)
         setSelectedFreeTextIds(selectedFreeTextIdsFromBox)
+        setSelectedCommentIds(selectedCommentIdsFromBox)
       }
     }
     isMarqueeSelecting.current = false
