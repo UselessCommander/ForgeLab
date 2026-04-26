@@ -372,8 +372,9 @@ export default function KanbanPage() {
                             {(assigneeLabel || toolLabel || taskLabels.length > 0 || task.dueDate) && (
                               <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
                                 {taskLabels.map(l => <span key={l} style={{ width: 8, height: 8, borderRadius: '50%', background: LABEL_COLORS[l] ?? '#94A3B8', flexShrink: 0, display: 'inline-block' }} />)}
-                                {assigneeLabel && <span style={{ fontSize: 10, background: '#F3F4F6', color: '#6B7280', borderRadius: 5, padding: '1px 5px' }}>{assigneeLabel}</span>}
-                                {task.dueDate  && <span style={{ fontSize: 10, background: overdue ? '#FEF2F2' : '#F3F4F6', color: overdue ? '#DC2626' : '#6B7280', borderRadius: 5, padding: '1px 5px' }}>📅 {new Date(task.dueDate).toLocaleDateString('da-DK', { day: 'numeric', month: 'short' })}</span>}
+                                {toolLabel     && <span style={{ fontSize: 10, background: c.pill, color: c.pillTxt, borderRadius: 5, padding: '2px 7px', fontWeight: 600 }}>{toolLabel}</span>}
+                                {assigneeLabel && <span style={{ fontSize: 10, background: '#F3F4F6', color: '#6B7280', borderRadius: 5, padding: '2px 7px' }}>{assigneeLabel}</span>}
+                                {task.dueDate  && <span style={{ fontSize: 10, background: overdue ? '#FEF2F2' : '#F3F4F6', color: overdue ? '#DC2626' : '#6B7280', borderRadius: 5, padding: '2px 7px' }}>📅 {new Date(task.dueDate).toLocaleDateString('da-DK', { day: 'numeric', month: 'short' })}</span>}
                               </div>
                             )}
                           </div>
@@ -542,13 +543,29 @@ export default function KanbanPage() {
                 {/* Værktøj — søgbar combobox */}
                 <div style={{ position: 'relative' }}>
                   <FieldLabel>Værktøj</FieldLabel>
+                  {expandedTask.toolSlug && !toolDropOpen && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                      <span style={{
+                        fontSize: 12, fontWeight: 600, padding: '4px 10px',
+                        borderRadius: 7, background: ac.pill, color: ac.pillTxt,
+                        display: 'inline-flex', alignItems: 'center', gap: 5,
+                      }}>
+                        {toolOptions.find(t => t.slug === expandedTask.toolSlug)?.title}
+                        <button
+                          type="button"
+                          onMouseDown={e => { e.preventDefault(); void assignToolToTask(expandedCol.id, expandedTask.id, ''); setToolSearch('') }}
+                          style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 0, color: ac.pillTxt, lineHeight: 1, fontSize: 13, display: 'flex', alignItems: 'center' }}
+                        >×</button>
+                      </span>
+                    </div>
+                  )}
                   <div style={{ position: 'relative' }}>
                     <input
-                      value={toolDropOpen ? toolSearch : (expandedTask.toolSlug ? (toolOptions.find(t => t.slug === expandedTask.toolSlug)?.title ?? '') : '')}
+                      value={toolDropOpen ? toolSearch : ''}
                       onChange={e => { setToolSearch(e.target.value); setToolDropOpen(true) }}
                       onFocus={() => { setToolSearch(''); setToolDropOpen(true) }}
                       onBlur={() => setTimeout(() => setToolDropOpen(false), 150)}
-                      placeholder="Søg eller vælg værktøj…"
+                      placeholder={expandedTask.toolSlug ? 'Skift værktøj…' : 'Søg eller vælg værktøj…'}
                       style={{ ...inputStyle, paddingRight: 32 }}
                     />
                     <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', pointerEvents: 'none', fontSize: 11 }}>▾</span>
