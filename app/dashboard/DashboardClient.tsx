@@ -893,13 +893,24 @@ export default function DashboardClient() {
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                       {ownedProjects.map((p) => (
-                        <ProjectCard
+                        <div
                           key={p.id}
-                          project={p}
-                          onDelete={handleDeleteProject}
-                          deleting={deletingProjectId === p.id}
-                          activeUsers={activeUsersByProject[p.id] || []}
-                        />
+                          draggable
+                          onDragStart={(e) => {
+                            (window as any).__dragProjectId = p.id
+                            e.dataTransfer.setData('projectId', p.id)
+                            e.dataTransfer.effectAllowed = 'move'
+                          }}
+                          onDragEnd={() => { (window as any).__dragProjectId = null }}
+                          className="cursor-grab active:cursor-grabbing"
+                        >
+                          <ProjectCard
+                            project={p}
+                            onDelete={handleDeleteProject}
+                            deleting={deletingProjectId === p.id}
+                            activeUsers={activeUsersByProject[p.id] || []}
+                          />
+                        </div>
                       ))}
                     </div>
                   )}
@@ -917,12 +928,23 @@ export default function DashboardClient() {
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                       {sharedProjects.map((p) => (
-                        <ProjectCard
+                        <div
                           key={p.id}
-                          project={p}
-                          deleting={false}
-                          activeUsers={activeUsersByProject[p.id] || []}
-                        />
+                          draggable
+                          onDragStart={(e) => {
+                            (window as any).__dragProjectId = p.id
+                            e.dataTransfer.setData('projectId', p.id)
+                            e.dataTransfer.effectAllowed = 'move'
+                          }}
+                          onDragEnd={() => { (window as any).__dragProjectId = null }}
+                          className="cursor-grab active:cursor-grabbing"
+                        >
+                          <ProjectCard
+                            project={p}
+                            deleting={false}
+                            activeUsers={activeUsersByProject[p.id] || []}
+                          />
+                        </div>
                       ))}
                     </div>
                   )}

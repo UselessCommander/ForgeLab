@@ -40,7 +40,6 @@ export default function WorkspacesSection({ workspaces, projects, onWorkspacesCh
   const [editColor, setEditColor] = useState('')
   const [dragOverWorkspace, setDragOverWorkspace] = useState<string | null>(null)
   const [addingProjectTo, setAddingProjectTo] = useState<string | null>(null)
-  const dragProjectId = useRef<string | null>(null)
 
   const handleCreate = async () => {
     if (!newName.trim()) return
@@ -163,7 +162,8 @@ export default function WorkspacesSection({ workspaces, projects, onWorkspacesCh
               onDrop={async (e) => {
                 e.preventDefault()
                 setDragOverWorkspace(null)
-                const pid = dragProjectId.current || e.dataTransfer.getData('projectId')
+                const pid = (typeof window !== 'undefined' && (window as any).__dragProjectId) || e.dataTransfer.getData('projectId')
+                if (typeof window !== 'undefined') (window as any).__dragProjectId = null
                 if (pid) await handleDrop(ws.id, pid)
               }}
             >
@@ -266,7 +266,7 @@ export default function WorkspacesSection({ workspaces, projects, onWorkspacesCh
                     <div key={p.id} className="group/card relative flex items-center gap-2 p-3 rounded-xl border border-gray-200 bg-gray-50 hover:bg-white hover:shadow-sm transition-all">
                       <div
                         draggable
-                        onDragStart={(e) => { dragProjectId.current = p.id; e.dataTransfer.setData('projectId', p.id) }}
+                        onDragStart={(e) => { (window as any).__dragProjectId = p.id; e.dataTransfer.setData('projectId', p.id) }}
                         className="cursor-grab text-gray-300 hover:text-gray-400 flex-shrink-0"
                       >
                         <GripVertical className="w-3.5 h-3.5" />
