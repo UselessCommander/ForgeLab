@@ -1540,7 +1540,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
 
   const broadcastBoardRefresh = useCallback(async () => {
     const channel = cursorChannelRef.current
-    if (!channel || !currentUserId || activeWorkspaceTab !== 'board') return
+    if (!channel || !currentUserId) return
     await channel.send({
       type: 'broadcast',
       event: 'board_refresh',
@@ -1549,7 +1549,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
         ts: Date.now(),
       },
     })
-  }, [activeWorkspaceTab, currentUserId])
+  }, [currentUserId])
 
   const triggerOrbitPortal = useCallback((x: number, y: number) => {
     const now = Date.now()
@@ -4796,7 +4796,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       y: pos.y,
       text: '',
       createdAt: Date.now(),
-      createdBy: currentUserId || 'Unknown',
+      createdBy: currentUsername || 'Bruger',
     }
     const next = [...boardComments, newComment]
     setBoardComments(next)
@@ -4809,16 +4809,16 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     const newReply: BoardComment = {
       id,
       x: parentComment.x,
-      y: parentComment.y + 150, // Position below parent
+      y: parentComment.y + 150,
       text: '',
       createdAt: Date.now(),
-      createdBy: currentUserId || 'Unknown',
+      createdBy: currentUsername || 'Bruger',
       parentId: parentComment.id,
     }
     const next = [...boardComments, newReply]
     setBoardComments(next)
     persistFlowchart(flowNodes, flowEdges, stickyNotes, boardSections, next)
-  }, [canEdit, currentUserId, boardComments, flowNodes, flowEdges, stickyNotes, boardSections, persistFlowchart])
+  }, [canEdit, currentUsername, boardComments, flowNodes, flowEdges, stickyNotes, boardSections, persistFlowchart])
 
   const addPanelCommentReply = useCallback((parentId: string, text: string) => {
     if (!canEdit || !text.trim()) return
@@ -4830,13 +4830,13 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       y: (parentComment?.y ?? 0) + 150,
       text: text.trim(),
       createdAt: Date.now(),
-      createdBy: currentUserId || 'Unknown',
+      createdBy: currentUsername || 'Bruger',
       parentId,
     }
     const next = [...boardComments, newReply]
     setBoardComments(next)
     persistFlowchart(flowNodes, flowEdges, stickyNotes, boardSections, next)
-  }, [canEdit, currentUserId, boardComments, flowNodes, flowEdges, stickyNotes, boardSections, persistFlowchart])
+  }, [canEdit, currentUsername, boardComments, flowNodes, flowEdges, stickyNotes, boardSections, persistFlowchart])
 
   const renderBoardCommentReplies = (parentComment: BoardComment): React.ReactElement[] => {
     const replies = boardComments.filter(comment => comment.parentId === parentComment.id && !comment.resolved)
