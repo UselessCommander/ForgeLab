@@ -106,49 +106,41 @@ export default function DashboardClient() {
   }, [])
 
   useEffect(() => {
-    if (!username) return
+    if (!username || projects.length === 0) return
 
-    const channel = supabase.channel('dashboard-presence', {
-      config: { presence: { key: currentUserId || username } },
-    })
+    const channels: ReturnType<typeof supabase.channel>[] = []
 
-    channel
-      .on('presence', { event: 'sync' }, () => {
-        const state = channel.presenceState() as Record<string, any[]>
-        const byProject: Record<string, ActiveUser[]> = {}
-        for (const presences of Object.values(state)) {
-          for (const p of presences) {
-            const pid = p.projectId as string | undefined
-            if (!pid) continue
-            const user: ActiveUser = {
-              userId: p.userId || p.username || 'unknown',
-              username: p.username || 'Bruger',
-              avatarUrl: p.avatarUrl || null,
-            }
-            if (!byProject[pid]) byProject[pid] = []
-            if (!byProject[pid].some(u => u.userId === user.userId)) {
-              byProject[pid].push(user)
+    for (const project of projects) {
+      const pid = project.id
+      const ch = supabase.channel(`dashboard-presence:${pid}`, {
+        config: { presence: { key: currentUserId || username } },
+      })
+      ch
+        .on('presence', { event: 'sync' }, () => {
+          const state = ch.presenceState() as Record<string, any[]>
+          const users: ActiveUser[] = []
+          for (const presences of Object.values(state)) {
+            for (const p of presences) {
+              const user: ActiveUser = {
+                userId: p.userId || p.username || 'unknown',
+                username: p.username || 'Bruger',
+                avatarUrl: p.avatarUrl || null,
+              }
+              if (!users.some(u => u.userId === user.userId)) {
+                users.push(user)
+              }
             }
           }
-        }
-        setActiveUsersByProject(byProject)
-      })
-      .subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') {
-          await channel.track({
-            userId: currentUserId || username,
-            username,
-            avatarUrl: currentUserAvatar,
-            projectId: null,
-            onDashboard: true,
-          })
-        }
-      })
+          setActiveUsersByProject(prev => ({ ...prev, [pid]: users }))
+        })
+        .subscribe()
+      channels.push(ch)
+    }
 
     return () => {
-      supabase.removeChannel(channel)
+      channels.forEach(ch => supabase.removeChannel(ch))
     }
-  }, [username, currentUserId, currentUserAvatar])
+  }, [username, currentUserId, projects])
 
   useEffect(() => {
     // Keep bell notifications fresh without manual reload.

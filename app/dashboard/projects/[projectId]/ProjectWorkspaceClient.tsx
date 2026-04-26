@@ -2021,7 +2021,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
 
   useEffect(() => {
     if (!currentUserId || !currentUsername || !projectId) return
-    const dashChannel: any = supabase.channel('dashboard-presence', {
+    const dashChannel: any = supabase.channel(`dashboard-presence:${projectId}`, {
       config: { presence: { key: currentUserId } },
     })
     dashChannel
