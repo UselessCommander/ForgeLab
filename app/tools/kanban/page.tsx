@@ -297,6 +297,7 @@ export default function KanbanPage() {
                   const isDropAfter  = dropTarget?.toId === column.id && dropTarget.index === taskIndex + 1
                   const assigneeLabel = task.assigneeName || (task.assigneeUserId ? memberOptions.find(m => m.id === task.assigneeUserId)?.label : null)
                   const toolLabel = task.toolSlug ? toolOptions.find(t => t.slug === task.toolSlug)?.title : null
+                  const LABEL_COLORS: Record<string, string> = { red: '#EF4444', orange: '#F97316', yellow: '#EAB308', green: '#22C55E', blue: '#3B82F6', purple: '#A855F7' }
                   const taskLabels = task.labels || []
                   const overdue = task.dueDate && new Date(task.dueDate) < new Date()
 
@@ -370,7 +371,7 @@ export default function KanbanPage() {
                             </span>
                             {(assigneeLabel || toolLabel || taskLabels.length > 0 || task.dueDate) && (
                               <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
-                                {taskLabels.map(l => <span key={l} style={{ fontSize: 10, background: c.pill, color: c.pillTxt, borderRadius: 5, padding: '1px 5px', fontWeight: 600 }}>{l}</span>)}
+                                {taskLabels.map(l => <span key={l} style={{ width: 8, height: 8, borderRadius: '50%', background: LABEL_COLORS[l] ?? '#94A3B8', flexShrink: 0, display: 'inline-block' }} />)}
                                 {assigneeLabel && <span style={{ fontSize: 10, background: '#F3F4F6', color: '#6B7280', borderRadius: 5, padding: '1px 5px' }}>{assigneeLabel}</span>}
                                 {task.dueDate  && <span style={{ fontSize: 10, background: overdue ? '#FEF2F2' : '#F3F4F6', color: overdue ? '#DC2626' : '#6B7280', borderRadius: 5, padding: '1px 5px' }}>📅 {new Date(task.dueDate).toLocaleDateString('da-DK', { day: 'numeric', month: 'short' })}</span>}
                               </div>
@@ -391,10 +392,17 @@ export default function KanbanPage() {
       {/* Centered modal */}
       {expandedTask && expandedCol && (() => {
         const ac = COL[expandedCol.id]
-        const labelOptions = ['Vigtig', 'Design', 'Udvikling', 'Research', 'Feedback', 'Bug']
+        const labelOptions: { id: string; color: string; label: string }[] = [
+          { id: 'red',    color: '#EF4444', label: 'Vigtig' },
+          { id: 'orange', color: '#F97316', label: 'Design' },
+          { id: 'yellow', color: '#EAB308', label: 'Udvikling' },
+          { id: 'green',  color: '#22C55E', label: 'Research' },
+          { id: 'blue',   color: '#3B82F6', label: 'Feedback' },
+          { id: 'purple', color: '#A855F7', label: 'Bug' },
+        ]
         const taskLabels = expandedTask.labels || []
-        const toggleLabel = (l: string) => {
-          const next = taskLabels.includes(l) ? taskLabels.filter(x => x !== l) : [...taskLabels, l]
+        const toggleLabel = (id: string) => {
+          const next = taskLabels.includes(id) ? taskLabels.filter(x => x !== id) : [...taskLabels, id]
           updateTask(expandedCol.id, expandedTask.id, { labels: next })
         }
         return (
@@ -499,26 +507,33 @@ export default function KanbanPage() {
                   </div>
                 </div>
 
-                {/* Labels */}
+                {/* Labels — color circles */}
                 <div>
                   <FieldLabel>Labels</FieldLabel>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {labelOptions.map(l => {
-                      const active = taskLabels.includes(l)
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                    {labelOptions.map(({ id, color, label }) => {
+                      const active = taskLabels.includes(id)
                       return (
                         <button
-                          key={l}
+                          key={id}
                           type="button"
-                          onClick={() => toggleLabel(l)}
+                          title={label}
+                          onClick={() => toggleLabel(id)}
                           style={{
-                            border: `1.5px solid ${active ? ac.border : '#E5E7EB'}`,
-                            borderRadius: 8, padding: '4px 12px',
-                            fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                            background: active ? ac.pill : '#fff',
-                            color: active ? ac.pillTxt : '#6B7280',
-                            transition: 'all 0.1s',
+                            width: active ? 26 : 22,
+                            height: active ? 26 : 22,
+                            borderRadius: '50%',
+                            background: color,
+                            border: active ? `3px solid ${color}` : '3px solid transparent',
+                            outline: active ? `2px solid ${color}40` : 'none',
+                            outlineOffset: 1,
+                            cursor: 'pointer',
+                            padding: 0,
+                            boxShadow: active ? `0 0 0 2px #fff, 0 0 0 4px ${color}` : 'none',
+                            transition: 'all 0.12s',
+                            flexShrink: 0,
                           }}
-                        >{l}</button>
+                        />
                       )
                     })}
                   </div>
