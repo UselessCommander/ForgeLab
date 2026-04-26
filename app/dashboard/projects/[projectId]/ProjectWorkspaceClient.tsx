@@ -10111,32 +10111,31 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                           gap: 2,
                         }}
                       >
-                        {/* Sender avatar + name (only for others) */}
-                        {!item.isMine && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginLeft: 2, marginBottom: 2 }}>
-                            <div style={{
-                              width: 18,
-                              height: 18,
-                              borderRadius: '50%',
-                              background: bubbleColor,
-                              color: '#fff',
-                              fontSize: 9,
-                              fontWeight: 800,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              overflow: 'hidden',
-                              flexShrink: 0,
-                            }}>
-                              {item.avatarUrl ? (
-                                <img src={item.avatarUrl} alt={item.username} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                              ) : senderInitial}
-                            </div>
-                            <span style={{ fontSize: 10, fontWeight: 700, color: bubbleColor }}>
-                              {item.username || 'Medlem'}
-                            </span>
+                        {/* Sender avatar + name — always shown, mirrored for own messages */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2, flexDirection: item.isMine ? 'row-reverse' : 'row', marginLeft: item.isMine ? 0 : 2, marginRight: item.isMine ? 2 : 0 }}>
+                          <div style={{
+                            width: 22,
+                            height: 22,
+                            borderRadius: '50%',
+                            background: bubbleColor,
+                            color: '#fff',
+                            fontSize: 10,
+                            fontWeight: 800,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            overflow: 'hidden',
+                            flexShrink: 0,
+                            boxShadow: `0 0 0 2px #fff`,
+                          }}>
+                            {item.avatarUrl ? (
+                              <img src={item.avatarUrl} alt={item.username} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            ) : senderInitial}
                           </div>
-                        )}
+                          <span style={{ fontSize: 10, fontWeight: 700, color: item.isMine ? '#6366F1' : bubbleColor }}>
+                            {item.username || 'Medlem'}
+                          </span>
+                        </div>
                         {/* Bubble */}
                         <div
                           style={{
@@ -10158,9 +10157,8 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                             if (picker) { picker.style.opacity = '0'; picker.style.maxHeight = '0' }
                           }}
                         >
-                          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: item.text ? 2 : 0 }}>
-                            {item.isMine && <span style={{ fontSize: 10, opacity: 0.7, marginLeft: 'auto' }}>{new Date(item.createdAt).toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' })}</span>}
-                            {!item.isMine && <span style={{ fontSize: 10, opacity: 0.5, marginLeft: 'auto' }}>{new Date(item.createdAt).toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' })}</span>}
+                          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'flex-end', gap: 12, marginBottom: item.text ? 2 : 0 }}>
+                            <span style={{ fontSize: 10, opacity: 0.65, marginLeft: 'auto' }}>{new Date(item.createdAt).toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' })}</span>
                           </div>
                           {item.text ? (
                             <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{item.text}</p>
