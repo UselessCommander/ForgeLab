@@ -78,41 +78,57 @@ export default function JoinPage() {
         {state.phase === 'preview' && (
           <>
             <h1 style={{ margin: '0 0 8px', fontSize: 22, fontWeight: 800, color: '#111827' }}>
-              Du er inviteret!
+              {state.role === 'viewer' ? 'Du har fået et view-link' : 'Du er inviteret!'}
             </h1>
             <p style={{ margin: '0 0 20px', fontSize: 15, color: '#6B7280' }}>
-              Tilslut dig projektet <strong style={{ color: '#111827' }}>{state.projectName}</strong> som{' '}
-              <span style={{
-                display: 'inline-block',
-                background: state.role === 'editor' ? '#DBEAFE' : '#F3F4F6',
-                color: state.role === 'editor' ? '#1D4ED8' : '#374151',
-                borderRadius: 6,
-                padding: '2px 8px',
-                fontSize: 13,
-                fontWeight: 700,
-              }}>
-                {state.role === 'editor' ? 'Editor' : 'Viewer'}
-              </span>
+              Projektet <strong style={{ color: '#111827' }}>{state.projectName}</strong>
+              {state.role === 'viewer'
+                ? ' er delt med dig. Du kan se projektet uden at logge ind.'
+                : <> er delt med dig som <span style={{ display: 'inline-block', background: '#DBEAFE', color: '#1D4ED8', borderRadius: 6, padding: '2px 8px', fontSize: 13, fontWeight: 700 }}>Editor</span>.</>
+              }
             </p>
-            <button
-              onClick={handleJoin}
-              style={{
-                width: '100%',
-                padding: '12px 0',
-                borderRadius: 12,
-                border: 'none',
-                background: '#111827',
-                color: '#fff',
-                fontSize: 15,
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
-            >
-              Tilslut projekt
-            </button>
-            <p style={{ marginTop: 12, fontSize: 12, color: '#9CA3AF' }}>
-              Du skal være logget ind for at tilslutte dig.
-            </p>
+
+            {state.role === 'viewer' ? (
+              <>
+                <Link
+                  href={`/view/${token}`}
+                  style={{
+                    display: 'block', width: '100%', boxSizing: 'border-box',
+                    padding: '12px 0', borderRadius: 12, border: 'none',
+                    background: '#111827', color: '#fff', fontSize: 15, fontWeight: 700,
+                    textDecoration: 'none', marginBottom: 10,
+                  }}
+                >
+                  Se projektet →
+                </Link>
+                <button
+                  onClick={handleJoin}
+                  style={{
+                    width: '100%', padding: '10px 0', borderRadius: 12,
+                    border: '1.5px solid #E5E7EB', background: '#fff',
+                    color: '#374151', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                  }}
+                >
+                  Log ind og deltag som viewer
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={handleJoin}
+                  style={{
+                    width: '100%', padding: '12px 0', borderRadius: 12,
+                    border: 'none', background: '#111827', color: '#fff',
+                    fontSize: 15, fontWeight: 700, cursor: 'pointer',
+                  }}
+                >
+                  Tilslut projekt
+                </button>
+                <p style={{ marginTop: 12, fontSize: 12, color: '#9CA3AF' }}>
+                  Du skal være logget ind for at tilslutte dig.
+                </p>
+              </>
+            )}
           </>
         )}
 
