@@ -69,6 +69,8 @@ export default function KanbanPage() {
   const [dragPayload, setDragPayload] = useState<{ fromId: KanbanColumnId; taskId: string } | null>(null)
   const [dropTarget, setDropTarget] = useState<{ toId: KanbanColumnId; index?: number } | null>(null)
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null)
+  const [toolSearch, setToolSearch] = useState('')
+  const [toolDropOpen, setToolDropOpen] = useState(false)
   const { projectId, isInProject } = useProjectToolData<KanbanData>('kanban', data, setData)
 
   useEffect(() => {
@@ -522,19 +524,57 @@ export default function KanbanPage() {
                   </div>
                 </div>
 
-                {/* Værktøj */}
-                <div>
+                {/* Værktøj — søgbar combobox */}
+                <div style={{ position: 'relative' }}>
                   <FieldLabel>Værktøj</FieldLabel>
-                  <select
-                    value={expandedTask.toolSlug || ''}
-                    onChange={e => { void assignToolToTask(expandedCol.id, expandedTask.id, e.target.value) }}
-                    style={inputStyle}
-                    onFocus={e => (e.currentTarget.style.borderColor = ac.border)}
-                    onBlur={e => (e.currentTarget.style.borderColor = '#E5E7EB')}
-                  >
-                    <option value="">Ingen</option>
-                    {toolOptions.map(tool => <option key={tool.slug} value={tool.slug}>{tool.title}</option>)}
-                  </select>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      value={toolDropOpen ? toolSearch : (expandedTask.toolSlug ? (toolOptions.find(t => t.slug === expandedTask.toolSlug)?.title ?? '') : '')}
+                      onChange={e => { setToolSearch(e.target.value); setToolDropOpen(true) }}
+                      onFocus={() => { setToolSearch(''); setToolDropOpen(true) }}
+                      onBlur={() => setTimeout(() => setToolDropOpen(false), 150)}
+                      placeholder="Søg eller vælg værktøj…"
+                      style={{ ...inputStyle, paddingRight: 32 }}
+                    />
+                    <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', pointerEvents: 'none', fontSize: 11 }}>▾</span>
+                  </div>
+                  {toolDropOpen && (() => {
+                    const filtered = toolOptions.filter(t =>
+                      !toolSearch || t.title.toLowerCase().includes(toolSearch.toLowerCase())
+                    )
+                    return (
+                      <div style={{
+                        position: 'absolute', left: 0, right: 0, top: '100%', zIndex: 100,
+                        background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10,
+                        boxShadow: '0 8px 24px rgba(0,0,0,0.1)', maxHeight: 220, overflowY: 'auto',
+                        marginTop: 4,
+                      }}>
+                        <div
+                          onMouseDown={() => { void assignToolToTask(expandedCol.id, expandedTask.id, ''); setToolDropOpen(false); setToolSearch('') }}
+                          style={{ padding: '8px 12px', fontSize: 13, cursor: 'pointer', color: '#9CA3AF' }}
+                          onMouseEnter={e => (e.currentTarget.style.background = '#F9FAFB')}
+                          onMouseLeave={e => (e.currentTarget.style.background = '')}
+                        >Ingen</div>
+                        {filtered.map(tool => (
+                          <div
+                            key={tool.slug}
+                            onMouseDown={() => { void assignToolToTask(expandedCol.id, expandedTask.id, tool.slug); setToolDropOpen(false); setToolSearch('') }}
+                            style={{
+                              padding: '8px 12px', fontSize: 13, cursor: 'pointer',
+                              background: expandedTask.toolSlug === tool.slug ? ac.pill : '',
+                              color: expandedTask.toolSlug === tool.slug ? ac.pillTxt : '#1F2937',
+                              fontWeight: expandedTask.toolSlug === tool.slug ? 600 : 400,
+                            }}
+                            onMouseEnter={e => { if (expandedTask.toolSlug !== tool.slug) e.currentTarget.style.background = '#F9FAFB' }}
+                            onMouseLeave={e => { if (expandedTask.toolSlug !== tool.slug) e.currentTarget.style.background = '' }}
+                          >{tool.title}</div>
+                        ))}
+                        {filtered.length === 0 && (
+                          <div style={{ padding: '8px 12px', fontSize: 13, color: '#9CA3AF' }}>Ingen resultater</div>
+                        )}
+                      </div>
+                    )
+                  })()}
                 </div>
 
                 {/* Delete */}
