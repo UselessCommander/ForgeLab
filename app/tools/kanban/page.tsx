@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import ToolLayout from '@/components/ToolLayout'
 import { useProjectToolData } from '@/lib/useProjectToolData'
 import { deleteEmptyFieldRow } from '@/lib/deleteRowKeyboard'
-import { addToolToProject, getProjectMembers, type ProjectMember } from '@/lib/projects'
+import { addToolToProject, getProjectMembers, getProjectToolData, type ProjectMember } from '@/lib/projects'
 import { VAERKTOEJER } from '@/lib/vaerktoejer-data'
 
 type KanbanColumnId = 'todo' | 'in-progress' | 'done'
@@ -71,7 +71,49 @@ export default function KanbanPage() {
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null)
   const [toolSearch, setToolSearch] = useState('')
   const [toolDropOpen, setToolDropOpen] = useState(false)
-  const { projectId, isInProject } = useProjectToolData<KanbanData>('kanban', data, setData)
+  const { projectId, isInProject, authenticated, authReady } = useProjectToolData<KanbanData>('kanban', data, setData)
+  const latestDataRef = useRef<KanbanData>(data)
+
+  useEffect(() => {
+    latestDataRef.current = data
+  }, [data])
+
+  useEffect(() => {
+    if (!projectId || !authReady || !authenticated) return
+
+    let cancelled = false
+    let inflight = false
+
+    const pullLatestKanban = async () => {
+      if (inflight) return
+      inflight = true
+      try {
+        const remote = await getProjectToolData(projectId, 'kanban')
+        if (cancelled || !remote || Object.keys(remote).length === 0) return
+
+        const remoteSerialized = JSON.stringify(remote)
+        const localSerialized = JSON.stringify(latestDataRef.current)
+        if (remoteSerialized !== localSerialized) {
+          setData(remote as KanbanData)
+        }
+      } catch {
+        // ignore transient fetch issues; next poll retries
+      } finally {
+        inflight = false
+      }
+    }
+
+    // Initial sync + periodic updates so other users' changes show up.
+    void pullLatestKanban()
+    const interval = window.setInterval(() => {
+      void pullLatestKanban()
+    }, 1800)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(interval)
+    }
+  }, [projectId, authReady, authenticated])
 
   useEffect(() => {
     let cancelled = false
