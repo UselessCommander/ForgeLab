@@ -86,7 +86,7 @@ export default async function LandingPage() {
               <span className="text-base font-extrabold text-gray-900 tracking-tight">ForgeLab</span>
             </Link>
             <div className="hidden md:flex items-center gap-1">
-              {([['/features','Features'],['/workflow','Workflow'],['/pricing','Priser'],['/om','Om os']] as [string,string][]).map(([h,l])=>(
+              {([['/features','Features'],['/workflow','Workflow'],['/om','Om os']] as [string,string][]).map(([h,l])=>(
                 <a key={h} href={h} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 font-medium rounded-lg hover:bg-gray-50 transition-all">{l}</a>
               ))}
             </div>
@@ -122,7 +122,7 @@ export default async function LandingPage() {
                 </Link>
               </div>
               <div className="fu4 flex flex-wrap gap-5 justify-center lg:justify-start text-sm text-gray-500">
-                {['Gratis at starte','Intet kreditkort','Klar på 2 min'].map(t=>(
+                {['Nemt at komme i gang','Hurtig onboarding','Klar på 2 min'].map(t=>(
                   <span key={t} className="inline-flex items-center gap-1.5">
                     <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0"/>{t}
                   </span>
@@ -225,7 +225,7 @@ export default async function LandingPage() {
             {[
               {num:'20+', label:'Integrerede værktøjer', icon:Cpu, color:'text-amber-500'},
               {num:'100%', label:'GDPR-compliant', icon:Shield, color:'text-emerald-500'},
-              {num:'∞', label:'Projekter per konto', icon:Layers, color:'text-violet-500'},
+              {num:'∞', label:'Projekter i workspace', icon:Layers, color:'text-violet-500'},
               {num:'< 2 min', label:'Tid til første projekt', icon:Clock, color:'text-sky-500'},
             ].map(({num,label,icon:Icon,color})=>(
               <div key={label} className="ch bg-white border border-gray-200/80 rounded-2xl p-6 text-center shadow-sm">
@@ -372,54 +372,6 @@ export default async function LandingPage() {
         </section>
 
 
-        {/* ── PRICING ── */}
-        <section className="max-w-7xl mx-auto px-6 py-10 pb-24">
-          <div className="text-center mb-14">
-            <span className="inline-block text-xs font-bold uppercase tracking-widest text-amber-600 bg-amber-50 border border-amber-200 px-4 py-1.5 rounded-full mb-4">Priser</span>
-            <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight mb-3">Simpelt. Gennemsigtigt.</h2>
-            <p className="text-gray-500 text-lg">Start gratis — opgrader når du er klar.</p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-            {[
-              {
-                name:'Gratis', price:'0', period:'for evigt', color:'bg-white border-gray-200',
-                features:['1 projekt','Op til 3 teammedlemmer','Board, Kanban & Chat','QR-koder (5/mdr)','Community support'],
-                cta:'Start gratis', ctaStyle:'bg-gray-900 text-white hover:bg-gray-800', popular:false,
-              },
-              {
-                name:'Pro', price:'149', period:'pr. mdr.', color:'bg-gradient-to-b from-amber-500 to-orange-500 border-amber-400',
-                features:['Ubegrænset projekter','Op til 15 teammedlemmer','Alle værktøjer inkl. Gantt & Slides','Ubegrænsede QR-koder + analytics','Live-cursor samarbejde','Prioritets support'],
-                cta:'Kom i gang', ctaStyle:'bg-white text-amber-600 font-bold hover:bg-amber-50', popular:true,
-              },
-              {
-                name:'Team', price:'399', period:'pr. mdr.', color:'bg-white border-gray-200',
-                features:['Alt i Pro','Op til 50 teammedlemmer','Advanced analytics','Custom branding på QR','SSO & admin panel','Dedikeret support'],
-                cta:'Kontakt os', ctaStyle:'bg-gray-900 text-white hover:bg-gray-800', popular:false,
-              },
-            ].map(({name,price,period,color,features,cta,ctaStyle,popular})=>(
-              <div key={name} className={`ch relative rounded-3xl p-8 border shadow-sm ${color} ${popular?'shadow-xl shadow-amber-500/20 scale-105':''}`}>
-                {popular && <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-white text-amber-600 text-xs font-bold px-4 py-1 rounded-full border border-amber-200 shadow-sm whitespace-nowrap">⭐ Mest populær</div>}
-                <div className={`text-lg font-extrabold mb-4 ${popular?'text-white':'text-gray-900'}`}>{name}</div>
-                <div className="flex items-end gap-1 mb-1">
-                  <span className={`text-5xl font-extrabold ${popular?'text-white':'text-gray-900'}`}>{price === '0' ? 'Gratis' : `${price} kr`}</span>
-                </div>
-                <div className={`text-sm mb-8 ${popular?'text-amber-100':'text-gray-500'}`}>{price === '0' ? '' : period}</div>
-                <div className="space-y-3 mb-8">
-                  {features.map(f=>(
-                    <div key={f} className="flex items-center gap-2.5">
-                      <CheckCircle2 className={`w-4 h-4 flex-shrink-0 ${popular?'text-amber-100':'text-emerald-500'}`}/>
-                      <span className={`text-sm ${popular?'text-amber-50':'text-gray-600'}`}>{f}</span>
-                    </div>
-                  ))}
-                </div>
-                <Link href="/register" className={`inline-flex w-full items-center justify-center gap-2 px-6 py-3.5 rounded-2xl font-bold text-sm transition-all ${ctaStyle}`}>
-                  {cta} <ArrowRight className="w-4 h-4"/>
-                </Link>
-              </div>
-            ))}
-          </div>
-        </section>
-
         {/* ── FAQ ── */}
         <section className="max-w-3xl mx-auto px-6 py-10 pb-24">
           <div className="text-center mb-12">
@@ -428,7 +380,7 @@ export default async function LandingPage() {
           </div>
           <div className="space-y-4">
             {[
-              {q:'Er ForgeLab gratis at starte?', a:'Ja, du kan oprette en konto og bruge platformen helt gratis. Ingen kreditkort kræves. Du kan opgradere til Pro når som helst.'},
+              {q:'Hvordan kommer jeg i gang?', a:'Opret en konto, vælg et projekt og begynd at bruge board, flow og samarbejdsværktøjer med det samme.'},
               {q:'Kan jeg bruge ForgeLab uden at installere noget?', a:'Absolut. ForgeLab er 100% web-baseret. Åbn en browser, opret konto, og du er klar på under 2 minutter.'},
               {q:'Hvad er live-cursor samarbejde?', a:'Når flere teammedlemmer er inde i samme projekt-board, kan du se hvad de andre bevæger sig hen og hvad de arbejder på — i realtid, præcis som i Figma.'},
               {q:'Hvor gemmes mine data?', a:'Alle data gemmes på servere i EU og er GDPR-compliant. Vi deler aldrig dine data med tredjepart.'},
@@ -457,17 +409,17 @@ export default async function LandingPage() {
               <h2 className="text-4xl md:text-5xl font-extrabold mb-5 tracking-tight">
                 Klar til at bygge<br/><span className="text-amber-400">noget fedt?</span>
               </h2>
-              <p className="text-gray-400 text-lg mb-10 max-w-md mx-auto">Opret din gratis konto og få adgang til alle 20+ værktøjer med det samme.</p>
+              <p className="text-gray-400 text-lg mb-10 max-w-md mx-auto">Opret din konto og få adgang til alle 20+ værktøjer med det samme.</p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 <Link href="/register" className="pg inline-flex items-center justify-center gap-2 px-10 py-4 bg-amber-500 text-white rounded-2xl font-bold hover:bg-amber-400 transition-all shadow-lg shadow-amber-500/25 hover:-translate-y-0.5">
-                  Opret gratis konto <ArrowRight className="w-4 h-4"/>
+                  Opret konto <ArrowRight className="w-4 h-4"/>
                 </Link>
                 <Link href="/login" className="inline-flex items-center justify-center gap-2 px-10 py-4 bg-white/10 text-white border border-white/15 rounded-2xl font-semibold hover:bg-white/20 transition-all">
                   Log ind
                 </Link>
               </div>
               <div className="flex flex-wrap gap-6 justify-center mt-8 text-sm text-gray-500">
-                {['Gratis for evigt','Ingen kreditkort','Cancel anytime'].map(t=>(
+                {['Klar på få minutter','Samarbejd i realtid','Eksportér dit arbejde'].map(t=>(
                   <span key={t} className="inline-flex items-center gap-1.5">
                     <CheckCircle2 className="w-4 h-4 text-emerald-500"/>{t}
                   </span>
@@ -493,7 +445,7 @@ export default async function LandingPage() {
               </div>
               <div>
                 <div className="font-semibold text-gray-900 text-sm mb-4">Platform</div>
-                {([['/features','Features'],['/workflow','Workflow'],['/pricing','Priser'],['/om','Om os'],['/vaerktoejer-oversigt','Alle værktøjer']] as [string,string][]).map(([h,l])=>(
+                {([['/features','Features'],['/workflow','Workflow'],['/om','Om os'],['/vaerktoejer-oversigt','Alle værktøjer']] as [string,string][]).map(([h,l])=>(
                   <a key={h} href={h} className="block text-sm text-gray-500 hover:text-gray-900 transition-colors mb-2">{l}</a>
                 ))}
               </div>

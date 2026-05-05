@@ -1,5 +1,6 @@
 import { Fragment } from 'react'
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { getCurrentUserId } from '@/lib/auth'
 import {
   ArrowRight, CheckCircle2, Sparkles, LogIn,
@@ -8,6 +9,7 @@ import {
 
 export default async function PricingPage() {
   const userId = await getCurrentUserId()
+  redirect(userId ? '/dashboard' : '/')
 
   return (
     <div className="min-h-screen bg-[#fafbfc] text-gray-900 overflow-x-hidden">
