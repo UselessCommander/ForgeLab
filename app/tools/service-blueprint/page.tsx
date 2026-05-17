@@ -13,6 +13,7 @@ import {
   buildConnectionPaths,
   getBoardLayoutScale,
   getCardAnchor as getCardAnchorOnBoard,
+  isPhaseCellShadowedBySpan,
   shouldShowCardTypeLabel,
 } from '@/lib/service-blueprint'
 import { ServiceBlueprintLineDivider } from '@/components/service-blueprint/ServiceBlueprintLineDivider'
@@ -446,7 +447,7 @@ function ColorPicker({
 }
 
 
-/** Min/max kort-højde (px) — samme værdier bruges til span-placeholders. */
+/** Min/max kort-højde (px). */
 const CARD_MIN_HEIGHT_PX = 200
 const CARD_MAX_HEIGHT_PX = 380
 const CELL_MIN_HEIGHT_PX = 220
@@ -465,6 +466,7 @@ interface BlueprintCardProps {
   onCardHover: (cardId: string | null) => void
   isDragging: boolean
   isConnectionSource: boolean
+  isCardHovered: boolean
   onResizeStart: (event: React.PointerEvent, cardId: string) => void
 }
 
@@ -481,6 +483,7 @@ function BlueprintCard({
   onCardHover,
   isDragging,
   isConnectionSource,
+  isCardHovered,
   onResizeStart,
 }: BlueprintCardProps) {
   const type =
@@ -492,6 +495,7 @@ function BlueprintCard({
   const span = card.colSpan || 1
   const usesCustomColor = type.card.includes('bg-opacity')
   const showTypeLabel = shouldShowCardTypeLabel(type.label)
+  const showCardChrome = span > 1 || isCardHovered
 
   return (
     <div
@@ -506,14 +510,17 @@ function BlueprintCard({
         isDragging ? 'opacity-40 ring-2 ring-slate-400' : ''
       } ${isConnectionSource ? 'ring-2 ring-blue-400 ring-offset-2' : ''} flex min-h-0 flex-col overflow-visible`}
       style={{
-        height: '100%',
         minHeight: CARD_MIN_HEIGHT_PX,
         maxHeight: CARD_MAX_HEIGHT_PX,
         backgroundColor: usesCustomColor ? `${type.stroke}15` : undefined,
         borderColor: usesCustomColor ? `${type.stroke}40` : undefined,
       }}
     >
-      <div className="pointer-events-none absolute inset-0 z-30 opacity-0 transition-opacity group-hover:opacity-100">
+      <div
+        className={`pointer-events-none absolute inset-0 z-30 transition-opacity ${
+          showCardChrome ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+        }`}
+      >
         {(
           [
             { side: 'top', cls: '-top-[5px] left-1/2 -translate-x-1/2 cursor-crosshair' },
@@ -533,9 +540,11 @@ function BlueprintCard({
       </div>
 
       <div
-        className="pointer-events-auto absolute bottom-2 right-1 z-10 flex h-10 w-2.5 cursor-col-resize items-center justify-center rounded-md opacity-0 transition-opacity hover:bg-black/5 group-hover:opacity-100"
+        className={`pointer-events-auto absolute bottom-2 right-1 z-10 flex h-10 w-2.5 cursor-col-resize items-center justify-center rounded-md transition-opacity hover:bg-black/5 ${
+          showCardChrome ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+        }`}
         onPointerDown={(event) => onResizeStart(event, card.id)}
-        title="Træk for at forlænge kortet"
+        title={span > 1 ? 'Træk for at ændre bredde — klik badge for én fase' : 'Træk for at forlænge kortet'}
       >
         <div className="h-8 w-0.5 rounded-full bg-slate-300" />
       </div>
@@ -579,9 +588,17 @@ function BlueprintCard({
               </select>
             ) : null}
             {span > 1 && (
-              <span className="ml-auto rounded-full bg-white/60 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-700 shadow-sm">
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onUpdate(card.id, { colSpan: 1 })
+                }}
+                className="pointer-events-auto ml-auto rounded-full bg-white/60 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-700 shadow-sm transition hover:bg-white hover:scale-105"
+                title="Klik for at mindske til én fase"
+              >
                 {span} faser
-              </span>
+              </button>
             )}
           </div>
 
@@ -603,7 +620,11 @@ function BlueprintCard({
         </div>
       </div>
 
-      <div className="pointer-events-auto absolute bottom-2 right-2 z-20 flex justify-end gap-1 opacity-0 transition group-hover:opacity-100">
+      <div
+        className={`pointer-events-auto absolute bottom-2 right-2 z-20 flex justify-end gap-1 transition ${
+          showCardChrome ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+        }`}
+      >
         <button
           type="button"
           onClick={() => onDuplicate(card.id)}
@@ -1436,17 +1457,20 @@ export default function ServiceBlueprintPage() {
                       </div>
                     </div>
 
-                    {phases.map((phase) => {
+                    {phases.map((phase, phaseIndex) => {
                       const cellKey = `${lane.id}:${phase.id}`
                       const cellCards = cardsByCell.get(cellKey) || []
                       const isDragOver = dragOverCell === cellKey
+                      const isShadowed =
+                        cellCards.length === 0 &&
+                        isPhaseCellShadowedBySpan(phaseIndex, lane.id, cards, phases)
 
                       return (
                         <div
                           key={cellKey}
-                          className={`relative flex min-h-[220px] flex-col border-l border-t-2 border-slate-200/60 p-4 transition-colors ${
+                          className={`relative flex min-h-[220px] flex-col overflow-visible border-l border-t-2 border-slate-200/60 p-4 transition-colors ${
                             isDragOver ? 'bg-blue-50/60' : ''
-                          }`}
+                          } ${isShadowed ? 'pointer-events-none' : ''}`}
                           onDragOver={(event) => {
                             event.preventDefault()
                             event.dataTransfer.dropEffect = isDraggingLegend ? 'copy' : 'move'
@@ -1455,16 +1479,17 @@ export default function ServiceBlueprintPage() {
                           onDragLeave={() => setDragOverCell(null)}
                           onDrop={(event) => handleDrop(event, lane.id, phase.id)}
                         >
-                          <div className="relative z-20 flex min-h-0 flex-1 flex-col gap-3">
+                          <div className="relative z-20 flex flex-col gap-3 overflow-visible">
                             {cellCards.map((card) => {
                               const span = getSafeColSpan(card.colSpan || 1, phase.id, phases)
                               return (
                                 <div
                                   key={card.id}
-                                  className="flex min-h-0 flex-1 flex-col"
+                                  className="w-full shrink-0"
                                   style={{
-                                    width: `${span * COLUMN_WIDTH - 32}px`,
-                                    position: span > 1 ? 'absolute' : 'relative',
+                                    width:
+                                      span > 1 ? `${span * COLUMN_WIDTH - 32}px` : undefined,
+                                    position: 'relative',
                                     zIndex: span > 1 ? 30 : 'auto',
                                   }}
                                 >
@@ -1484,24 +1509,11 @@ export default function ServiceBlueprintPage() {
                                       draftConnection?.mode === 'new' &&
                                       draftConnection.fromId === card.id
                                     }
+                                    isCardHovered={hoveredCardId === card.id}
                                     onResizeStart={handleResizeStart}
                                   />
                                 </div>
                               )
-                            })}
-
-                            {cellCards.map((card) => {
-                              const span = getSafeColSpan(card.colSpan || 1, phase.id, phases)
-                              if (span > 1) {
-                                return (
-                                  <div
-                                    key={`placeholder-${card.id}`}
-                                    style={{ height: CARD_MIN_HEIGHT_PX }}
-                                    className="pointer-events-none w-full opacity-0"
-                                  />
-                                )
-                              }
-                              return null
                             })}
                           </div>
                         </div>

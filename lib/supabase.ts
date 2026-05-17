@@ -2,6 +2,21 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
 let supabaseClient: SupabaseClient | null = null
 let hasWarnedMissingEnv = false
+let hasWarnedMissingServiceRole = false
+
+/** Server routes should use service role (bypasses RLS after migration 022). Browser uses anon. */
+function resolveSupabaseApiKey(anonKey: string): string {
+  const isServer = typeof window === 'undefined'
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (isServer && serviceKey) return serviceKey
+  if (isServer && process.env.NODE_ENV === 'production' && !hasWarnedMissingServiceRole) {
+    console.warn(
+      'SUPABASE_SERVICE_ROLE_KEY mangler på serveren. API-ruter kan fejle efter RLS migration 022.'
+    )
+    hasWarnedMissingServiceRole = true
+  }
+  return anonKey
+}
 
 function createNoopQueryBuilder() {
   const self: any = {}
@@ -87,7 +102,10 @@ function getSupabaseClient(): SupabaseClient {
     return supabaseClient
   }
 
-  const client = createClient(supabaseUrl, supabaseAnonKey)
+  const apiKey = resolveSupabaseApiKey(supabaseAnonKey)
+  const client = createClient(supabaseUrl, apiKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  })
   supabaseClient = client
   return client
 }

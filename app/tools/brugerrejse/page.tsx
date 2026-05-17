@@ -5,89 +5,26 @@ import { ChevronDown, ChevronUp, Plus, Trash2, User } from 'lucide-react'
 import Link from 'next/link'
 import { useProjectToolData } from '@/lib/useProjectToolData'
 import { getProjectToolData } from '@/lib/projects'
-
-// ─── Types ───────────────────────────────────────────────────────────────────
-
-type Sentiment = -2 | -1 | 0 | 1 | 2
-
-type JourneyStep = {
-  id: string
-  phaseId: string
-  name: string        // Touchpoint / trin-navn
-  activeChannelIds: string[] // ID-er på aktive kanaler i dette trin
-  action: string      // Hvad gør brugeren?
-  thought: string     // Hvad tænker/føler brugeren?
-  sentiment: Sentiment // Emotionel score
-  pains: string[]     // Udfordringer
-  gains: string[]     // Muligheder/gains
-  opportunity: string // Designmulighed/indsigt
-}
-
-type JourneyPhase = {
-  id: string
-  label: string
-  color: string
-}
-
-type Channel = {
-  id: string
-  name: string
-  icon: string
-  order: number
-}
-
-type PersonaData = {
-  name?: string
-  age?: string
-  role?: string
-  context?: string
-  quote?: string
-}
-
-type JourneyData = {
-  persona: string
-  scenario: string
-  linkedPersona: PersonaData | null
-  channels: Channel[]
-  phases: JourneyPhase[]
-  steps: JourneyStep[]
-}
-
-// ─── Constants ────────────────────────────────────────────────────────────────
+import {
+  DEFAULT_JOURNEY_DATA,
+  getPhaseColor,
+  normalizeJourneyFromRaw,
+  PHASE_COLORS,
+  SENTIMENT_OPTIONS,
+  sentimentColor,
+  stepsForPhase as stepsForPhaseInData,
+  type Channel,
+  type JourneyData,
+  type JourneyPhase,
+  type JourneyStep,
+  type PersonaData,
+  type Sentiment,
+} from '@/lib/brugerrejse'
 
 const createId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
-const PHASE_COLORS = [
-  { bg: 'bg-violet-500', light: 'bg-violet-50', border: 'border-violet-200', text: 'text-violet-700', header: 'bg-violet-500' },
-  { bg: 'bg-sky-500',    light: 'bg-sky-50',    border: 'border-sky-200',    text: 'text-sky-700',    header: 'bg-sky-500' },
-  { bg: 'bg-amber-500',  light: 'bg-amber-50',  border: 'border-amber-200',  text: 'text-amber-700',  header: 'bg-amber-500' },
-  { bg: 'bg-emerald-500',light: 'bg-emerald-50',border: 'border-emerald-200',text: 'text-emerald-700',header: 'bg-emerald-500' },
-  { bg: 'bg-rose-500',   light: 'bg-rose-50',   border: 'border-rose-200',   text: 'text-rose-700',   header: 'bg-rose-500' },
-  { bg: 'bg-fuchsia-500',light: 'bg-fuchsia-50',border: 'border-fuchsia-200',text: 'text-fuchsia-700',header: 'bg-fuchsia-500' },
-]
-
-const SENTIMENT_OPTIONS: { value: Sentiment; emoji: string; label: string }[] = [
-  { value: -2, emoji: '😢', label: 'Meget frustreret' },
-  { value: -1, emoji: '😕', label: 'Lidt frustreret' },
-  { value:  0, emoji: '😐', label: 'Neutral' },
-  { value:  1, emoji: '🙂', label: 'Tilfreds' },
-  { value:  2, emoji: '😄', label: 'Meget glad' },
-]
-
-const sentimentColor = (v: Sentiment) => {
-  if (v <= -2) return '#ef4444'
-  if (v === -1) return '#f97316'
-  if (v === 0)  return '#eab308'
-  if (v === 1)  return '#84cc16'
-  return '#22c55e'
-}
-
-const cleanList = (arr: string[]): string[] =>
-  arr.length === 1 && arr[0] === '' ? [] : arr
-
-// Deterministisk seed til DEFAULT_DATA — undgår SSR/CSR-hydration mismatch fra createId().
-const seedStep = (id: string, phaseId: string): JourneyStep => ({
-  id,
+const emptyStep = (phaseId: string): JourneyStep => ({
+  id: createId(),
   phaseId,
   name: '',
   activeChannelIds: [],
@@ -98,37 +35,6 @@ const seedStep = (id: string, phaseId: string): JourneyStep => ({
   gains: [],
   opportunity: '',
 })
-
-const emptyStep = (phaseId: string, index: number): JourneyStep => ({
-  ...seedStep(createId(), phaseId),
-})
-
-const DEFAULT_CHANNELS: Channel[] = [
-  { id: 'ch-search',  name: 'Search',         icon: '🔍', order: 0 },
-  { id: 'ch-website', name: 'Website',        icon: '💻', order: 1 },
-  { id: 'ch-email',   name: 'Email',          icon: '✉️', order: 2 },
-  { id: 'ch-social',  name: 'Social media',   icon: '📱', order: 3 },
-  { id: 'ch-phone',   name: 'Phone',          icon: '📞', order: 4 },
-  { id: 'ch-wom',     name: 'Word of mouth',  icon: '💬', order: 5 },
-]
-
-const DEFAULT_PHASE_ID = 'fl-ph-1'
-const DEFAULT_DATA: JourneyData = {
-  persona: '',
-  scenario: '',
-  linkedPersona: null,
-  channels: DEFAULT_CHANNELS,
-  phases: [
-    { id: DEFAULT_PHASE_ID, label: 'Opmærksomhed', color: '0' },
-    { id: 'fl-ph-2', label: 'Overvejelse', color: '1' },
-    { id: 'fl-ph-3', label: 'Beslutning', color: '2' },
-  ],
-  steps: [
-    seedStep('fl-step-1', DEFAULT_PHASE_ID),
-    seedStep('fl-step-2', 'fl-ph-2'),
-    seedStep('fl-step-3', 'fl-ph-3'),
-  ],
-}
 
 // ─── Sub-components (defined at module level to avoid re-creation on render) ──
 
@@ -192,61 +98,12 @@ function JourneyRow({
   )
 }
 
-function normalizeData(raw: unknown): JourneyData {
-  if (!raw || typeof raw !== 'object') return DEFAULT_DATA
-  const r = raw as Record<string, unknown>
-  const phases: JourneyPhase[] = Array.isArray(r.phases)
-    ? r.phases.map((p: any, i: number) => ({
-        id: p?.id || createId(),
-        label: p?.label || `Fase ${i + 1}`,
-        color: String(p?.color ?? i % PHASE_COLORS.length),
-      }))
-    : DEFAULT_DATA.phases
-
-  const channels: Channel[] = Array.isArray(r.channels) && (r.channels as any[]).length > 0
-    ? (r.channels as any[]).map((c: any, i: number) => ({
-        id: c?.id || createId(),
-        name: typeof c?.name === 'string' ? c.name : `Kanal ${i + 1}`,
-        icon: typeof c?.icon === 'string' && c.icon ? c.icon : '🔘',
-        order: typeof c?.order === 'number' ? c.order : i,
-      }))
-    : DEFAULT_CHANNELS
-
-  const channelIdSet = new Set(channels.map((c) => c.id))
-
-  const steps: JourneyStep[] = Array.isArray(r.steps)
-    ? r.steps.map((s: any) => ({
-        id: s?.id || createId(),
-        phaseId: s?.phaseId || phases[0]?.id,
-        name: s?.name || s?.stepName || '',
-        activeChannelIds: Array.isArray(s?.activeChannelIds)
-          ? (s.activeChannelIds as any[]).filter((id): id is string => typeof id === 'string' && channelIdSet.has(id))
-          : [],
-        action: s?.action || '',
-        thought: s?.thought || '',
-        sentiment: ([-2, -1, 0, 1, 2].includes(Number(s?.sentiment)) ? Number(s.sentiment) : 0) as Sentiment,
-        pains: cleanList(Array.isArray(s?.pains) ? s.pains : (s?.painPoint ? [s.painPoint] : [])),
-        gains: cleanList(Array.isArray(s?.gains) ? s.gains : (s?.opportunity ? [s.opportunity] : [])),
-        opportunity: s?.opportunity || '',
-      }))
-    : DEFAULT_DATA.steps
-
-  return {
-    persona: typeof r.persona === 'string' ? r.persona : '',
-    scenario: typeof r.scenario === 'string' ? r.scenario : '',
-    linkedPersona: (r.linkedPersona as PersonaData | null) ?? null,
-    channels,
-    phases,
-    steps: steps.length > 0 ? steps : [emptyStep(phases[0]?.id, 0)],
-  }
-}
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function BrugerrejsePage() {
-  const [data, setData] = useState<JourneyData>(DEFAULT_DATA)
+  const [data, setData] = useState<JourneyData>(DEFAULT_JOURNEY_DATA)
   const setNormalized = useCallback((raw: unknown) => {
-    setData(normalizeData(raw))
+    setData(normalizeJourneyFromRaw(raw))
   }, [])
   useProjectToolData<JourneyData>('brugerrejse', data, setNormalized as (d: JourneyData) => void)
 
@@ -269,11 +126,7 @@ export default function BrugerrejsePage() {
     }
   }, [])
 
-  // ── helpers ──
-  const getPhaseColor = (phase: JourneyPhase) =>
-    PHASE_COLORS[Number(phase.color) % PHASE_COLORS.length] ?? PHASE_COLORS[0]
-
-  const stepsForPhase = (phaseId: string) => data.steps.filter((s) => s.phaseId === phaseId)
+  const stepsForPhase = (phaseId: string) => stepsForPhaseInData(data, phaseId)
 
   // ── mutations ──
   const setMeta = (key: 'persona' | 'scenario', value: string) =>
@@ -311,7 +164,7 @@ export default function BrugerrejsePage() {
   const addStep = (phaseId: string) =>
     setData((p) => {
       const idx = p.steps.filter((s) => s.phaseId === phaseId).length
-      return { ...p, steps: [...p.steps, emptyStep(phaseId, idx)] }
+      return { ...p, steps: [...p.steps, emptyStep(phaseId)] }
     })
 
   const removeStep = (stepId: string) => {

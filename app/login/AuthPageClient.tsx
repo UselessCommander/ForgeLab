@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import AuthGraphic from '@/components/AuthGraphic'
+import AuthInput from '@/components/AuthInput'
 import CookieConsent from '@/components/CookieConsent'
 import { supabase } from '@/lib/supabase'
 import { hasFunctionalStorageConsent } from '@/lib/cookie-consent'
@@ -212,10 +213,10 @@ function LoginFormInner({
                 Opret bruger
               </button>
             </p>
-            <form onSubmit={handleLogin} className="space-y-5">
+            <form onSubmit={handleLogin} className="space-y-5" suppressHydrationWarning>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Brugernavn</label>
-                <input
+                <AuthInput
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
@@ -226,7 +227,7 @@ function LoginFormInner({
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
-                <input
+                <AuthInput
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -237,7 +238,7 @@ function LoginFormInner({
               </div>
               <div className="flex flex-col gap-1">
                 <div className="flex items-center">
-                  <input
+                  <AuthInput
                     type="checkbox"
                     id="rememberMe"
                     checked={rememberMe}
@@ -307,10 +308,10 @@ function LoginFormInner({
           <>
             <h1 className="text-3xl font-bold text-gray-900 mb-1">Glemt kodeord</h1>
             <p className="text-gray-500 mb-6">Indtast din email, så sender vi et reset-link.</p>
-            <form onSubmit={handleForgotPassword} className="space-y-5">
+            <form onSubmit={handleForgotPassword} className="space-y-5" suppressHydrationWarning>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                <input
+                <AuthInput
                   type="email"
                   value={forgotEmail}
                   onChange={(e) => setForgotEmail(e.target.value)}
@@ -527,10 +528,10 @@ function RegisterFormInner({
             </div>
           )}
         </div>
-        <form onSubmit={handleRegister} className="space-y-5">
+        <form onSubmit={handleRegister} className="space-y-5" suppressHydrationWarning>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-            <input
+            <AuthInput
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -541,7 +542,7 @@ function RegisterFormInner({
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Brugernavn</label>
-            <input
+            <AuthInput
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
@@ -553,7 +554,7 @@ function RegisterFormInner({
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
-            <input
+            <AuthInput
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -565,7 +566,7 @@ function RegisterFormInner({
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Bekræft password</label>
-            <input
+            <AuthInput
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
@@ -577,7 +578,7 @@ function RegisterFormInner({
           </div>
           <div className="flex flex-col gap-1">
             <div className="flex items-center">
-              <input
+              <AuthInput
                 type="checkbox"
                 id="registerRememberMe"
                 checked={rememberMe}

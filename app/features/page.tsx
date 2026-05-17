@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { getCurrentUserId } from '@/lib/auth'
+import { MARKETING_FOOTER_PLATFORM_LINKS, MARKETING_HEADER_LINKS } from '@/lib/marketing-nav'
 import {
   ArrowRight, Kanban, GitBranch, BarChart3, MessageSquare,
   FileText, ScanLine, Target, Users, Zap, Lock,
@@ -40,7 +41,7 @@ export default async function FeaturesPage() {
               <span className="text-base font-extrabold text-gray-900 tracking-tight">ForgeLab</span>
             </Link>
             <div className="hidden md:flex items-center gap-1">
-              {([['/', 'Hjem'], ['/features', 'Features'], ['/workflow', 'Workflow'], ['/pricing', 'Priser'], ['/om', 'Om os']] as [string, string][]).map(([h, l]) => (
+              {MARKETING_HEADER_LINKS.map(([h, l]) => (
                 <Link key={h} href={h} className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${h === '/features' ? 'bg-amber-50 text-amber-700' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}>{l}</Link>
               ))}
             </div>
@@ -493,7 +494,7 @@ export default async function FeaturesPage() {
               </div>
               <div>
                 <div className="font-semibold text-gray-900 text-sm mb-4">Platform</div>
-                {([['/', 'Hjem'], ['/features', 'Features'], ['/workflow', 'Workflow'], ['/pricing', 'Priser'], ['/om', 'Om os'], ['/vaerktoejer-oversigt', 'Alle værktøjer']] as [string, string][]).map(([h, l]) => (
+                {MARKETING_FOOTER_PLATFORM_LINKS.map(([h, l]) => (
                   <Link key={h} href={h} className="block text-sm text-gray-500 hover:text-gray-900 transition-colors mb-2">{l}</Link>
                 ))}
               </div>

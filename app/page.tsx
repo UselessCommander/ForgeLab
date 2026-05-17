@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import CookieConsent from '@/components/CookieConsent'
 import { getCurrentUserId } from '@/lib/auth'
+import { LANDING_HEADER_LINKS, MARKETING_FOOTER_PLATFORM_LINKS } from '@/lib/marketing-nav'
 import {
   LogIn, ArrowRight, Zap, Shield, Users, Rocket, CheckCircle2,
   Kanban, MessageSquare, GitBranch, BarChart3, FileText, Layers,
@@ -86,8 +87,8 @@ export default async function LandingPage() {
               <span className="text-base font-extrabold text-gray-900 tracking-tight">ForgeLab</span>
             </Link>
             <div className="hidden md:flex items-center gap-1">
-              {([['/features','Features'],['/workflow','Workflow'],['/om','Om os']] as [string,string][]).map(([h,l])=>(
-                <a key={h} href={h} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 font-medium rounded-lg hover:bg-gray-50 transition-all">{l}</a>
+              {LANDING_HEADER_LINKS.map(([h, l]) => (
+                <Link key={h} href={h} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 font-medium rounded-lg hover:bg-gray-50 transition-all">{l}</Link>
               ))}
             </div>
             <div className="flex items-center gap-3">
@@ -445,8 +446,8 @@ export default async function LandingPage() {
               </div>
               <div>
                 <div className="font-semibold text-gray-900 text-sm mb-4">Platform</div>
-                {([['/features','Features'],['/workflow','Workflow'],['/om','Om os'],['/vaerktoejer-oversigt','Alle værktøjer']] as [string,string][]).map(([h,l])=>(
-                  <a key={h} href={h} className="block text-sm text-gray-500 hover:text-gray-900 transition-colors mb-2">{l}</a>
+                {MARKETING_FOOTER_PLATFORM_LINKS.map(([h, l]) => (
+                  <Link key={h} href={h} className="block text-sm text-gray-500 hover:text-gray-900 transition-colors mb-2">{l}</Link>
                 ))}
               </div>
               <div>

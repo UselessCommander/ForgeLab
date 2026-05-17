@@ -50,7 +50,7 @@ export function hasDedicatedPageTools(toolIds: string[] | undefined | null): boo
   return toolIds.some((s) => DEDICATED_PAGE_TOOL_SLUGS.has(s))
 }
 
-interface ProjectToolEntry {
+export interface ProjectToolEntry {
   slug: string
   tool: Vaerktoej
 }

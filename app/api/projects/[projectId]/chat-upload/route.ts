@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUserId } from '@/lib/auth'
+import { canUploadProjectChatFiles } from '@/lib/project-permissions'
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin'
 
 const BUCKET = 'chat-uploads'
@@ -17,6 +18,13 @@ export async function POST(
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { projectId } = await params
+  const canUpload = await canUploadProjectChatFiles(projectId, userId)
+  if (!canUpload) {
+    return NextResponse.json(
+      { error: 'Kun redaktører og ejere kan vedhæfte filer i chatten' },
+      { status: 403 }
+    )
+  }
 
   let formData: FormData
   try {

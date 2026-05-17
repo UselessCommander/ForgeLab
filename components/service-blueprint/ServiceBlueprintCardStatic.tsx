@@ -36,7 +36,6 @@ export function ServiceBlueprintCardStatic({
       data-card-id={card.id}
       className={`relative rounded-2xl border p-3 shadow-sm ${type.card} flex min-h-0 flex-col overflow-hidden pointer-events-none select-none`}
       style={{
-        height: '100%',
         minHeight: showBody ? CARD_MIN_HEIGHT_PX : showTitle ? 120 : 96,
         maxHeight: CARD_MAX_HEIGHT_PX,
         backgroundColor: usesCustomColor ? `${type.stroke}15` : undefined,

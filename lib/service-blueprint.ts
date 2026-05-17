@@ -163,6 +163,23 @@ export function getSafeColSpan(requestedSpan: number, startPhaseId: string, phas
   return Math.min(Math.max(1, requestedSpan), maxSpan)
 }
 
+/** True when another card's colSpan visually covers this phase column in the same lane. */
+export function isPhaseCellShadowedBySpan(
+  phaseIndex: number,
+  laneId: string,
+  cards: { laneId: string; phaseId: string; colSpan?: number }[],
+  phases: Phase[],
+): boolean {
+  for (const card of cards) {
+    if (card.laneId !== laneId) continue
+    const startIndex = phases.findIndex((p) => p.id === card.phaseId)
+    if (startIndex === -1 || startIndex >= phaseIndex) continue
+    const span = getSafeColSpan(card.colSpan || 1, card.phaseId, phases)
+    if (phaseIndex < startIndex + span) return true
+  }
+  return false
+}
+
 export function normalizeBlueprintFromRaw(raw: unknown): BlueprintData {
   const record = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
 

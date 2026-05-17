@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { setSession } from '@/lib/auth'
 import { createUser, getUserById, userNeedsOnboarding } from '@/lib/users'
+import { normalizeUsername } from '@/lib/username'
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,9 +15,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (username.length < 3) {
+    if (!normalizeUsername(username)) {
       return NextResponse.json(
-        { error: 'Brugernavn skal vÃ¦re mindst 3 tegn' },
+        { error: 'Brugernavn skal være mindst 3 tegn' },
         { status: 400 }
       )
     }

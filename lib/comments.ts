@@ -1,3 +1,7 @@
+/**
+ * Server-side comment DB helpers (used by API routes).
+ * Browser clients must use @/lib/comments-api — not direct Supabase queries.
+ */
 import { createClient } from '@supabase/supabase-js'
 
 // Mock Supabase client for development without environment variables
@@ -201,7 +205,7 @@ export async function resolveProjectComment(
 
 export async function unresolveProjectComment(
   commentId: string,
-  userId: string
+  _userId: string
 ): Promise<ProjectComment> {
   const { data, error } = await supabase
     .from('project_comments')
@@ -212,7 +216,6 @@ export async function unresolveProjectComment(
       updated_at: new Date().toISOString(),
     })
     .eq('id', commentId)
-    .eq('user_id', userId)
     .select(`
       *,
       user:users(username)

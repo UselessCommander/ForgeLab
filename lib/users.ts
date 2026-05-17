@@ -1,6 +1,10 @@
 import bcrypt from 'bcryptjs';
 import { supabase } from './supabase';
 import { generateId } from './data';
+import { normalizeUsername } from './username';
+
+/** Run migration 021 + 023 before production deploy. Until then, 42703 fallbacks apply. */
+const MISSING_COLUMN = '42703';
 
 export interface User {
     id: string;
@@ -32,99 +36,116 @@ export function isPasswordHashed(password: string): boolean {
     return password.startsWith('$2') && password.length === 60;
 }
 
+function mapUserRow(data: Record<string, unknown>): User {
+    return {
+        id: String(data.id),
+        username: String(data.username),
+        email: (data.email as string | null) ?? null,
+        ai_enabled: (data.ai_enabled as boolean | null) ?? false,
+        first_name: (data.first_name as string | null) ?? null,
+        last_name: (data.last_name as string | null) ?? null,
+        profile_role: (data.profile_role as string | null) ?? null,
+        avatar_url: (data.avatar_url as string | null) ?? null,
+        stripe_customer_id: (data.stripe_customer_id as string | null) ?? null,
+        stripe_subscription_id: (data.stripe_subscription_id as string | null) ?? null,
+        subscription_status: (data.subscription_status as string | null) ?? null,
+        subscription_current_period_end: (data.subscription_current_period_end as string | null) ?? null,
+        subscription_cancel_at_period_end: (data.subscription_cancel_at_period_end as boolean | null) ?? false,
+        plan_key: (data.plan_key as string | null) ?? 'free',
+        onboarding_completed_at: (data.onboarding_completed_at as string | null) ?? null,
+        password: String(data.password_hash),
+        createdAt: String(data.created_at),
+    };
+}
+
+async function usernameExistsCaseInsensitive(trimmedUsername: string): Promise<boolean> {
+    const usernameNormalized = normalizeUsername(trimmedUsername);
+    if (!usernameNormalized) return true;
+
+    const { data: existingUser, error: checkError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('username_normalized', usernameNormalized)
+        .maybeSingle();
+
+    if (checkError?.code === MISSING_COLUMN) {
+        const legacy = await supabase
+            .from('users')
+            .select('id')
+            .ilike('username', trimmedUsername)
+            .limit(1);
+        if (legacy.error) {
+            console.error('Fejl ved tjek af eksisterende bruger:', legacy.error);
+            return true;
+        }
+        return (legacy.data?.length ?? 0) > 0;
+    }
+
+    if (checkError) {
+        console.error('Fejl ved tjek af eksisterende bruger:', checkError);
+        return true;
+    }
+
+    return !!existingUser;
+}
+
 export async function createUser(username: string, password: string, email?: string): Promise<User | null> {
     try {
-        // Trim whitespace fra brugernavnet
         const trimmedUsername = username.trim();
-        
+
         if (!trimmedUsername || trimmedUsername.length < 3) {
-            console.error('❌ Brugernavn er for kort efter trimming');
-            return null;
-        }
-        
-        console.log(`🔍 Tjekker om brugernavn "${trimmedUsername}" eksisterer...`);
-        
-        // Tjek om brugernavn allerede eksisterer (case-insensitive)
-        // Hent alle brugere og sammenlign case-insensitive i JavaScript
-        const { data: allUsers, error: checkError } = await supabase
-            .from('users')
-            .select('id, username');
-        
-        if (checkError) {
-            console.error('❌ Fejl ved tjek af eksisterende bruger:', checkError);
-            console.error('Error code:', checkError.code);
-            console.error('Error message:', checkError.message);
-            console.error('Error details:', JSON.stringify(checkError, null, 2));
-            
-            if (checkError.code === '42P01' || checkError.message?.includes('does not exist')) {
-                console.error('❌ FEJL: Tabellen "users" eksisterer ikke! Kør migrationen i Supabase.');
-            }
-            
-            return null;
-        }
-        
-        // Tjek case-insensitive om brugernavnet eksisterer
-        const existingUsers = allUsers?.filter(u => 
-            u.username?.toLowerCase().trim() === trimmedUsername.toLowerCase()
-        ) || [];
-
-        console.log(`📊 Tjekket ${allUsers?.length || 0} bruger(er) i databasen`);
-        console.log(`📊 Fundet ${existingUsers.length} match(es) for "${trimmedUsername}"`);
-
-        // Hvis brugeren allerede eksisterer
-        if (existingUsers && existingUsers.length > 0) {
-            console.log(`⚠️ Brugernavn "${trimmedUsername}" er allerede taget (fundet ${existingUsers.length} bruger(er))`);
-            console.log(`📋 Eksisterende bruger(er):`, existingUsers);
+            console.error('Brugernavn er for kort efter trimming');
             return null;
         }
 
-        console.log(`✅ Brugernavn "${trimmedUsername}" er ledigt, opretter bruger...`);
+        const usernameNormalized = normalizeUsername(trimmedUsername);
+        if (!usernameNormalized) {
+            return null;
+        }
+
+        if (await usernameExistsCaseInsensitive(trimmedUsername)) {
+            return null;
+        }
 
         const normalizedEmail = email?.trim().toLowerCase();
-
-        // Hash password
         const passwordHash = await hashPassword(password);
         const userId = generateId();
 
-        // Opret bruger i Supabase
+        const insertPayload: Record<string, unknown> = {
+            id: userId,
+            username: trimmedUsername,
+            username_normalized: usernameNormalized,
+            email: normalizedEmail || null,
+            password_hash: passwordHash,
+            created_at: new Date().toISOString(),
+        };
+
         const { data, error } = await supabase
             .from('users')
-            .insert({
-                id: userId,
-                username: trimmedUsername,
-                email: normalizedEmail || null,
-                password_hash: passwordHash,
-                created_at: new Date().toISOString()
-            })
+            .insert(insertPayload)
             .select()
             .single();
 
         if (error) {
-            console.error('âŒ Fejl ved oprettelse af bruger:', error);
+            if (error.code === '23505') {
+                return null;
+            }
+            if (error.code === MISSING_COLUMN) {
+                delete insertPayload.username_normalized;
+                const retry = await supabase.from('users').insert(insertPayload).select().single();
+                if (retry.error) {
+                    console.error('Fejl ved oprettelse af bruger:', retry.error);
+                    return null;
+                }
+                return mapUserRow(retry.data as Record<string, unknown>);
+            }
+            console.error('Fejl ved oprettelse af bruger:', error);
             return null;
         }
 
-        return {
-            id: data.id,
-            username: data.username,
-            email: data.email,
-            ai_enabled: data.ai_enabled ?? false,
-            first_name: data.first_name ?? null,
-            last_name: data.last_name ?? null,
-            profile_role: data.profile_role ?? null,
-            avatar_url: data.avatar_url ?? null,
-            stripe_customer_id: data.stripe_customer_id ?? null,
-            stripe_subscription_id: data.stripe_subscription_id ?? null,
-            subscription_status: data.subscription_status ?? null,
-            subscription_current_period_end: data.subscription_current_period_end ?? null,
-            subscription_cancel_at_period_end: data.subscription_cancel_at_period_end ?? false,
-            plan_key: data.plan_key ?? 'free',
-            onboarding_completed_at: data.onboarding_completed_at ?? null,
-            password: data.password_hash,
-            createdAt: data.created_at
-        };
+        return mapUserRow(data as Record<string, unknown>);
     } catch (error) {
-        console.error('âŒ Fejl ved oprettelse af bruger:', error);
+        console.error('Fejl ved oprettelse af bruger:', error);
         return null;
     }
 }
@@ -154,44 +175,39 @@ export async function markUserOnboardingComplete(userId: string): Promise<boolea
 
 export async function getUserByUsername(username: string): Promise<User | null> {
     try {
-        const { data, error } = await supabase
+        const usernameNormalized = normalizeUsername(username);
+        if (!usernameNormalized) {
+            return null;
+        }
+
+        let { data: userData, error } = await supabase
             .from('users')
             .select('*')
-            .eq('username', username)
-            .limit(1);
+            .eq('username_normalized', usernameNormalized)
+            .maybeSingle();
 
-        if (error) {
-            console.error('❌ Fejl ved hentning af bruger:', error);
+        if (error?.code === MISSING_COLUMN) {
+            const legacy = await supabase
+                .from('users')
+                .select('*')
+                .ilike('username', username.trim())
+                .limit(1);
+            if (legacy.error || !legacy.data?.length) {
+                return null;
+            }
+            userData = legacy.data[0];
+        } else if (error) {
+            console.error('Fejl ved hentning af bruger:', error);
             return null;
         }
 
-        if (!data || data.length === 0) {
+        if (!userData) {
             return null;
         }
 
-        const userData = data[0];
-
-        return {
-            id: userData.id,
-            username: userData.username,
-            email: userData.email,
-            ai_enabled: userData.ai_enabled ?? false,
-            first_name: userData.first_name ?? null,
-            last_name: userData.last_name ?? null,
-            profile_role: userData.profile_role ?? null,
-            avatar_url: userData.avatar_url ?? null,
-            stripe_customer_id: userData.stripe_customer_id ?? null,
-            stripe_subscription_id: userData.stripe_subscription_id ?? null,
-            subscription_status: userData.subscription_status ?? null,
-            subscription_current_period_end: userData.subscription_current_period_end ?? null,
-            subscription_cancel_at_period_end: userData.subscription_cancel_at_period_end ?? false,
-            plan_key: userData.plan_key ?? 'free',
-            onboarding_completed_at: userData.onboarding_completed_at ?? null,
-            password: userData.password_hash,
-            createdAt: userData.created_at
-        };
+        return mapUserRow(userData as Record<string, unknown>);
     } catch (error) {
-        console.error('âŒ Fejl ved hentning af bruger:', error);
+        console.error('Fejl ved hentning af bruger:', error);
         return null;
     }
 }
@@ -205,7 +221,7 @@ export async function getUserById(id: string): Promise<User | null> {
             .limit(1);
 
         if (error) {
-            console.error('❌ Fejl ved hentning af bruger:', error);
+            console.error('Fejl ved hentning af bruger:', error);
             return null;
         }
 
@@ -213,44 +229,19 @@ export async function getUserById(id: string): Promise<User | null> {
             return null;
         }
 
-        const userData = data[0];
-
-        return {
-            id: userData.id,
-            username: userData.username,
-            email: userData.email,
-            ai_enabled: userData.ai_enabled ?? false,
-            first_name: userData.first_name ?? null,
-            last_name: userData.last_name ?? null,
-            profile_role: userData.profile_role ?? null,
-            avatar_url: userData.avatar_url ?? null,
-            stripe_customer_id: userData.stripe_customer_id ?? null,
-            stripe_subscription_id: userData.stripe_subscription_id ?? null,
-            subscription_status: userData.subscription_status ?? null,
-            subscription_current_period_end: userData.subscription_current_period_end ?? null,
-            subscription_cancel_at_period_end: userData.subscription_cancel_at_period_end ?? false,
-            plan_key: userData.plan_key ?? 'free',
-            onboarding_completed_at: userData.onboarding_completed_at ?? null,
-            password: userData.password_hash,
-            createdAt: userData.created_at
-        };
+        return mapUserRow(data[0] as Record<string, unknown>);
     } catch (error) {
-        console.error('âŒ Fejl ved hentning af bruger:', error);
+        console.error('Fejl ved hentning af bruger:', error);
         return null;
     }
 }
 
 export async function verifyPassword(user: User, password: string): Promise<boolean> {
-    // Hvis password er hashet, brug bcrypt.compare
     if (isPasswordHashed(user.password)) {
-        const isValid = await bcrypt.compare(password, user.password);
-        return isValid;
+        return await bcrypt.compare(password, user.password);
     }
-    
-    // Hvis password ikke er hashet (gammel bruger), sammenlign direkte
-    // og hash det automatisk ved nÃ¦ste login (graduel migration)
+
     if (user.password === password) {
-        // Auto-migrer: hash passwordet og gem det i Supabase
         try {
             const hashedPassword = await hashPassword(password);
             const { error } = await supabase
@@ -259,16 +250,14 @@ export async function verifyPassword(user: User, password: string): Promise<bool
                 .eq('id', user.id);
 
             if (error) {
-                console.error('âŒ Fejl ved auto-migration af password:', error);
-            } else {
-                console.log(`✅ Auto-migreret password for bruger: ${user.username}`);
+                console.error('Fejl ved auto-migration af password:', error);
             }
         } catch (error) {
-            console.error('âŒ Fejl ved auto-migration af password:', error);
+            console.error('Fejl ved auto-migration af password:', error);
         }
         return true;
     }
-    
+
     return false;
 }
 
@@ -282,7 +271,7 @@ export async function getUserByEmail(email: string): Promise<User | null> {
             .limit(1);
 
         if (error) {
-            console.error('❌ Fejl ved hentning af bruger via email:', error);
+            console.error('Fejl ved hentning af bruger via email:', error);
             return null;
         }
 
@@ -290,28 +279,9 @@ export async function getUserByEmail(email: string): Promise<User | null> {
             return null;
         }
 
-        const userData = data[0];
-        return {
-            id: userData.id,
-            username: userData.username,
-            email: userData.email,
-            ai_enabled: userData.ai_enabled ?? false,
-            first_name: userData.first_name ?? null,
-            last_name: userData.last_name ?? null,
-            profile_role: userData.profile_role ?? null,
-            avatar_url: userData.avatar_url ?? null,
-            stripe_customer_id: userData.stripe_customer_id ?? null,
-            stripe_subscription_id: userData.stripe_subscription_id ?? null,
-            subscription_status: userData.subscription_status ?? null,
-            subscription_current_period_end: userData.subscription_current_period_end ?? null,
-            subscription_cancel_at_period_end: userData.subscription_cancel_at_period_end ?? false,
-            plan_key: userData.plan_key ?? 'free',
-            onboarding_completed_at: userData.onboarding_completed_at ?? null,
-            password: userData.password_hash,
-            createdAt: userData.created_at
-        };
+        return mapUserRow(data[0] as Record<string, unknown>);
     } catch (error) {
-        console.error('❌ Fejl ved hentning af bruger via email:', error);
+        console.error('Fejl ved hentning af bruger via email:', error);
         return null;
     }
 }
@@ -325,13 +295,13 @@ export async function updateUserPassword(userId: string, newPassword: string): P
             .eq('id', userId);
 
         if (error) {
-            console.error('❌ Fejl ved opdatering af password:', error);
+            console.error('Fejl ved opdatering af password:', error);
             return false;
         }
 
         return true;
     } catch (error) {
-        console.error('❌ Fejl ved opdatering af password:', error);
+        console.error('Fejl ved opdatering af password:', error);
         return false;
     }
 }

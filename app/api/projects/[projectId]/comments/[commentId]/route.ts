@@ -1,33 +1,48 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+import { getCurrentUserId } from '@/lib/auth'
+import { getCommentInProject } from '@/lib/project-comments-server'
+import { canViewProject } from '@/lib/project-access'
+import { canResolveProjectComments } from '@/lib/project-permissions'
+import { supabase } from '@/lib/supabase'
 
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ projectId: string; commentId: string }> }
 ) {
   try {
-    const { commentId } = await params
-    const { content, userId } = await request.json()
+    const userId = await getCurrentUserId()
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
 
-    if (!content || !userId) {
-      return NextResponse.json(
-        { error: 'Content and userId are required' },
-        { status: 400 }
-      )
+    const { projectId, commentId } = await params
+    const canView = await canViewProject(projectId, userId)
+    if (!canView) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 })
+    }
+
+    const existing = await getCommentInProject(commentId, projectId)
+    if (!existing) {
+      return NextResponse.json({ error: 'Comment not found' }, { status: 404 })
+    }
+    if (existing.user_id !== userId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    const body = await request.json().catch(() => ({}))
+    const content = typeof body.content === 'string' ? body.content.trim() : ''
+    if (!content) {
+      return NextResponse.json({ error: 'Content is required' }, { status: 400 })
     }
 
     const { data, error } = await supabase
       .from('project_comments')
       .update({
-        content: content.trim(),
+        content,
         updated_at: new Date().toISOString(),
       })
       .eq('id', commentId)
+      .eq('project_id', projectId)
       .eq('user_id', userId)
       .select(`
         *,
@@ -40,10 +55,7 @@ export async function PUT(
     return NextResponse.json(data)
   } catch (error) {
     console.error('Error updating comment:', error)
-    return NextResponse.json(
-      { error: 'Failed to update comment' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to update comment' }, { status: 500 })
   }
 }
 
@@ -52,18 +64,31 @@ export async function PATCH(
   { params }: { params: Promise<{ projectId: string; commentId: string }> }
 ) {
   try {
-    const { commentId } = await params
-    const { userId, action } = await request.json()
-
-    if (!userId || !action) {
-      return NextResponse.json(
-        { error: 'UserId and action are required' },
-        { status: 400 }
-      )
+    const userId = await getCurrentUserId()
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    let updateData: any = {}
+    const { projectId, commentId } = await params
+    const canView = await canViewProject(projectId, userId)
+    if (!canView) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 })
+    }
 
+    const canResolve = await canResolveProjectComments(projectId, userId)
+    if (!canResolve) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    const existing = await getCommentInProject(commentId, projectId)
+    if (!existing) {
+      return NextResponse.json({ error: 'Comment not found' }, { status: 404 })
+    }
+
+    const body = await request.json().catch(() => ({}))
+    const action = typeof body.action === 'string' ? body.action : ''
+
+    let updateData: Record<string, unknown>
     if (action === 'resolve') {
       updateData = {
         resolved: true,
@@ -89,7 +114,7 @@ export async function PATCH(
       .from('project_comments')
       .update(updateData)
       .eq('id', commentId)
-      .eq('user_id', userId)
+      .eq('project_id', projectId)
       .select(`
         *,
         user:users(username)
@@ -101,34 +126,42 @@ export async function PATCH(
     return NextResponse.json(data)
   } catch (error) {
     console.error('Error updating comment:', error)
-    return NextResponse.json(
-      { error: 'Failed to update comment' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to update comment' }, { status: 500 })
   }
 }
 
 export async function DELETE(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ projectId: string; commentId: string }> }
 ) {
   try {
-    const { commentId } = await params
-    const { userId } = await request.json()
-
+    const userId = await getCurrentUserId()
     if (!userId) {
-      return NextResponse.json(
-        { error: 'UserId is required' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { projectId, commentId } = await params
+    const canView = await canViewProject(projectId, userId)
+    if (!canView) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 })
+    }
+
+    const existing = await getCommentInProject(commentId, projectId)
+    if (!existing) {
+      return NextResponse.json({ error: 'Comment not found' }, { status: 404 })
+    }
+    if (existing.user_id !== userId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const { error } = await supabase
       .from('project_comments')
       .update({
         deleted_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       })
       .eq('id', commentId)
+      .eq('project_id', projectId)
       .eq('user_id', userId)
 
     if (error) throw error
@@ -136,9 +169,6 @@ export async function DELETE(
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Error deleting comment:', error)
-    return NextResponse.json(
-      { error: 'Failed to delete comment' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to delete comment' }, { status: 500 })
   }
 }

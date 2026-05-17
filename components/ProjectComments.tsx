@@ -1,12 +1,21 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState } from 'react'
 import { MessageCircle, Reply, Edit2, Trash2, Send, Check, X, MapPin } from 'lucide-react'
-import { createProjectComment, updateProjectComment, deleteProjectComment, resolveProjectComment, unresolveProjectComment, type ProjectComment } from '@/lib/comments'
+import type { ProjectComment } from '@/lib/comments'
+import {
+  createProjectCommentApi,
+  updateProjectCommentApi,
+  deleteProjectCommentApi,
+  resolveProjectCommentApi,
+  unresolveProjectCommentApi,
+} from '@/lib/comments-api'
 
 interface ProjectCommentsProps {
   projectId: string
   userId: string
+  /** Editors and owners may resolve/unresolve any thread comment (viewers: read-only). */
+  canEditProject: boolean
   comments: ProjectComment[]
   onCommentsChange: () => void
 }
@@ -15,11 +24,19 @@ interface CommentItemProps {
   comment: ProjectComment
   userId: string
   projectId: string
+  canEditProject: boolean
   onCommentsChange: () => void
   level?: number
 }
 
-function CommentItem({ comment, userId, projectId, onCommentsChange, level = 0 }: CommentItemProps) {
+function CommentItem({
+  comment,
+  userId,
+  projectId,
+  canEditProject,
+  onCommentsChange,
+  level = 0,
+}: CommentItemProps) {
   const [isReplying, setIsReplying] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [replyContent, setReplyContent] = useState('')
@@ -28,11 +45,11 @@ function CommentItem({ comment, userId, projectId, onCommentsChange, level = 0 }
 
   const handleReply = async () => {
     if (!replyContent.trim()) return
-    
+
     setIsSubmitting(true)
     try {
-      await createProjectComment(projectId, userId, replyContent.trim(), {
-        parentId: comment.id
+      await createProjectCommentApi(projectId, replyContent.trim(), {
+        parentId: comment.id,
       })
       setReplyContent('')
       setIsReplying(false)
@@ -46,10 +63,10 @@ function CommentItem({ comment, userId, projectId, onCommentsChange, level = 0 }
 
   const handleEdit = async () => {
     if (!editContent.trim()) return
-    
+
     setIsSubmitting(true)
     try {
-      await updateProjectComment(comment.id, userId, editContent.trim())
+      await updateProjectCommentApi(projectId, comment.id, editContent.trim())
       setIsEditing(false)
       onCommentsChange()
     } catch (error) {
@@ -61,9 +78,9 @@ function CommentItem({ comment, userId, projectId, onCommentsChange, level = 0 }
 
   const handleDelete = async () => {
     if (!confirm('Er du sikker på, du vil slette denne kommentar?')) return
-    
+
     try {
-      await deleteProjectComment(comment.id, userId)
+      await deleteProjectCommentApi(projectId, comment.id)
       onCommentsChange()
     } catch (error) {
       console.error('Error deleting comment:', error)
@@ -73,9 +90,9 @@ function CommentItem({ comment, userId, projectId, onCommentsChange, level = 0 }
   const handleToggleResolve = async () => {
     try {
       if (comment.resolved) {
-        await unresolveProjectComment(comment.id, userId)
+        await unresolveProjectCommentApi(projectId, comment.id)
       } else {
-        await resolveProjectComment(comment.id, userId)
+        await resolveProjectCommentApi(projectId, comment.id)
       }
       onCommentsChange()
     } catch (error) {
@@ -88,11 +105,9 @@ function CommentItem({ comment, userId, projectId, onCommentsChange, level = 0 }
       day: 'numeric',
       month: 'short',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
     })
   }
-
-  const marginLeft = level > 0 ? `${level * 24}px` : '0'
 
   return (
     <div className={`${level > 0 ? 'ml-6 border-l-2 border-gray-100 pl-4' : ''}`}>
@@ -115,14 +130,12 @@ function CommentItem({ comment, userId, projectId, onCommentsChange, level = 0 }
                   Løst
                 </span>
               )}
-              <span className="text-xs text-gray-500">
-                {formatDate(comment.created_at)}
-              </span>
+              <span className="text-xs text-gray-500">{formatDate(comment.created_at)}</span>
               {comment.updated_at !== comment.created_at && (
                 <span className="text-xs text-gray-400">(redigeret)</span>
               )}
             </div>
-            
+
             {isEditing ? (
               <div className="space-y-2">
                 <textarea
@@ -155,34 +168,40 @@ function CommentItem({ comment, userId, projectId, onCommentsChange, level = 0 }
               <p className="text-gray-800 whitespace-pre-wrap">{comment.content}</p>
             )}
           </div>
-          
-          {comment.user_id === userId && (
+
+          {(canEditProject || comment.user_id === userId) && (
             <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button
-                onClick={handleToggleResolve}
-                className={`p-1 hover:bg-gray-100 rounded ${comment.resolved ? 'text-green-600 hover:text-green-700' : 'text-gray-500 hover:text-gray-700'}`}
-                title={comment.resolved ? 'Genåbn kommentar' : 'Løs kommentar'}
-              >
-                {comment.resolved ? <X className="w-4 h-4" /> : <Check className="w-4 h-4" />}
-              </button>
-              <button
-                onClick={() => setIsEditing(true)}
-                className="p-1 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded"
-                title="Rediger"
-              >
-                <Edit2 className="w-4 h-4" />
-              </button>
-              <button
-                onClick={handleDelete}
-                className="p-1 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded"
-                title="Slet"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
+              {canEditProject && (
+                <button
+                  onClick={handleToggleResolve}
+                  className={`p-1 hover:bg-gray-100 rounded ${comment.resolved ? 'text-green-600 hover:text-green-700' : 'text-gray-500 hover:text-gray-700'}`}
+                  title={comment.resolved ? 'Genåbn kommentar' : 'Løs kommentar'}
+                >
+                  {comment.resolved ? <X className="w-4 h-4" /> : <Check className="w-4 h-4" />}
+                </button>
+              )}
+              {comment.user_id === userId && (
+                <>
+                  <button
+                    onClick={() => setIsEditing(true)}
+                    className="p-1 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded"
+                    title="Rediger"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={handleDelete}
+                    className="p-1 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded"
+                    title="Slet"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>
-        
+
         {!comment.resolved && (
           <div className="mt-2">
             <button
@@ -236,6 +255,7 @@ function CommentItem({ comment, userId, projectId, onCommentsChange, level = 0 }
                 comment={reply}
                 userId={userId}
                 projectId={projectId}
+                canEditProject={canEditProject}
                 onCommentsChange={onCommentsChange}
                 level={level + 1}
               />
@@ -247,16 +267,22 @@ function CommentItem({ comment, userId, projectId, onCommentsChange, level = 0 }
   )
 }
 
-export default function ProjectComments({ projectId, userId, comments, onCommentsChange }: ProjectCommentsProps) {
+export default function ProjectComments({
+  projectId,
+  userId,
+  canEditProject,
+  comments,
+  onCommentsChange,
+}: ProjectCommentsProps) {
   const [newComment, setNewComment] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleCreateComment = async () => {
     if (!newComment.trim()) return
-    
+
     setIsSubmitting(true)
     try {
-      await createProjectComment(projectId, userId, newComment.trim())
+      await createProjectCommentApi(projectId, newComment.trim())
       setNewComment('')
       onCommentsChange()
     } catch (error) {
@@ -270,9 +296,7 @@ export default function ProjectComments({ projectId, userId, comments, onComment
     <div className="bg-white rounded-lg border border-gray-200 p-6">
       <div className="flex items-center gap-2 mb-6">
         <MessageCircle className="w-5 h-5 text-gray-600" />
-        <h3 className="text-lg font-semibold text-gray-900">
-          Kommentarer ({comments.length})
-        </h3>
+        <h3 className="text-lg font-semibold text-gray-900">Kommentarer ({comments.length})</h3>
       </div>
 
       <div className="mb-6">
@@ -307,6 +331,7 @@ export default function ProjectComments({ projectId, userId, comments, onComment
                 comment={comment}
                 userId={userId}
                 projectId={projectId}
+                canEditProject={canEditProject}
                 onCommentsChange={onCommentsChange}
               />
             </div>

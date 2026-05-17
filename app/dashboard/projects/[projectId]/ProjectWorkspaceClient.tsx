@@ -52,7 +52,9 @@ import GoogleDesignSprintDiagram from '@/components/dashboard/GoogleDesignSprint
 import ProjectSlidesTab from '@/components/ProjectSlidesTab'
 import ProjectFilesTab from '@/components/ProjectFilesTab'
 import ProjectComments from '@/components/ProjectComments'
-import { getProjectCommentsWithReplies, type ProjectComment } from '@/lib/comments'
+import type { ProjectComment } from '@/lib/comments'
+import { fetchProjectCommentsApi } from '@/lib/comments-api'
+import type { ProjectToolEntry } from '@/components/ProjectBoardSidebar'
 import StickyNoteBodyEditor from '@/components/StickyNoteBodyEditor'
 import StickyRichToolbar from '@/components/StickyRichToolbar'
 import type { StickyNoteFormat } from '@/lib/stickyNoteRichText'
@@ -66,6 +68,13 @@ import {
   stickyFontStack,
 } from '@/lib/stickyNoteRichText'
 import { extractMentionUserIdsFromText, htmlToPlainText } from '@/lib/mentions'
+import {
+  BOARD_ALIGN_THRESHOLD,
+  computeAlignmentSnap,
+  type AlignmentGuide,
+  type BoardSnapExclude,
+  type SnapRect,
+} from '@/lib/board-alignment-guides'
 import {
   AlertTriangle,
   FlaskConical,
@@ -152,6 +161,8 @@ const BOARD_IMAGE_DEFAULT_H = 240
 
 const SECTION_MIN_W = 160
 const SECTION_MIN_H = 100
+const SECTION_FRAME_PADDING = 24
+const BOARD_COMMENT_PIN_SIZE = 42
 /** Ved zoom ≥ denne vises titel + ikon over sektionen (som FigJam); ellers inde i venstre top. */
 const SECTION_TITLE_EXTERNAL_ZOOM = 1.16
 
@@ -631,6 +642,122 @@ function getFreeTextSize(ft: Pick<BoardFreeText, 'width' | 'height'>) {
       ? ft.height
       : FREE_TEXT_DEFAULT_H
   return { w, h }
+}
+
+type WorldBounds = { minX: number; minY: number; maxX: number; maxY: number }
+
+function worldBoundsFromRect(x: number, y: number, w: number, h: number): WorldBounds {
+  return { minX: x, minY: y, maxX: x + w, maxY: y + h }
+}
+
+function unionWorldBounds(a: WorldBounds | null, b: WorldBounds | null): WorldBounds | null {
+  if (!a) return b
+  if (!b) return a
+  return {
+    minX: Math.min(a.minX, b.minX),
+    minY: Math.min(a.minY, b.minY),
+    maxX: Math.max(a.maxX, b.maxX),
+    maxY: Math.max(a.maxY, b.maxY),
+  }
+}
+
+function padWorldBounds(b: WorldBounds, pad: number): WorldBounds {
+  return { minX: b.minX - pad, minY: b.minY - pad, maxX: b.maxX + pad, maxY: b.maxY + pad }
+}
+
+function worldBoundsIntersect(a: WorldBounds, b: WorldBounds): boolean {
+  return a.maxX >= b.minX && a.minX <= b.maxX && a.maxY >= b.minY && a.minY <= b.maxY
+}
+
+function worldBoundsForBoardSection(section: BoardSection): WorldBounds {
+  return worldBoundsFromRect(section.x, section.y, section.width, section.height)
+}
+
+function isWideBoardPreviewSlug(slug: string): boolean {
+  return slug === 'service-blueprint' || slug === 'brugerrejse'
+}
+
+const SECTION_RESIZE_HANDLE_SIZE = 11
+
+function sectionResizeCursor(edge: SectionResizeEdge): CSSProperties['cursor'] {
+  switch (edge) {
+    case 'n':
+    case 's':
+      return 'ns-resize'
+    case 'e':
+    case 'w':
+      return 'ew-resize'
+    case 'ne':
+    case 'sw':
+      return 'nesw-resize'
+    case 'nw':
+    case 'se':
+      return 'nwse-resize'
+    default:
+      return 'default'
+  }
+}
+
+function getSectionResizeHandleStyle(section: BoardSection, edge: SectionResizeEdge): CSSProperties {
+  const hs = SECTION_RESIZE_HANDLE_SIZE
+  const half = hs / 2
+  const { x, y, width: w, height: h } = section
+  const base: CSSProperties = {
+    position: 'absolute',
+    width: hs,
+    height: hs,
+    borderRadius: 3,
+    background: '#fff',
+    border: '2px solid #2563EB',
+    boxSizing: 'border-box',
+    pointerEvents: 'auto',
+    boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
+    cursor: sectionResizeCursor(edge),
+    zIndex: 2,
+  }
+  switch (edge) {
+    case 'nw':
+      return { ...base, left: x - 6, top: y - 6 }
+    case 'n':
+      return { ...base, left: x + w / 2 - half, top: y - 6 }
+    case 'ne':
+      return { ...base, left: x + w - half + 1, top: y - 6 }
+    case 'e':
+      return { ...base, left: x + w - half + 1, top: y + h / 2 - half }
+    case 'se':
+      return { ...base, left: x + w - half + 1, top: y + h - half + 1 }
+    case 's':
+      return { ...base, left: x + w / 2 - half, top: y + h - half + 1 }
+    case 'sw':
+      return { ...base, left: x - 6, top: y + h - half + 1 }
+    case 'w':
+      return { ...base, left: x - 6, top: y + h / 2 - half }
+    default:
+      return base
+  }
+}
+
+/** Sektioner ligger under board-indhold; indhold i sektion får mindst sectionZ + offset. */
+const BOARD_SECTION_Z_BASE = 1
+const BOARD_SECTION_CONTENT_Z_OFFSET = 2
+
+function getBoardSectionZIndex(sectionIndex: number): number {
+  return BOARD_SECTION_Z_BASE + sectionIndex
+}
+
+function resolveBoardZIndex(baseZ: number, sectionContentFloor: number | null): number {
+  if (sectionContentFloor == null) return baseZ
+  return Math.max(baseZ, sectionContentFloor)
+}
+
+type SectionDragContents = {
+  sectionStart: { x: number; y: number }
+  cards: Record<string, { x: number; y: number }>
+  flowNodes: Record<string, { x: number; y: number }>
+  stickyNotes: Record<string, { x: number; y: number }>
+  comments: Record<string, { x: number; y: number }>
+  freeTexts: Record<string, { x: number; y: number }>
+  images: Record<string, { x: number; y: number }>
 }
 
 function clampFreeTextFontSizePx(px: number): number {
@@ -1218,6 +1345,9 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const flowNodeEditorRefs = useRef(new Map<string, HTMLDivElement>())
   const richToolbarTargetRef = useRef<{ kind: 'sticky' | 'flow'; id: string } | null>(null)
   const draggingBoardSection = useRef<string | null>(null)
+  const sectionDragContentsRef = useRef<SectionDragContents | null>(null)
+  const alignmentDragMetaRef = useRef<{ w: number; h: number; exclude: BoardSnapExclude } | null>(null)
+  const [alignmentGuides, setAlignmentGuides] = useState<AlignmentGuide[]>([])
   const sectionResizeRef = useRef<{
     id: string
     edge: SectionResizeEdge
@@ -2076,7 +2206,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   }, [currentUserId, currentUserAvatar, currentUsername, liveChatInput])
 
   const handleChatFileUpload = useCallback(async (files: FileList | null) => {
-    if (!files || files.length === 0 || !projectId) return
+    if (!files || files.length === 0 || !projectId || !canEdit) return
     setLiveChatUploading(true)
     try {
       const attachments: ChatAttachment[] = []
@@ -2099,7 +2229,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       setLiveChatUploading(false)
       if (chatFileInputRef.current) chatFileInputRef.current.value = ''
     }
-  }, [projectId, sendLiveChatMessage])
+  }, [projectId, sendLiveChatMessage, canEdit])
 
   const sendChatReaction = useCallback(async (messageId: string, emoji: string) => {
     const channel = cursorChannelRef.current
@@ -2230,7 +2360,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     if (activeWorkspaceTab === 'comments' && projectId) {
       const loadComments = async () => {
         try {
-          const commentsData = await getProjectCommentsWithReplies(projectId)
+          await fetchProjectCommentsApi(projectId)
         } catch (error) {
           console.error('Error loading comments:', error)
         }
@@ -3127,7 +3257,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
         if (dx * dx + dy * dy > 9) cardDragDidMoveRef.current = true
       }
       const rawPos = { x: worldPoint.x - dragOffset.current.x, y: worldPoint.y - dragOffset.current.y }
-      const newPos = snapPoint(rawPos.x, rawPos.y)
+      const newPos = snapDragPoint(rawPos.x, rawPos.y)
       const g = cardDragGroupRef.current
       if (g && g.primaryId === dragging.current) {
         const s0 = g.startById[g.primaryId]
@@ -3151,7 +3281,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     if (draggingStickyNote.current) {
       const noteId = draggingStickyNote.current
       const rawPos = { x: worldPoint.x - dragOffset.current.x, y: worldPoint.y - dragOffset.current.y }
-      const newPos = snapPoint(rawPos.x, rawPos.y)
+      const newPos = snapDragPoint(rawPos.x, rawPos.y)
       const g = stickyDragGroupRef.current
       if (g && g.primaryId === noteId) {
         const s0 = g.startById[noteId]
@@ -3174,13 +3304,84 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     if (draggingBoardSection.current) {
       const sectionId = draggingBoardSection.current
       const rawPos = { x: worldPoint.x - dragOffset.current.x, y: worldPoint.y - dragOffset.current.y }
-      const newPos = snapPoint(rawPos.x, rawPos.y)
-      setBoardSections(prev => prev.map(section => (section.id === sectionId ? { ...section, x: newPos.x, y: newPos.y } : section)))
+      const newPos = snapDragPoint(rawPos.x, rawPos.y)
+      const payload = sectionDragContentsRef.current
+      if (payload) {
+        const dx = newPos.x - payload.sectionStart.x
+        const dy = newPos.y - payload.sectionStart.y
+        setBoardSections(prev =>
+          prev.map(section => (section.id === sectionId ? { ...section, x: newPos.x, y: newPos.y } : section))
+        )
+        if (Object.keys(payload.cards).length > 0) {
+          setCardPositions(prev => {
+            const next = { ...prev }
+            for (const [slug, start] of Object.entries(payload.cards)) {
+              const p = snapPoint(start.x + dx, start.y + dy)
+              next[slug] = { ...(next[slug] ?? {}), x: p.x, y: p.y }
+            }
+            return next
+          })
+        }
+        if (Object.keys(payload.flowNodes).length > 0) {
+          setFlowNodes(prev =>
+            prev.map(node => {
+              const start = payload.flowNodes[node.id]
+              if (!start) return node
+              const p = snapPoint(start.x + dx, start.y + dy)
+              return { ...node, x: p.x, y: p.y }
+            })
+          )
+        }
+        if (Object.keys(payload.stickyNotes).length > 0) {
+          setStickyNotes(prev =>
+            prev.map(note => {
+              const start = payload.stickyNotes[note.id]
+              if (!start) return note
+              const p = snapPoint(start.x + dx, start.y + dy)
+              return { ...note, x: p.x, y: p.y }
+            })
+          )
+        }
+        if (Object.keys(payload.freeTexts).length > 0) {
+          setBoardFreeTexts(prev =>
+            prev.map(ft => {
+              const start = payload.freeTexts[ft.id]
+              if (!start) return ft
+              const p = snapPoint(start.x + dx, start.y + dy)
+              return { ...ft, x: p.x, y: p.y }
+            })
+          )
+        }
+        if (Object.keys(payload.comments).length > 0) {
+          setBoardComments(prev =>
+            prev.map(comment => {
+              const start = payload.comments[comment.id]
+              if (!start) return comment
+              const p = snapPoint(start.x + dx, start.y + dy)
+              return { ...comment, x: p.x, y: p.y }
+            })
+          )
+        }
+        if (Object.keys(payload.images).length > 0) {
+          setBoardImages(prev =>
+            prev.map(image => {
+              const start = payload.images[image.id]
+              if (!start) return image
+              const p = snapPoint(start.x + dx, start.y + dy)
+              return { ...image, x: p.x, y: p.y }
+            })
+          )
+        }
+      } else {
+        setBoardSections(prev =>
+          prev.map(section => (section.id === sectionId ? { ...section, x: newPos.x, y: newPos.y } : section))
+        )
+      }
     }
     if (draggingBoardImage.current) {
       const imageId = draggingBoardImage.current
       const rawPos = { x: worldPoint.x - dragOffset.current.x, y: worldPoint.y - dragOffset.current.y }
-      const newPos = snapPoint(rawPos.x, rawPos.y)
+      const newPos = snapDragPoint(rawPos.x, rawPos.y)
       const g = imageDragGroupRef.current
       if (g && g.primaryId === imageId) {
         const s0 = g.startById[imageId]
@@ -3203,13 +3404,13 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     if (draggingBoardComment.current) {
       const commentId = draggingBoardComment.current
       const rawPos = { x: worldPoint.x - dragOffset.current.x, y: worldPoint.y - dragOffset.current.y }
-      const newPos = snapPoint(rawPos.x, rawPos.y)
+      const newPos = snapDragPoint(rawPos.x, rawPos.y)
       setBoardComments(prev => prev.map(comment => (comment.id === commentId ? { ...comment, x: newPos.x, y: newPos.y } : comment)))
     }
     if (draggingBoardFreeText.current) {
       const ftId = draggingBoardFreeText.current
       const rawPos = { x: worldPoint.x - dragOffset.current.x, y: worldPoint.y - dragOffset.current.y }
-      const newPos = snapPoint(rawPos.x, rawPos.y)
+      const newPos = snapDragPoint(rawPos.x, rawPos.y)
       const g = freeTextDragGroupRef.current
       if (g && g.primaryId === ftId) {
         const s0 = g.startById[ftId]
@@ -3235,7 +3436,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
         x: worldPoint.x - dragOffset.current.x,
         y: worldPoint.y - dragOffset.current.y,
       }
-      const snapped = snapPoint(rawPos.x, rawPos.y)
+      const snapped = snapDragPoint(rawPos.x, rawPos.y)
       const g = flowDragGroupRef.current
       if (g && g.primaryId === nodeId) {
         const s0 = g.startById[nodeId]
@@ -3369,13 +3570,12 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
         ))
         .map(box => box.id)
 
-      const COMMENT_PIN_SIZE = 42
       const selectedCommentIdsFromBox = boardComments
         .filter(c => !c.parentId && !c.resolved)
         .filter(c => (
-          c.x + COMMENT_PIN_SIZE >= minX &&
+          c.x + BOARD_COMMENT_PIN_SIZE >= minX &&
           c.x <= maxX &&
-          c.y + COMMENT_PIN_SIZE >= minY &&
+          c.y + BOARD_COMMENT_PIN_SIZE >= minY &&
           c.y <= maxY
         ))
         .map(c => c.id)
@@ -3500,9 +3700,20 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       })
     }
     if (draggingBoardSection.current) {
+      const movedCards =
+        sectionDragContentsRef.current != null && Object.keys(sectionDragContentsRef.current.cards).length > 0
       draggingBoardSection.current = null
+      sectionDragContentsRef.current = null
       setActiveSectionDragId(null)
-      persistFlowchart(flowNodes, flowEdges, stickyNotes, boardSections, boardComments)
+      if (movedCards) {
+        setCardPositions(prev => {
+          if (saveTimer.current) clearTimeout(saveTimer.current)
+          saveTimer.current = setTimeout(() => persistLayout(prev), 800)
+          void broadcastBoardRefresh()
+          return prev
+        })
+      }
+      persistFlowchart(flowNodes, flowEdges, stickyNotes, boardSections, boardComments, boardImages, boardFreeTexts)
     }
     if (draggingBoardImage.current) {
       draggingBoardImage.current = null
@@ -3559,6 +3770,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       }
       setEdgeDraft(null)
     }
+    clearAlignmentGuides()
   }
 
   const zoomAtPoint = (clientX: number, clientY: number, factor: number) => {
@@ -3626,6 +3838,14 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     cardDragGroupRef.current = { ids: moveSlugs, primaryId: slug, startById }
     cardDragPointerStartRef.current = { x: e.clientX, y: e.clientY }
     cardDragDidMoveRef.current = false
+
+    const cardEl = cardElementRefs.current[slug]
+    const isWide = isWideBoardPreviewSlug(slug)
+    alignmentDragMetaRef.current = {
+      w: cardEl?.offsetWidth ?? (isWide ? 980 : 680),
+      h: cardEl?.offsetHeight ?? (isWide ? 620 : 400),
+      exclude: { cardSlugs: moveSlugs },
+    }
 
     setCardPositions(p => {
       const next = { ...p }
@@ -4005,6 +4225,12 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     const my = (e.clientY - rect.top - pan.y) / zoom
     dragOffset.current = { x: mx - dragNode.x, y: my - dragNode.y }
     draggingFlowNode.current = primaryDragId
+    const flowDim = getFlowNodeDimensions(dragNode)
+    alignmentDragMetaRef.current = {
+      w: flowDim.width,
+      h: flowDim.height,
+      exclude: { flowNodeIds: moveIds },
+    }
     e.preventDefault()
   }
 
@@ -4099,6 +4325,12 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     const my = (source.clientY - rect.top - pan.y) / zoom
     dragOffset.current = { x: mx - dragNote.x, y: my - dragNote.y }
     draggingStickyNote.current = primaryDragId
+    const { w, h } = getStickyNoteSize(dragNote)
+    alignmentDragMetaRef.current = {
+      w,
+      h,
+      exclude: { stickyNoteIds: moveIds },
+    }
   }
 
   const onStickyNoteCardMouseDown = (e: React.MouseEvent, noteId: string) => {
@@ -4265,6 +4497,12 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     const my = (e.clientY - rect.top - pan.y) / zoom
     dragOffset.current = { x: mx - section.x, y: my - section.y }
     draggingBoardSection.current = dragSectionId
+    sectionDragContentsRef.current = buildSectionDragContents(section)
+    alignmentDragMetaRef.current = {
+      w: section.width,
+      h: section.height,
+      exclude: { sectionIds: [dragSectionId] },
+    }
     setActiveSectionDragId(dragSectionId)
     e.preventDefault()
   }
@@ -4330,6 +4568,11 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     const my = (e.clientY - rect.top - pan.y) / zoom
     dragOffset.current = { x: mx - comment.x, y: my - comment.y }
     draggingBoardComment.current = dragCommentId
+    alignmentDragMetaRef.current = {
+      w: BOARD_COMMENT_PIN_SIZE,
+      h: BOARD_COMMENT_PIN_SIZE,
+      exclude: { commentIds: [dragCommentId] },
+    }
     e.preventDefault()
   }
 
@@ -4435,6 +4678,12 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     const my = (source.clientY - rect.top - pan.y) / zoom
     dragOffset.current = { x: mx - dragFt.x, y: my - dragFt.y }
     draggingBoardFreeText.current = primaryDragId
+    const ftSize = getFreeTextSize(dragFt)
+    alignmentDragMetaRef.current = {
+      w: ftSize.w,
+      h: ftSize.h,
+      exclude: { freeTextIds: moveIds },
+    }
   }
 
   const onFreeTextMouseDown = (e: React.MouseEvent, freeTextId: string) => {
@@ -4601,6 +4850,11 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     const my = (e.clientY - rect.top - pan.y) / zoom
     dragOffset.current = { x: mx - dragIm.x, y: my - dragIm.y }
     draggingBoardImage.current = primaryDragId
+    alignmentDragMetaRef.current = {
+      w: dragIm.width,
+      h: dragIm.height,
+      exclude: { imageIds: moveIds },
+    }
     e.preventDefault()
   }
 
@@ -4767,6 +5021,201 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     setSelectedStickyNoteIds([note.id])
   }
 
+  const getSelectionWorldBounds = useCallback((): WorldBounds | null => {
+    let bounds: WorldBounds | null = null
+    const add = (b: WorldBounds) => {
+      bounds = unionWorldBounds(bounds, b)
+    }
+    const toolIds = project?.toolIds ?? []
+    selectedCardSlugs.forEach(slug => {
+      const idx = toolIds.indexOf(slug)
+      const pos = cardPositions[slug] || defaultPos(slug, idx >= 0 ? idx : 0)
+      const cardEl = cardElementRefs.current[slug]
+      const isWide = isWideBoardPreviewSlug(slug)
+      const w = cardEl?.offsetWidth ?? (isWide ? 980 : 680)
+      const h = cardEl?.offsetHeight ?? (isWide ? 620 : 400)
+      add(worldBoundsFromRect(pos.x, pos.y, w, h))
+    })
+    selectedFlowNodeIds.forEach(id => {
+      const node = flowNodes.find(n => n.id === id)
+      if (!node) return
+      const dim = getFlowNodeDimensions(node)
+      add(worldBoundsFromRect(node.x, node.y, dim.width, dim.height))
+    })
+    selectedStickyNoteIds.forEach(id => {
+      const note = stickyNotes.find(n => n.id === id)
+      if (!note) return
+      const { w, h } = getStickyNoteSize(note)
+      add(worldBoundsFromRect(note.x, note.y, w, h))
+    })
+    selectedFreeTextIds.forEach(id => {
+      const ft = boardFreeTexts.find(t => t.id === id)
+      if (!ft) return
+      const { w, h } = getFreeTextSize(ft)
+      add(worldBoundsFromRect(ft.x, ft.y, w, h))
+    })
+    selectedCommentIds.forEach(id => {
+      const comment = boardComments.find(c => c.id === id)
+      if (!comment) return
+      add(worldBoundsFromRect(comment.x, comment.y, BOARD_COMMENT_PIN_SIZE, BOARD_COMMENT_PIN_SIZE))
+    })
+    selectedImageIds.forEach(id => {
+      const image = boardImages.find(im => im.id === id)
+      if (!image) return
+      add(worldBoundsFromRect(image.x, image.y, image.width, image.height))
+    })
+    return bounds
+  }, [
+    project?.toolIds,
+    selectedCardSlugs,
+    selectedFlowNodeIds,
+    selectedStickyNoteIds,
+    selectedFreeTextIds,
+    selectedCommentIds,
+    selectedImageIds,
+    cardPositions,
+    defaultPos,
+    flowNodes,
+    stickyNotes,
+    boardFreeTexts,
+    boardComments,
+    boardImages,
+  ])
+
+  const buildSectionDragContents = useCallback((section: BoardSection): SectionDragContents => {
+    const box = worldBoundsForBoardSection(section)
+    const payload: SectionDragContents = {
+      sectionStart: { x: section.x, y: section.y },
+      cards: {},
+      flowNodes: {},
+      stickyNotes: {},
+      comments: {},
+      freeTexts: {},
+      images: {},
+    }
+    const toolIds = project?.toolIds ?? []
+    toolIds.forEach((slug, idx) => {
+      if (BOARD_EXCLUDED_TOOL_SLUGS.has(slug)) return
+      const pos = cardPositions[slug] || defaultPos(slug, idx)
+      const cardEl = cardElementRefs.current[slug]
+      const isWide = isWideBoardPreviewSlug(slug)
+      const w = cardEl?.offsetWidth ?? (isWide ? 980 : 680)
+      const h = cardEl?.offsetHeight ?? (isWide ? 620 : 400)
+      const cardBox = worldBoundsFromRect(pos.x, pos.y, w, h)
+      if (worldBoundsIntersect(box, cardBox)) {
+        payload.cards[slug] = { x: pos.x, y: pos.y }
+      }
+    })
+    flowNodes.forEach(node => {
+      const dim = getFlowNodeDimensions(node)
+      const nodeBox = worldBoundsFromRect(node.x, node.y, dim.width, dim.height)
+      if (worldBoundsIntersect(box, nodeBox)) {
+        payload.flowNodes[node.id] = { x: node.x, y: node.y }
+      }
+    })
+    stickyNotes.forEach(note => {
+      const { w, h } = getStickyNoteSize(note)
+      const noteBox = worldBoundsFromRect(note.x, note.y, w, h)
+      if (worldBoundsIntersect(box, noteBox)) {
+        payload.stickyNotes[note.id] = { x: note.x, y: note.y }
+      }
+    })
+    boardFreeTexts.forEach(ft => {
+      const { w, h } = getFreeTextSize(ft)
+      const ftBox = worldBoundsFromRect(ft.x, ft.y, w, h)
+      if (worldBoundsIntersect(box, ftBox)) {
+        payload.freeTexts[ft.id] = { x: ft.x, y: ft.y }
+      }
+    })
+    boardComments
+      .filter(c => !c.parentId && !c.resolved)
+      .forEach(comment => {
+        const commentBox = worldBoundsFromRect(
+          comment.x,
+          comment.y,
+          BOARD_COMMENT_PIN_SIZE,
+          BOARD_COMMENT_PIN_SIZE
+        )
+        if (worldBoundsIntersect(box, commentBox)) {
+          payload.comments[comment.id] = { x: comment.x, y: comment.y }
+        }
+      })
+    boardImages.forEach(image => {
+      const imageBox = worldBoundsFromRect(image.x, image.y, image.width, image.height)
+      if (worldBoundsIntersect(box, imageBox)) {
+        payload.images[image.id] = { x: image.x, y: image.y }
+      }
+    })
+    return payload
+  }, [project?.toolIds, cardPositions, defaultPos, flowNodes, stickyNotes, boardFreeTexts, boardComments, boardImages])
+
+  const getSectionContentUnionBounds = useCallback(
+    (section: BoardSection): WorldBounds | null => {
+      const box = worldBoundsForBoardSection(section)
+      let bounds: WorldBounds | null = null
+      const add = (b: WorldBounds) => {
+        bounds = unionWorldBounds(bounds, b)
+      }
+      const toolIds = project?.toolIds ?? []
+      toolIds.forEach((slug, idx) => {
+        if (BOARD_EXCLUDED_TOOL_SLUGS.has(slug)) return
+        const pos = cardPositions[slug] || defaultPos(slug, idx)
+        const cardEl = cardElementRefs.current[slug]
+        const isWide = isWideBoardPreviewSlug(slug)
+        const w = cardEl?.offsetWidth ?? (isWide ? 980 : 680)
+        const h = cardEl?.offsetHeight ?? (isWide ? 620 : 400)
+        const cardBox = worldBoundsFromRect(pos.x, pos.y, w, h)
+        if (worldBoundsIntersect(box, cardBox)) add(cardBox)
+      })
+      flowNodes.forEach(node => {
+        const dim = getFlowNodeDimensions(node)
+        const nodeBox = worldBoundsFromRect(node.x, node.y, dim.width, dim.height)
+        if (worldBoundsIntersect(box, nodeBox)) add(nodeBox)
+      })
+      stickyNotes.forEach(note => {
+        const { w, h } = getStickyNoteSize(note)
+        const noteBox = worldBoundsFromRect(note.x, note.y, w, h)
+        if (worldBoundsIntersect(box, noteBox)) add(noteBox)
+      })
+      boardFreeTexts.forEach(ft => {
+        const { w, h } = getFreeTextSize(ft)
+        const ftBox = worldBoundsFromRect(ft.x, ft.y, w, h)
+        if (worldBoundsIntersect(box, ftBox)) add(ftBox)
+      })
+      boardComments
+        .filter(c => !c.parentId && !c.resolved)
+        .forEach(comment => {
+          const commentBox = worldBoundsFromRect(
+            comment.x,
+            comment.y,
+            BOARD_COMMENT_PIN_SIZE,
+            BOARD_COMMENT_PIN_SIZE
+          )
+          if (worldBoundsIntersect(box, commentBox)) add(commentBox)
+        })
+      boardImages.forEach(image => {
+        const imageBox = worldBoundsFromRect(image.x, image.y, image.width, image.height)
+        if (worldBoundsIntersect(box, imageBox)) add(imageBox)
+      })
+      return bounds
+    },
+    [project?.toolIds, cardPositions, defaultPos, flowNodes, stickyNotes, boardFreeTexts, boardComments, boardImages]
+  )
+
+  const getSectionContentZFloor = useCallback(
+    (bounds: WorldBounds): number | null => {
+      let floor: number | null = null
+      boardSections.forEach((section, sIdx) => {
+        const sectionBox = worldBoundsForBoardSection(section)
+        if (!worldBoundsIntersect(sectionBox, bounds)) return
+        const contentZ = getBoardSectionZIndex(sIdx) + BOARD_SECTION_CONTENT_Z_OFFSET
+        floor = floor == null ? contentZ : Math.max(floor, contentZ)
+      })
+      return floor
+    },
+    [boardSections]
+  )
+
   const addBoardSection = (
     at?: { x: number; y: number } | { x: number; y: number; width: number; height: number }
   ) => {
@@ -4775,10 +5224,21 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     const fallbackX = canvasRect ? (canvasRect.width / 2 - pan.x) / zoom : 220
     const fallbackY = canvasRect ? (canvasRect.height / 2 - pan.y) / zoom : 220
 
+    const selectionBounds = getSelectionWorldBounds()
+    let finalBounds: WorldBounds | null = null
     if (at && 'width' in at && 'height' in at) {
-      const pos = snapPoint(at.x, at.y)
-      let w = Math.max(SECTION_MIN_W, at.width)
-      let h = Math.max(SECTION_MIN_H, at.height)
+      finalBounds = worldBoundsFromRect(at.x, at.y, at.width, at.height)
+      if (selectionBounds) {
+        finalBounds = unionWorldBounds(finalBounds, padWorldBounds(selectionBounds, SECTION_FRAME_PADDING))
+      }
+    } else if (selectionBounds) {
+      finalBounds = padWorldBounds(selectionBounds, SECTION_FRAME_PADDING)
+    }
+
+    if (finalBounds) {
+      const pos = snapPoint(finalBounds.minX, finalBounds.minY)
+      let w = Math.max(SECTION_MIN_W, finalBounds.maxX - finalBounds.minX)
+      let h = Math.max(SECTION_MIN_H, finalBounds.maxY - finalBounds.minY)
       if (snapToGrid) {
         w = Math.max(SECTION_MIN_W, Math.round(w / GRID_SIZE) * GRID_SIZE)
         h = Math.max(SECTION_MIN_H, Math.round(h / GRID_SIZE) * GRID_SIZE)
@@ -6045,6 +6505,153 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     }
   }
 
+  const buildAlignmentTargets = useCallback(
+    (exclude: BoardSnapExclude): SnapRect[] => {
+      const excludedCards = new Set(exclude.cardSlugs ?? [])
+      const excludedFlow = new Set(exclude.flowNodeIds ?? [])
+      const excludedSticky = new Set(exclude.stickyNoteIds ?? [])
+      const excludedSections = new Set(exclude.sectionIds ?? [])
+      const excludedComments = new Set(exclude.commentIds ?? [])
+      const excludedFreeText = new Set(exclude.freeTextIds ?? [])
+      const excludedImages = new Set(exclude.imageIds ?? [])
+      const targets: SnapRect[] = []
+
+      const toolIds = project?.toolIds ?? []
+      toolIds.forEach((slug, idx) => {
+        if (BOARD_EXCLUDED_TOOL_SLUGS.has(slug) || excludedCards.has(slug)) return
+        const pos = cardPositions[slug] || defaultPos(slug, idx)
+        const cardEl = cardElementRefs.current[slug]
+        const isWide = isWideBoardPreviewSlug(slug)
+        const w = cardEl?.offsetWidth ?? (isWide ? 980 : 680)
+        const h = cardEl?.offsetHeight ?? (isWide ? 620 : 400)
+        targets.push({ left: pos.x, top: pos.y, width: w, height: h })
+      })
+
+      flowNodes.forEach(node => {
+        if (excludedFlow.has(node.id)) return
+        const dim = getFlowNodeDimensions(node)
+        targets.push({ left: node.x, top: node.y, width: dim.width, height: dim.height })
+      })
+
+      stickyNotes.forEach(note => {
+        if (excludedSticky.has(note.id)) return
+        const { w, h } = getStickyNoteSize(note)
+        targets.push({ left: note.x, top: note.y, width: w, height: h })
+      })
+
+      boardFreeTexts.forEach(ft => {
+        if (excludedFreeText.has(ft.id)) return
+        const { w, h } = getFreeTextSize(ft)
+        targets.push({ left: ft.x, top: ft.y, width: w, height: h })
+      })
+
+      boardImages.forEach(image => {
+        if (excludedImages.has(image.id)) return
+        targets.push({ left: image.x, top: image.y, width: image.width, height: image.height })
+      })
+
+      boardSections.forEach(section => {
+        if (excludedSections.has(section.id)) return
+        targets.push({ left: section.x, top: section.y, width: section.width, height: section.height })
+      })
+
+      boardComments
+        .filter(c => !c.parentId && !c.resolved && !excludedComments.has(c.id))
+        .forEach(comment => {
+          targets.push({
+            left: comment.x,
+            top: comment.y,
+            width: BOARD_COMMENT_PIN_SIZE,
+            height: BOARD_COMMENT_PIN_SIZE,
+          })
+        })
+
+      return targets
+    },
+    [
+      project?.toolIds,
+      cardPositions,
+      defaultPos,
+      flowNodes,
+      stickyNotes,
+      boardFreeTexts,
+      boardImages,
+      boardSections,
+      boardComments,
+    ]
+  )
+
+  const snapDragPoint = useCallback(
+    (x: number, y: number) => {
+      const meta = alignmentDragMetaRef.current
+      if (!meta) return snapPoint(x, y)
+      const targets = buildAlignmentTargets(meta.exclude)
+      const alignThreshold = BOARD_ALIGN_THRESHOLD / Math.max(0.25, zoom)
+      const { x: ax, y: ay, guides } = computeAlignmentSnap(x, y, meta.w, meta.h, targets, alignThreshold)
+      setAlignmentGuides(guides)
+      const hasXGuide = guides.some(g => g.orientation === 'vertical')
+      const hasYGuide = guides.some(g => g.orientation === 'horizontal')
+      return {
+        x: snapToGrid && !hasXGuide ? Math.round(ax / GRID_SIZE) * GRID_SIZE : ax,
+        y: snapToGrid && !hasYGuide ? Math.round(ay / GRID_SIZE) * GRID_SIZE : ay,
+      }
+    },
+    [buildAlignmentTargets, snapToGrid, GRID_SIZE, zoom]
+  )
+
+  const clearAlignmentGuides = useCallback(() => {
+    alignmentDragMetaRef.current = null
+    setAlignmentGuides([])
+  }, [])
+
+  const expandSectionsToFitContents = useCallback(
+    (sectionIds: string[]) => {
+      if (!canEdit || sectionIds.length === 0) return
+      const idSet = new Set(sectionIds)
+      setBoardSections(prev => {
+        const next = prev.map(section => {
+          if (!idSet.has(section.id)) return section
+          const sectionBox = worldBoundsForBoardSection(section)
+          const contentBox = getSectionContentUnionBounds(section)
+          const merged: WorldBounds = contentBox
+            ? (unionWorldBounds(sectionBox, contentBox) ?? sectionBox)
+            : sectionBox
+          const padded = padWorldBounds(merged, SECTION_FRAME_PADDING)
+          const pos = snapToGrid
+            ? {
+                x: Math.round(padded.minX / GRID_SIZE) * GRID_SIZE,
+                y: Math.round(padded.minY / GRID_SIZE) * GRID_SIZE,
+              }
+            : { x: padded.minX, y: padded.minY }
+          let w = Math.max(SECTION_MIN_W, padded.maxX - padded.minX)
+          let h = Math.max(SECTION_MIN_H, padded.maxY - padded.minY)
+          if (snapToGrid) {
+            w = Math.max(SECTION_MIN_W, Math.round(w / GRID_SIZE) * GRID_SIZE)
+            h = Math.max(SECTION_MIN_H, Math.round(h / GRID_SIZE) * GRID_SIZE)
+          }
+          return { ...section, x: pos.x, y: pos.y, width: w, height: h }
+        })
+        persistFlowchart(flowNodes, flowEdges, stickyNotes, next, boardComments)
+        return next
+      })
+    },
+    [
+      canEdit,
+      getSectionContentUnionBounds,
+      snapToGrid,
+      GRID_SIZE,
+      flowNodes,
+      flowEdges,
+      stickyNotes,
+      boardComments,
+      persistFlowchart,
+    ]
+  )
+
+  const expandSelectedSectionsToFitContents = () => {
+    expandSectionsToFitContents(selectedSectionIds)
+  }
+
   const getNodeAtWorldPoint = (x: number, y: number, excludeNodeId?: string) => {
     for (let i = flowNodes.length - 1; i >= 0; i--) {
       const node = flowNodes[i]
@@ -6439,7 +7046,12 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
 
   // ── Derived data ───────────────────────────────────────────────────
   const allowed = new Set<string>(TOOL_SLUGS as readonly string[])
-  const projectTools = project.toolIds.map(id => ({ slug: id, tool: getVaerktoejBySlug(id) })).filter(x => x.tool)
+  const projectTools: ProjectToolEntry[] = project.toolIds
+    .map((id) => {
+      const tool = getVaerktoejBySlug(id)
+      return tool ? { slug: id, tool } : null
+    })
+    .filter((entry): entry is ProjectToolEntry => entry !== null)
   const boardTools = projectTools.filter(({ slug }) => !BOARD_EXCLUDED_TOOL_SLUGS.has(slug))
   const planningTools = projectTools.filter(({ slug }) => BOARD_EXCLUDED_TOOL_SLUGS.has(slug))
   // Sidebaren er permanent (altid synlig) fordi PDF-indgangen altid skal være tilgængelig.
@@ -6539,6 +7151,24 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const lastUpdated = project.updatedAt ? new Date(project.updatedAt).toLocaleString('da-DK') : '–'
   const flowNodeMap = new Map(flowNodes.map(node => [node.id, node]))
   const visibleFlowEdges = flowEdges.filter(edge => flowNodeMap.has(edge.from) && flowNodeMap.has(edge.to))
+  let flowEdgeZFloor: number | null = null
+  visibleFlowEdges.forEach(edge => {
+    const fromNode = flowNodeMap.get(edge.from)
+    const toNode = flowNodeMap.get(edge.to)
+    if (!fromNode || !toNode) return
+    const fromDim = getFlowNodeDimensions(fromNode)
+    const toDim = getFlowNodeDimensions(toNode)
+    const edgeBounds: WorldBounds = {
+      minX: Math.min(fromNode.x, toNode.x),
+      minY: Math.min(fromNode.y, toNode.y),
+      maxX: Math.max(fromNode.x + fromDim.width, toNode.x + toDim.width),
+      maxY: Math.max(fromNode.y + fromDim.height, toNode.y + toDim.height),
+    }
+    const edgeFloor = getSectionContentZFloor(edgeBounds)
+    if (edgeFloor != null) {
+      flowEdgeZFloor = flowEdgeZFloor == null ? edgeFloor : Math.max(flowEdgeZFloor, edgeFloor)
+    }
+  })
   const hasKanbanTool = planningTools.some(tool => tool.slug === 'kanban')
   const hasGanttTool = planningTools.some(tool => tool.slug === 'gantt-chart')
   const SurveyTemplateComponent = getToolComponent('survey-template')
@@ -7811,36 +8441,6 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
 
           {boardSections.map((section, sIdx) => {
             const isSelected = selectedSectionIds.includes(section.id)
-            const sectionResizeCursor = (edge: SectionResizeEdge): CSSProperties['cursor'] => {
-              switch (edge) {
-                case 'n':
-                case 's':
-                  return 'ns-resize'
-                case 'e':
-                case 'w':
-                  return 'ew-resize'
-                case 'ne':
-                case 'sw':
-                  return 'nesw-resize'
-                case 'nw':
-                case 'se':
-                  return 'nwse-resize'
-                default:
-                  return 'default'
-              }
-            }
-            const resizeHandleStyle = (edge: SectionResizeEdge): CSSProperties => ({
-              position: 'absolute',
-              width: 11,
-              height: 11,
-              borderRadius: 3,
-              background: '#fff',
-              border: '2px solid #2563EB',
-              boxSizing: 'border-box',
-              zIndex: 6,
-              cursor: sectionResizeCursor(edge),
-              boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
-            })
             const titleOutside = zoom >= SECTION_TITLE_EXTERNAL_ZOOM
             const sectionBorder = isSelected ? '2px solid #2563EB' : '1px solid #E5E7EB'
             const sectionTitleInputStyle: CSSProperties = {
@@ -7923,7 +8523,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                   top: section.y,
                   width: section.width,
                   height: section.height,
-                  zIndex: (isSelected ? 18 : 10) + sIdx,
+                  zIndex: getBoardSectionZIndex(sIdx),
                   cursor:
                     activeSectionDragId === section.id
                       ? 'grabbing'
@@ -7983,50 +8583,6 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                     </div>
                   )}
                   <div style={{ flex: 1, minHeight: 0, background: '#FFFFFF' }} />
-                  {isSelected && canEdit && (
-                    <>
-                      <div
-                        data-section-resize="nw"
-                        onMouseDown={e => onSectionResizeMouseDown(e, section.id, 'nw')}
-                        style={{ ...resizeHandleStyle('nw'), left: -6, top: -6 }}
-                      />
-                      <div
-                        data-section-resize="n"
-                        onMouseDown={e => onSectionResizeMouseDown(e, section.id, 'n')}
-                        style={{ ...resizeHandleStyle('n'), left: '50%', top: -6, transform: 'translateX(-50%)' }}
-                      />
-                      <div
-                        data-section-resize="ne"
-                        onMouseDown={e => onSectionResizeMouseDown(e, section.id, 'ne')}
-                        style={{ ...resizeHandleStyle('ne'), right: -6, top: -6 }}
-                      />
-                      <div
-                        data-section-resize="w"
-                        onMouseDown={e => onSectionResizeMouseDown(e, section.id, 'w')}
-                        style={{ ...resizeHandleStyle('w'), left: -6, top: '50%', transform: 'translateY(-50%)' }}
-                      />
-                      <div
-                        data-section-resize="e"
-                        onMouseDown={e => onSectionResizeMouseDown(e, section.id, 'e')}
-                        style={{ ...resizeHandleStyle('e'), right: -6, top: '50%', transform: 'translateY(-50%)' }}
-                      />
-                      <div
-                        data-section-resize="sw"
-                        onMouseDown={e => onSectionResizeMouseDown(e, section.id, 'sw')}
-                        style={{ ...resizeHandleStyle('sw'), left: -6, bottom: -6 }}
-                      />
-                      <div
-                        data-section-resize="s"
-                        onMouseDown={e => onSectionResizeMouseDown(e, section.id, 's')}
-                        style={{ ...resizeHandleStyle('s'), left: '50%', bottom: -6, transform: 'translateX(-50%)' }}
-                      />
-                      <div
-                        data-section-resize="se"
-                        onMouseDown={e => onSectionResizeMouseDown(e, section.id, 'se')}
-                        style={{ ...resizeHandleStyle('se'), right: -6, bottom: -6 }}
-                      />
-                    </>
-                  )}
                 </div>
               </div>
             )
@@ -8034,6 +8590,10 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
 
           {boardImages.map((im, imIdx) => {
             const isSelected = selectedImageIds.includes(im.id)
+            const imageZ = resolveBoardZIndex(
+              52 + imIdx,
+              getSectionContentZFloor(worldBoundsFromRect(im.x, im.y, im.width, im.height))
+            )
             return (
               <div
                 key={im.id}
@@ -8053,7 +8613,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                   top: im.y,
                   width: im.width,
                   height: im.height,
-                  zIndex: 52 + imIdx,
+                  zIndex: imageZ,
                   borderRadius: 10,
                   border: isSelected ? '2px solid #2563EB' : '1px solid #E5E7EB',
                   background: '#fff',
@@ -8082,7 +8642,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                   inset: 0,
                   overflow: 'visible',
                   pointerEvents: 'none',
-                  zIndex: 2,
+                  zIndex: resolveBoardZIndex(2, flowEdgeZFloor),
                 }}
               >
                 <defs>
@@ -8126,6 +8686,10 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                 const isSelected = selectedFlowNodeIds.includes(node.id)
                 const showConnectors = hoveredFlowNodeId === node.id || isSelected || isLinkSource
                 const dim = getFlowNodeDimensions(node)
+                const flowNodeZ = resolveBoardZIndex(
+                  3,
+                  getSectionContentZFloor(worldBoundsFromRect(node.x, node.y, dim.width, dim.height))
+                )
                 const isDecisionShape = node.shape === 'decision'
                 /** Diamant er smal mod spidser — lodrette indryk så tekst ligger i det bredere midterbånd */
                 const diamondPadV = isDecisionShape ? Math.max(14, Math.round(dim.height * 0.33)) : 0
@@ -8141,7 +8705,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                       top: node.y,
                       width: dim.width,
                       height: dim.height,
-                      zIndex: 3,
+                      zIndex: flowNodeZ,
                       transform: 'translateZ(0)',
                       userSelect: 'none',
                       overflow: 'visible',
@@ -8332,6 +8896,10 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
             const author = (note.createdBy || currentUsername || 'Dig').trim() || 'Dig'
             const noteFormat = mergeStickyFormat(note.format, {})
             const { w: stickyW, h: stickyH } = getStickyNoteSize(note)
+            const stickyZ = resolveBoardZIndex(
+              4,
+              getSectionContentZFloor(worldBoundsFromRect(note.x, note.y, stickyW, stickyH))
+            )
             const stickyPlusStyle: CSSProperties = {
               position: 'absolute',
               width: 28,
@@ -8385,7 +8953,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                     : isSelected
                       ? '0 0 0 2px #2563EB, 4px 6px 18px rgba(0,0,0,0.14), 2px 3px 8px rgba(0,0,0,0.08)'
                       : '4px 6px 18px rgba(0,0,0,0.12), 2px 3px 8px rgba(0,0,0,0.07)',
-                  zIndex: 4,
+                  zIndex: stickyZ,
                   display: 'flex',
                   flexDirection: 'column',
                   cursor: canEdit ? 'grab' : 'default',
@@ -8576,6 +9144,10 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
           {boardFreeTexts.map(ft => {
             const isSelected = selectedFreeTextIds.includes(ft.id)
             const { w: ftW, h: ftH } = getFreeTextSize(ft)
+            const freeTextZ = resolveBoardZIndex(
+              4,
+              getSectionContentZFloor(worldBoundsFromRect(ft.x, ft.y, ftW, ftH))
+            )
             const fontPx = getFreeTextFontSizePx(ft)
             const ftResizeBtn: CSSProperties = {
               position: 'absolute',
@@ -8604,7 +9176,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                   top: ft.y,
                   width: ftW,
                   height: ftH,
-                  zIndex: 4,
+                  zIndex: freeTextZ,
                   boxSizing: 'border-box',
                   borderRadius: 0,
                   border: 'none',
@@ -8689,6 +9261,10 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
 
           {boardComments.filter(comment => !comment.parentId && !comment.resolved).map(comment => {
             const isSelected = selectedCommentIds.includes(comment.id)
+            const commentBounds = isSelected
+              ? worldBoundsFromRect(comment.x, comment.y, BOARD_COMMENT_CARD_WIDTH, 220)
+              : worldBoundsFromRect(comment.x, comment.y, BOARD_COMMENT_PIN_SIZE, BOARD_COMMENT_PIN_SIZE)
+            const commentZ = resolveBoardZIndex(4, getSectionContentZFloor(commentBounds))
             const commentInitial = (comment.createdBy || '?').trim().charAt(0).toUpperCase()
             const createdAtLabel = new Date(comment.createdAt || Date.now()).toLocaleTimeString('da-DK', {
               hour: '2-digit',
@@ -8716,7 +9292,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                     flexDirection: 'column',
                     alignItems: 'center',
                     gap: 6,
-                    zIndex: 4,
+                    zIndex: commentZ,
                     cursor: 'pointer',
                   }}
                 >
@@ -8790,7 +9366,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                   background: '#FFFFFF',
                   boxShadow: '0 4px 24px rgba(0,0,0,0.10)',
                   overflow: 'hidden',
-                  zIndex: 4,
+                  zIndex: commentZ,
                   animation: 'commentOpen 180ms cubic-bezier(0.2,0.8,0.2,1)',
                   fontFamily: 'inherit',
                 }}
@@ -9389,6 +9965,48 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
             )
           })}
 
+          {alignmentGuides.length > 0 && (
+            <svg
+              style={{
+                position: 'absolute',
+                inset: 0,
+                overflow: 'visible',
+                pointerEvents: 'none',
+                zIndex: 997,
+              }}
+            >
+              {alignmentGuides.map((guide, i) => {
+                const pad = 40
+                if (guide.orientation === 'vertical') {
+                  return (
+                    <line
+                      key={`align-v-${i}-${guide.position}`}
+                      x1={guide.position}
+                      y1={guide.start - pad}
+                      x2={guide.position}
+                      y2={guide.end + pad}
+                      stroke="#EC4899"
+                      strokeWidth={1.5}
+                      strokeDasharray="5 4"
+                    />
+                  )
+                }
+                return (
+                  <line
+                    key={`align-h-${i}-${guide.position}`}
+                    x1={guide.start - pad}
+                    y1={guide.position}
+                    x2={guide.end + pad}
+                    y2={guide.position}
+                    stroke="#EC4899"
+                    strokeWidth={1.5}
+                    strokeDasharray="5 4"
+                  />
+                )
+              })}
+            </svg>
+          )}
+
           {marqueeSelection && (
             <div
               style={{
@@ -9437,7 +10055,16 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
             const isLocked = lockedCardSlugs.includes(slug)
             const phase = toolPhases[slug] || getDefaultPhaseForTool(pickerFramework, slug)
             const phaseLabel = phase ? frameworkPhases.find(p => p.id === phase)?.label : null
-            const isWideBlueprintPreview = slug === 'service-blueprint'
+            const isWideBoardPreview = isWideBoardPreviewSlug(slug)
+            const cardEl = cardElementRefs.current[slug]
+            const cardW = cardEl?.offsetWidth ?? (isWideBoardPreview ? 980 : 680)
+            const cardH = cardEl?.offsetHeight ?? (isWideBoardPreview ? 620 : 400)
+            const cardZ = isDragging
+              ? 1000
+              : resolveBoardZIndex(
+                  cardZOrder[slug] || 1,
+                  getSectionContentZFloor(worldBoundsFromRect(pos.x, pos.y, cardW, cardH))
+                )
 
             return (
               <div
@@ -9478,8 +10105,8 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                   left: pos.x,
                   top: pos.y,
                   width: 'max-content',
-                  minWidth: isWideBlueprintPreview ? 980 : 680,
-                  minHeight: isWideBlueprintPreview ? 620 : 400,
+                  minWidth: isWideBoardPreview ? 980 : 680,
+                  minHeight: isWideBoardPreview ? 620 : 400,
                   display: 'flex',
                   flexDirection: 'column',
                   background: 'transparent',
@@ -9498,7 +10125,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                   transition: 'outline-color 0.2s',
                   transform: isDragging ? 'translateY(-2px)' : 'none',
                   opacity: isLocked ? 0.88 : 1,
-                  zIndex: isDragging ? 1000 : (cardZOrder[slug] || 1),
+                  zIndex: cardZ,
                 }}
               >
                 {remoteCardSelectors.length > 0 && !isSelected && (
@@ -9666,6 +10293,35 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
               </div>
             )
           })}
+
+          {canEdit &&
+            boardSections
+              .filter(s => selectedSectionIds.includes(s.id))
+              .map(section => (
+                <div
+                  key={`section-resize-${section.id}`}
+                  style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    width: 0,
+                    height: 0,
+                    zIndex: 1100,
+                    pointerEvents: 'none',
+                  }}
+                >
+                  {(
+                    ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'] as SectionResizeEdge[]
+                  ).map(edge => (
+                    <div
+                      key={edge}
+                      data-section-resize={edge}
+                      onMouseDown={e => onSectionResizeMouseDown(e, section.id, edge)}
+                      style={getSectionResizeHandleStyle(section, edge)}
+                    />
+                  ))}
+                </div>
+              ))}
         </div>
       </div>
 
@@ -10280,9 +10936,9 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                     />
                     <button
                       type="button"
-                      disabled={liveChatUploading}
+                      disabled={!canEdit || liveChatUploading}
                       onClick={() => chatFileInputRef.current?.click()}
-                      title="Vedhæft billede eller fil"
+                      title={canEdit ? 'Vedhæft billede eller fil' : 'Kun redaktører og ejere kan vedhæfte filer'}
                       style={{
                         width: 36, height: 36, flexShrink: 0,
                         border: '1.5px solid #E2E8F0', borderRadius: '50%',
@@ -10395,8 +11051,24 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                     }}
                   />
                 ) : (
-                  <div style={{ width: '100%', height: 168, overflow: 'hidden', display: 'flex', justifyContent: 'center' }}>
-                    <div style={{ transform: 'scale(0.26)', transformOrigin: 'top center', width: 1200, height: 650 }}>
+                  <div
+                    style={{
+                      width: '100%',
+                      height: 320,
+                      overflow: 'visible',
+                      display: 'flex',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <div
+                      style={{
+                        transform: 'scale(0.492)',
+                        transformOrigin: 'top center',
+                        width: 1200,
+                        height: 650,
+                        flexShrink: 0,
+                      }}
+                    >
                       <DoubleDiamondDiagram
                         activeSelection={selectedPhaseForDiagram as DoubleDiamondPhase}
                         onSelect={selection => {
@@ -10679,6 +11351,19 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
               )}
               {(contextMenu.shapeKind === 'section' || contextMenu.shapeKind === 'image') && (
                 <>
+                  {contextMenu.shapeKind === 'section' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        expandSelectedSectionsToFitContents()
+                        setContextMenu(null)
+                      }}
+                      style={S.ctxItem}
+                    >
+                      Udvid til indhold
+                      {selectedSectionIds.length > 1 ? ` (${selectedSectionIds.length})` : ''}
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => {

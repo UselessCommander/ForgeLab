@@ -5,7 +5,6 @@ import {
   blueprintBoardOuterWidth,
   blueprintNaturalWidth,
   buildConnectionPaths,
-  CARD_MIN_HEIGHT_PX,
   COLUMN_WIDTH,
   blueprintLanes,
   getSafeColSpan,
@@ -138,39 +137,25 @@ export function ServiceBlueprintReadonlyBoard({
               return (
                 <div
                   key={cellKey}
-                  className="relative flex min-h-[220px] flex-col border-l border-t-2 border-slate-200/60 p-4"
+                  className="relative flex min-h-[220px] flex-col overflow-visible border-l border-t-2 border-slate-200/60 p-4"
                 >
-                  <div className="relative z-20 flex min-h-0 flex-1 flex-col gap-3">
+                  <div className="relative z-20 flex flex-col gap-3 overflow-visible">
                     {cellCards.map((card) => {
                       const span = getSafeColSpan(card.colSpan || 1, phase.id, phases)
                       return (
                         <div
                           key={card.id}
-                          className="flex min-h-0 flex-1 flex-col"
+                          className="w-full shrink-0"
                           style={{
-                            width: `${span * COLUMN_WIDTH - 32}px`,
-                            position: span > 1 ? 'absolute' : 'relative',
+                            width:
+                              span > 1 ? `${span * COLUMN_WIDTH - 32}px` : undefined,
+                            position: 'relative',
                             zIndex: span > 1 ? 30 : 'auto',
                           }}
                         >
                           <ServiceBlueprintCardStatic card={card} cardTypes={cardTypes} />
                         </div>
                       )
-                    })}
-
-                    {cellCards.map((card) => {
-                      const span = getSafeColSpan(card.colSpan || 1, phase.id, phases)
-                      if (span > 1) {
-                        return (
-                          <div
-                            key={`placeholder-${card.id}`}
-                            style={{ height: CARD_MIN_HEIGHT_PX }}
-                            className="pointer-events-none w-full opacity-0"
-                            aria-hidden
-                          />
-                        )
-                      }
-                      return null
                     })}
                   </div>
                 </div>
