@@ -38,6 +38,13 @@ import { supabase } from '@/lib/supabase'
 
 import { ToolEmbedProvider } from '@/components/ToolEmbedContext'
 import { getToolComponent } from '@/components/ToolRegistry'
+import BrugerrejsePreviewCard from '@/components/BrugerrejsePreviewCard'
+import ServiceBlueprintPreviewCard from '@/components/ServiceBlueprintPreviewCard'
+import SurveyPreviewCard from '@/components/SurveyPreviewCard'
+import CardSortingPreviewCard from '@/components/CardSortingPreviewCard'
+import QrGeneratorPreviewCard from '@/components/QrGeneratorPreviewCard'
+import ProjectBoardSidebar from '@/components/ProjectBoardSidebar'
+// (hasDedicatedPageTools-helperen er ikke længere nødvendig — sidebaren er nu permanent.)
 import AiChatCompanion from '@/components/AiChatCompanion'
 import DoubleDiamondDiagram from '@/components/dashboard/DoubleDiamondDiagram'
 import DesignThinkingDiagram from '@/components/dashboard/DesignThinkingDiagram'
@@ -751,15 +758,8 @@ const FLOW_SHAPE_LIBRARY: Array<{ shape: FlowShape; label: string }> = [
 const BOARD_EXCLUDED_TOOL_SLUGS = new Set<string>([
   'kanban',
   'gantt-chart',
-  'survey-template',
-  'card-sorting',
-  'qr-generator',
 ])
-const BOARD_ADD_TOOL_EXCLUDED_SLUGS = new Set<string>([
-  'survey-template',
-  'card-sorting',
-  'qr-generator',
-])
+const BOARD_ADD_TOOL_EXCLUDED_SLUGS = new Set<string>([])
 
 function getStableCursorColor(userId: string) {
   if (!userId) return CURSOR_COLORS[0]
@@ -1122,6 +1122,8 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<
     'board' | 'planning' | 'slides' | 'survey' | 'card-sorting' | 'qr' | 'files' | 'comments'
   >('board')
+  // Venstre projekt-sidebar (kollapset/åbent). Lever i parent så fx flow-palette kan reagere.
+  const [boardSidebarCollapsed, setBoardSidebarCollapsed] = useState(false)
   const [planningPane, setPlanningPane] = useState<'kanban' | 'gantt'>('kanban')
   const [showAddTool, setShowAddTool] = useState(false)
   const [addToolSearch, setAddToolSearch] = useState('')
@@ -1323,7 +1325,6 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   } | null>(null)
   const sectionDrawModeRef = useRef(false)
   const sentMentionKeysRef = useRef<Set<string>>(new Set())
-  const analyticsBoardReturnQs = `return=${encodeURIComponent(`/dashboard/projects/${projectId}`)}&project=${encodeURIComponent(projectId)}`
   useEffect(() => {
     sectionDrawModeRef.current = sectionDrawMode
   }, [sectionDrawMode])
@@ -6441,6 +6442,8 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
   const projectTools = project.toolIds.map(id => ({ slug: id, tool: getVaerktoejBySlug(id) })).filter(x => x.tool)
   const boardTools = projectTools.filter(({ slug }) => !BOARD_EXCLUDED_TOOL_SLUGS.has(slug))
   const planningTools = projectTools.filter(({ slug }) => BOARD_EXCLUDED_TOOL_SLUGS.has(slug))
+  // Sidebaren er permanent (altid synlig) fordi PDF-indgangen altid skal være tilgængelig.
+  const boardSidebarWidth = boardSidebarCollapsed ? 56 : 240
   const isBoardEmpty =
     boardTools.length === 0 &&
     flowNodes.length === 0 &&
@@ -6596,6 +6599,21 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       )}
 
       {/* ════════════════════════════════════════════════
+          LEFT PROJECT SIDEBAR (permanent)
+          Viser tools med dedikerede /tools/<slug>-sider, Analytics og
+          en altid-synlig PDF-indgang. Tools tilføjes/fjernes dynamisk
+          baseret på projektets faktiske toolIds.
+      ════════════════════════════════════════════════ */}
+      <ProjectBoardSidebar
+        projectId={projectId}
+        projectTools={projectTools}
+        topOffset={workspaceTopBarOffset}
+        collapsed={boardSidebarCollapsed}
+        onToggleCollapsed={() => setBoardSidebarCollapsed((c) => !c)}
+        onOpenFilesTab={() => setActiveWorkspaceTab('files')}
+      />
+
+      {/* ════════════════════════════════════════════════
           TOP BAR
       ════════════════════════════════════════════════ */}
       <div style={{ ...S.topbar, top: isOffline ? 33 : 0 }}>
@@ -6678,80 +6696,8 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
               WIP
             </span>
           </button>
-          <button
-            style={{
-              ...S.zoomBtn,
-              minWidth: 74,
-              fontSize: 12,
-              fontWeight: 700,
-              background: activeWorkspaceTab === 'survey' ? '#111827' : 'transparent',
-              color: activeWorkspaceTab === 'survey' ? '#fff' : '#6B7280',
-            }}
-            onClick={() => setActiveWorkspaceTab('survey')}
-          >
-            Survey
-          </button>
-          <button
-            style={{
-              ...S.zoomBtn,
-              minWidth: 104,
-              fontSize: 12,
-              fontWeight: 700,
-              background: activeWorkspaceTab === 'card-sorting' ? '#111827' : 'transparent',
-              color: activeWorkspaceTab === 'card-sorting' ? '#fff' : '#6B7280',
-            }}
-            onClick={() => setActiveWorkspaceTab('card-sorting')}
-          >
-            Kortsortering
-          </button>
-          <button
-            style={{
-              ...S.zoomBtn,
-              minWidth: 62,
-              fontSize: 12,
-              fontWeight: 700,
-              background: activeWorkspaceTab === 'qr' ? '#111827' : 'transparent',
-              color: activeWorkspaceTab === 'qr' ? '#fff' : '#6B7280',
-            }}
-            onClick={() => setActiveWorkspaceTab('qr')}
-          >
-            QR
-          </button>
-          <button
-            style={{
-              ...S.zoomBtn,
-              minWidth: 72,
-              fontSize: 12,
-              fontWeight: 700,
-              background: activeWorkspaceTab === 'files' ? '#111827' : 'transparent',
-              color: activeWorkspaceTab === 'files' ? '#fff' : '#6B7280',
-            }}
-            onClick={() => setActiveWorkspaceTab('files')}
-          >
-            PDF
-          </button>
-                    {activeWorkspaceTab === 'board' && (
-            <Link
-              href={`/analytics?${analyticsBoardReturnQs}`}
-              style={{
-                marginLeft: 6,
-                padding: '0 12px',
-                height: 30,
-                display: 'inline-flex',
-                alignItems: 'center',
-                fontSize: 12,
-                fontWeight: 700,
-                color: '#4F46E5',
-                textDecoration: 'none',
-                borderRadius: 8,
-                border: '1px solid #C7D2FE',
-                background: '#EEF2FF',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              Analytics
-            </Link>
-          )}
+          {/* Survey, Kortsortering, QR, PDF og Analytics er flyttet til
+              venstre tool-sidebaren og dedikerede /tools/<slug>-sider. */}
           {activeWorkspaceTab === 'board' && (
             <>
               <button
@@ -6863,7 +6809,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
               style={{
                 position: 'fixed',
                 bottom: 82,
-                left: 18,
+                left: boardSidebarWidth + 16,
                 width: 248,
                 maxHeight: 'calc(100vh - 190px)',
                 overflowY: 'auto',
@@ -9491,6 +9437,7 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
             const isLocked = lockedCardSlugs.includes(slug)
             const phase = toolPhases[slug] || getDefaultPhaseForTool(pickerFramework, slug)
             const phaseLabel = phase ? frameworkPhases.find(p => p.id === phase)?.label : null
+            const isWideBlueprintPreview = slug === 'service-blueprint'
 
             return (
               <div
@@ -9531,8 +9478,8 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                   left: pos.x,
                   top: pos.y,
                   width: 'max-content',
-                  minWidth: 680,
-                  minHeight: 400,
+                  minWidth: isWideBlueprintPreview ? 980 : 680,
+                  minHeight: isWideBlueprintPreview ? 620 : 400,
                   display: 'flex',
                   flexDirection: 'column',
                   background: 'transparent',
@@ -9690,6 +9637,21 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                   }}
                 >
                   {(() => {
+                    if (slug === 'brugerrejse') {
+                      return <BrugerrejsePreviewCard />
+                    }
+                    if (slug === 'service-blueprint') {
+                      return <ServiceBlueprintPreviewCard />
+                    }
+                    if (slug === 'survey-template') {
+                      return <SurveyPreviewCard />
+                    }
+                    if (slug === 'card-sorting') {
+                      return <CardSortingPreviewCard />
+                    }
+                    if (slug === 'qr-generator') {
+                      return <QrGeneratorPreviewCard />
+                    }
                     const ToolComponent = getToolComponent(slug)
                     if (ToolComponent) {
                       return <ToolComponent />

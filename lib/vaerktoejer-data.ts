@@ -360,6 +360,20 @@ Acquisition (tiltrækning), Activation (første succes), Retention (fastholdelse
 Hvornår bruger man Pirate Funnel? Brug værktøjet når I vil forbedre jeres vækst, gøre jeres roadmap metric-styret og formulere konkrete hypoteser til næste eksperiment. I ForgeLab kan I gemme jeres AARRR-arbejde i projekter og bygge videre med næste iteration.
     `.trim(),
   },
+  {
+    slug: 'service-blueprint',
+    title: 'Service Blueprint',
+    shortDescription:
+      'Kortlæg en service end-to-end med faser, lanes, kort og forbindelser — frontstage, backstage og support.',
+    categories: ['bruger-kultur', 'innovation-design', 'strategi'],
+    longSeoContent: `
+Service Blueprint er et visuelt værktøj til at kortlægge en service end-to-end. Det går videre end en almindelig user journey ved også at vise frontstage (UI og kontaktpunkter), backstage (interne processer, data og systemer) og support (infrastruktur og leverandører). Det skaber et fælles overblik på tværs af design, teknik og forretning.
+
+Hvad er et service blueprint? Et service blueprint er en matrix med faser horisontalt og lanes vertikalt (Evidence, Customer Journey, Frontstage, Line of Visibility, Backstage, Support og External). Kortene placeres i cellerne og pile binder dem sammen, så du kan se hvordan en handling i frontend trigger noget i backend.
+
+Hvornår bruger man Service Blueprint? Brug det når I designer eller forbedrer en service og har brug for at se hvordan brugeroplevelsen hænger sammen med backend-systemer, AI-flows, dataflows og operationelle processer. I ForgeLab kan I bygge blueprintet direkte i projektet, dele det med teamet og gemme version efter version.
+    `.trim(),
+  },
 ]
 
 export function getVaerktoejBySlug(slug: string): Vaerktoej | undefined {

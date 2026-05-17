@@ -24,6 +24,7 @@ export const ToolRegistry: Record<string, ComponentType<any>> = {
   'porters-five-forces': dynamic(() => import('@/app/tools/porters-five-forces/page')),
   'qr-generator': dynamic(() => import('@/app/tools/qr-generator/page')),
   'scamper': dynamic(() => import('@/app/tools/scamper/page')),
+  'service-blueprint': dynamic(() => import('@/app/tools/service-blueprint/page')),
   'smuk-model': dynamic(() => import('@/app/tools/smuk-model/page')),
   'survey-template': dynamic(() => import('@/app/tools/survey-template/page')),
   'swot-generator': dynamic(() => import('@/app/tools/swot-generator/page')),

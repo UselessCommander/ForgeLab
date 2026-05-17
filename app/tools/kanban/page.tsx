@@ -71,7 +71,8 @@ export default function KanbanPage() {
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null)
   const [toolSearch, setToolSearch] = useState('')
   const [toolDropOpen, setToolDropOpen] = useState(false)
-  const { projectId, isInProject, authenticated, authReady } = useProjectToolData<KanbanData>('kanban', data, setData)
+  const { projectId, isInProject, authenticated, authReady, shouldAcceptRemoteSync, applyRemoteData } =
+    useProjectToolData<KanbanData>('kanban', data, setData)
   const latestDataRef = useRef<KanbanData>(data)
 
   useEffect(() => {
@@ -90,11 +91,12 @@ export default function KanbanPage() {
       try {
         const remote = await getProjectToolData(projectId, 'kanban')
         if (cancelled || !remote || Object.keys(remote).length === 0) return
+        if (!shouldAcceptRemoteSync()) return
 
         const remoteSerialized = JSON.stringify(remote)
         const localSerialized = JSON.stringify(latestDataRef.current)
         if (remoteSerialized !== localSerialized) {
-          setData(remote as KanbanData)
+          applyRemoteData(remote as KanbanData)
         }
       } catch {
         // ignore transient fetch issues; next poll retries
@@ -113,7 +115,7 @@ export default function KanbanPage() {
       cancelled = true
       window.clearInterval(interval)
     }
-  }, [projectId, authReady, authenticated])
+  }, [projectId, authReady, authenticated, shouldAcceptRemoteSync, applyRemoteData])
 
   useEffect(() => {
     let cancelled = false

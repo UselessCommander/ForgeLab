@@ -34,6 +34,15 @@ export function useProjectToolData<T>(
   const projectId = getProjectId()
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
   const isInitialLoadRef = useRef(true)
+  const isHydratingRef = useRef(false)
+  const hasUnsavedChangesRef = useRef(false)
+  const isSavingRef = useRef(false)
+  const skipNextDirtyMarkRef = useRef(false)
+  const latestDataRef = useRef(data)
+
+  useEffect(() => {
+    latestDataRef.current = data
+  }, [data])
 
   useEffect(() => {
     let cancelled = false
@@ -91,6 +100,7 @@ export function useProjectToolData<T>(
     if (!authReady || !isInitialLoadRef.current) return
 
     const loadData = async () => {
+      isHydratingRef.current = true
       try {
         if (projectId && authenticated) {
           const savedData = await getProjectToolData(projectId, toolSlug)
@@ -106,12 +116,32 @@ export function useProjectToolData<T>(
       } catch (error) {
         console.error('Error loading tool data:', error)
       } finally {
+        isHydratingRef.current = false
         isInitialLoadRef.current = false
+        hasUnsavedChangesRef.current = false
       }
     }
 
     void loadData()
   }, [authReady, projectId, toolSlug, setData, authenticated, loadGuest])
+
+  useEffect(() => {
+    if (!authReady || isInitialLoadRef.current || isHydratingRef.current) return
+    if (skipNextDirtyMarkRef.current) {
+      skipNextDirtyMarkRef.current = false
+      return
+    }
+    hasUnsavedChangesRef.current = true
+  }, [data, authReady])
+
+  const applyRemoteData = useCallback(
+    (remote: T) => {
+      skipNextDirtyMarkRef.current = true
+      hasUnsavedChangesRef.current = false
+      setData(remote)
+    },
+    [setData],
+  )
 
   useEffect(() => {
     if (!authReady || isInitialLoadRef.current) return
@@ -122,14 +152,21 @@ export function useProjectToolData<T>(
 
     timeoutRef.current = setTimeout(() => {
       void (async () => {
+        const snapshot = JSON.stringify(latestDataRef.current)
+        isSavingRef.current = true
         try {
           if (projectId && authenticated) {
-            await saveProjectToolData(projectId, toolSlug, data as object)
+            await saveProjectToolData(projectId, toolSlug, latestDataRef.current as object)
           } else if ((!projectId && !authenticated) || (projectId && !authenticated)) {
-            persistGuest(data)
+            persistGuest(latestDataRef.current)
+          }
+          if (JSON.stringify(latestDataRef.current) === snapshot) {
+            hasUnsavedChangesRef.current = false
           }
         } catch (error) {
           console.error('Error saving tool data:', error)
+        } finally {
+          isSavingRef.current = false
         }
       })()
     }, debounceMs)
@@ -141,18 +178,33 @@ export function useProjectToolData<T>(
     }
   }, [data, projectId, toolSlug, debounceMs, authReady, authenticated, persistGuest])
 
+  const shouldAcceptRemoteSync = useCallback(() => {
+    return (
+      !isHydratingRef.current &&
+      !hasUnsavedChangesRef.current &&
+      !isSavingRef.current
+    )
+  }, [])
+
   const saveNow = useCallback(async () => {
     if (!authReady) return
+    const snapshot = JSON.stringify(latestDataRef.current)
+    isSavingRef.current = true
     try {
       if (projectId && authenticated) {
-        await saveProjectToolData(projectId, toolSlug, data as object)
+        await saveProjectToolData(projectId, toolSlug, latestDataRef.current as object)
       } else if ((!projectId && !authenticated) || (projectId && !authenticated)) {
-        persistGuest(data)
+        persistGuest(latestDataRef.current)
+      }
+      if (JSON.stringify(latestDataRef.current) === snapshot) {
+        hasUnsavedChangesRef.current = false
       }
     } catch (error) {
       console.error('Error saving tool data:', error)
+    } finally {
+      isSavingRef.current = false
     }
-  }, [authReady, projectId, toolSlug, data, authenticated, persistGuest])
+  }, [authReady, projectId, toolSlug, authenticated, persistGuest])
 
   return {
     projectId,
@@ -160,5 +212,7 @@ export function useProjectToolData<T>(
     saveNow,
     authenticated,
     authReady,
+    shouldAcceptRemoteSync,
+    applyRemoteData,
   }
 }

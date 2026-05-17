@@ -49,6 +49,7 @@ export const TOOL_ICONS: Record<string, { Icon: LucideIcon; bg: string; text: st
   pestel: { Icon: Building2, bg: 'bg-blue-50', text: 'text-blue-700' },
   'persona-canvas': { Icon: UserRound, bg: 'bg-pink-50', text: 'text-pink-700' },
   'pirate-funnel': { Icon: BarChart3, bg: 'bg-emerald-50', text: 'text-emerald-700' },
+  'service-blueprint': { Icon: Workflow, bg: 'bg-slate-100', text: 'text-slate-800' },
 }
 
 export function getToolIcon(slug: string) {

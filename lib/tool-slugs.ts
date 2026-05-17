@@ -25,6 +25,7 @@ export const TOOL_SLUGS = [
   'pestel',
   'persona-canvas',
   'pirate-funnel',
+  'service-blueprint',
 ] as const
 
 export type ToolSlug = (typeof TOOL_SLUGS)[number]

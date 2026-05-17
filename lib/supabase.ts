@@ -71,6 +71,7 @@ function getSupabaseClient(): SupabaseClient {
     if (isLocalDev) {
       if (!hasWarnedMissingEnv) {
         console.warn('Supabase env mangler i localhost. Kører i mock/no-op mode.')
+        console.warn('Til rigtig login: sæt NEXT_PUBLIC_SUPABASE_URL + NEXT_PUBLIC_SUPABASE_ANON_KEY i .env.local (samme som Vercel), genstart npm run dev.')
         console.warn('NEXT_PUBLIC_SUPABASE_URL:', supabaseUrl ? 'Sat' : 'Mangler')
         console.warn('NEXT_PUBLIC_SUPABASE_ANON_KEY:', supabaseAnonKey ? 'Sat' : 'Mangler')
         hasWarnedMissingEnv = true
