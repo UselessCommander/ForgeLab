@@ -111,10 +111,10 @@ export async function PUT(
           typeof (pos as { x?: unknown }).x === 'number' &&
           typeof (pos as { y?: unknown }).y === 'number'
         ) {
-          cleaned[slug] = {
-            x: Math.min(1, Math.max(0, (pos as { x: number }).x)),
-            y: Math.min(1, Math.max(0, (pos as { y: number }).y)),
-          }
+          const x = (pos as { x: number }).x
+          const y = (pos as { y: number }).y
+          if (!Number.isFinite(x) || !Number.isFinite(y)) continue
+          cleaned[slug] = { x: Math.round(x), y: Math.round(y) }
         }
       }
       updates.dd_canvas_layout = cleaned

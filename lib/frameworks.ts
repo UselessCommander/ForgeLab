@@ -20,11 +20,11 @@ export const GOOGLE_DESIGN_SPRINT_PHASES: Array<{
   label: string
   description: string
 }> = [
-  { id: 'understand', label: 'Understand', description: 'Mandag: kortlæg problemet og mål' },
-  { id: 'sketch', label: 'Sketch', description: 'Tirsdag: skitser mange løsningsidéer' },
-  { id: 'decide', label: 'Decide', description: 'Onsdag: vælg den stærkeste retning' },
-  { id: 'prototype', label: 'Prototype', description: 'Torsdag: byg en realistisk prototype' },
-  { id: 'test', label: 'Test', description: 'Fredag: test med brugere og lær hurtigt' },
+  { id: 'understand', label: 'Map', description: 'Mandag: forstå problemet og vælg fokus' },
+  { id: 'sketch', label: 'Sketch', description: 'Tirsdag: individuelle løsningsforslag' },
+  { id: 'decide', label: 'Decide', description: 'Onsdag: vælg retning og storyboard' },
+  { id: 'prototype', label: 'Prototype', description: 'Torsdag: byg en testbar facade' },
+  { id: 'test', label: 'Test', description: 'Fredag: fem kvalitative brugerinterviews' },
 ]
 
 export const DESIGN_THINKING_PHASES: Array<{
@@ -39,91 +39,83 @@ export const DESIGN_THINKING_PHASES: Array<{
   { id: 'test', label: 'Test', description: 'Test med brugere og lær' },
 ]
 
-// Default forslag til placering af værktøjer i Double Diamond
+// Default forslag til placering af værktøjer i Double Diamond (projekt-board).
+// Metodebibliotekets faglige klassifikation: lib/method-diamond-classification.ts
 const DOUBLE_DIAMOND_TOOL_DEFAULTS: Record<string, DoubleDiamondPhase> = {
-  'empathy-map': 'define',
-  'persona-canvas': 'define',
-  'affinity-diagram': 'define',
-  'card-sorting': 'define',
+  'ab-test': 'deliver',
   'swot-generator': 'define',
-  'smuk-model': 'define',
-  'aaker-identity-model': 'define',
-  hmw: 'define',
-  'five-whys': 'define',
-  'dikw-pyramiden': 'define',
-  pestel: 'discover',
-  brugerrejse: 'define',
-  'pirate-funnel': 'develop',
-  'value-proposition-canvas': 'define',
   'business-model-canvas': 'develop',
   'gallup-kompasrose': 'define',
-  scamper: 'develop',
-  brainstorming: 'develop',
-  'tows-matrix': 'define',
-  'porters-five-forces': 'define',
-  'gantt-chart': 'deliver',
-  kanban: 'deliver',
-  'ab-test': 'deliver',
-  'survey-template': 'discover',
-  'qr-generator': 'deliver',
-}
-
-// Default forslag til placering af værktøjer i Google Design Sprint
-const GOOGLE_DESIGN_SPRINT_TOOL_DEFAULTS: Record<string, GoogleDesignSprintPhase> = {
-  pestel: 'understand',
-  'survey-template': 'understand',
-  'five-whys': 'understand',
-  'dikw-pyramiden': 'understand',
-  'empathy-map': 'understand',
-  'persona-canvas': 'understand',
-  brugerrejse: 'understand',
-  'card-sorting': 'understand',
-  'affinity-diagram': 'understand',
-  brainstorming: 'sketch',
-  scamper: 'sketch',
-  hmw: 'decide',
-  'value-proposition-canvas': 'decide',
-  'business-model-canvas': 'decide',
-  'aaker-identity-model': 'decide',
-  'smuk-model': 'decide',
-  'swot-generator': 'decide',
-  'tows-matrix': 'decide',
-  'porters-five-forces': 'decide',
-  'pirate-funnel': 'decide',
-  'gallup-kompasrose': 'decide',
-  'ab-test': 'prototype',
-  'qr-generator': 'prototype',
-  kanban: 'prototype',
-  'gantt-chart': 'test',
-}
-
-// Default forslag til placering af værktøjer i Design Thinking
-const DESIGN_THINKING_TOOL_DEFAULTS: Record<string, DesignThinkingPhase> = {
-  'empathy-map': 'empathize',
-  'persona-canvas': 'empathize',
-  brugerrejse: 'empathize',
-  'card-sorting': 'empathize',
-  'affinity-diagram': 'define',
-  'five-whys': 'define',
-  'dikw-pyramiden': 'define',
-  pestel: 'define',
-  hmw: 'define',
-  brainstorming: 'ideate',
-  scamper: 'ideate',
-  'value-proposition-canvas': 'ideate',
-  'business-model-canvas': 'ideate',
-  'aaker-identity-model': 'ideate',
-  'ab-test': 'prototype',
-  kanban: 'prototype',
-  'qr-generator': 'prototype',
-  'gantt-chart': 'test',
-  'survey-template': 'test',
-  'swot-generator': 'define',
-  'tows-matrix': 'define',
-  'porters-five-forces': 'define',
-  'gallup-kompasrose': 'define',
+  'tows-matrix': 'develop',
+  'porters-five-forces': 'discover',
+  'value-proposition-canvas': 'define',
+  'empathy-map': 'discover',
+  'card-sorting': 'define',
   'smuk-model': 'define',
-  'pirate-funnel': 'ideate',
+  'aaker-identity-model': 'define',
+  'survey-template': 'discover',
+  'affinity-diagram': 'define',
+  scamper: 'develop',
+  hmw: 'define',
+  'five-whys': 'define',
+  brugerrejse: 'define',
+  'dikw-pyramiden': 'define',
+  'seo-pyramide': 'define',
+  'strategisk-afvejning': 'define',
+  'aida-funnel': 'define',
+  'dvf-venn-model': 'define',
+  brainstorming: 'develop',
+  pestel: 'discover',
+  peso: 'define',
+  'golden-circle': 'define',
+  'persona-canvas': 'define',
+  'pirate-funnel': 'define',
+  'service-blueprint': 'define',
+  'qr-generator': 'deliver',
+  // kanban / gantt-chart: across i metodebibliotek — ingen diamant-default her
+}
+
+// Default forslag til placering af værktøjer i GV Design Sprint (projekt-board).
+// Playbook og aktiviteter: lib/gv-design-sprint-framework.ts — kun eksplicit linkede tools.
+const GOOGLE_DESIGN_SPRINT_TOOL_DEFAULTS: Record<string, GoogleDesignSprintPhase> = {
+  brugerrejse: 'understand',
+  hmw: 'understand',
+}
+
+// Default forslag til placering af værktøjer i Design Thinking (projekt-board).
+// Metodebibliotekets faglige klassifikation: lib/method-design-thinking-classification.ts
+const DESIGN_THINKING_TOOL_DEFAULTS: Record<string, DesignThinkingPhase> = {
+  'ab-test': 'test',
+  'swot-generator': 'define',
+  'business-model-canvas': 'prototype',
+  'gallup-kompasrose': 'define',
+  'tows-matrix': 'ideate',
+  'porters-five-forces': 'empathize',
+  'value-proposition-canvas': 'define',
+  'empathy-map': 'empathize',
+  'card-sorting': 'define',
+  'smuk-model': 'define',
+  'aaker-identity-model': 'define',
+  'survey-template': 'empathize',
+  'affinity-diagram': 'define',
+  scamper: 'ideate',
+  hmw: 'define',
+  'five-whys': 'define',
+  brugerrejse: 'empathize',
+  'dikw-pyramiden': 'define',
+  'seo-pyramide': 'define',
+  'strategisk-afvejning': 'define',
+  'aida-funnel': 'define',
+  'dvf-venn-model': 'define',
+  brainstorming: 'ideate',
+  pestel: 'empathize',
+  peso: 'define',
+  'golden-circle': 'define',
+  'persona-canvas': 'define',
+  'pirate-funnel': 'define',
+  'service-blueprint': 'prototype',
+  'qr-generator': 'prototype',
+  // kanban / gantt-chart: across i metodebibliotek — ingen DT-default her
 }
 
 export function normalizeFramework(input: unknown): FrameworkId {

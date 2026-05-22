@@ -15,6 +15,8 @@ const ILLUSTRATION_COLORS: Record<string, { fill: string; stroke: string; accent
   'card-sorting': { fill: '#cffafe', stroke: '#0891b2', accent: '#0e7490' },
   'aaker-identity-model': { fill: '#fef3c7', stroke: '#d97706', accent: '#b45309' },
   'pirate-funnel': { fill: '#dcfce7', stroke: '#16a34a', accent: '#15803d' },
+  peso: { fill: '#fef3c7', stroke: '#d97706', accent: '#b45309' },
+  'golden-circle': { fill: '#fef3c7', stroke: '#d97706', accent: '#b45309' },
 }
 
 function getColors(slug: string) {
@@ -144,6 +146,51 @@ export function ToolIllustration({ slug }: { slug: string }) {
           <rect x="80" y="28" width="42" height="10" rx="3" fill={c.accent} opacity="0.85" />
           <rect x="80" y="44" width="42" height="10" rx="3" fill={c.accent} opacity="0.55" />
           <rect x="142" y="28" width="42" height="10" rx="3" fill={c.accent} opacity="0.8" />
+        </svg>
+      )
+
+    case 'golden-circle':
+      return (
+        <svg viewBox="0 0 760 760" className="w-full h-auto max-h-[280px]" aria-hidden>
+          <circle cx="380" cy="380" r="302" fill="#fff" stroke={c.stroke} strokeWidth="1.5" />
+          <circle cx="380" cy="380" r="250" fill="#f5f3ff" stroke={c.stroke} strokeWidth="1" opacity="0.9" />
+          <circle cx="380" cy="380" r="175" fill="#fffbeb" stroke={c.accent} strokeWidth="1.5" opacity="0.95" />
+          <circle cx="380" cy="380" r="105" fill="#111827" />
+          <text x="380" y="120" textAnchor="middle" fill={c.accent} fontSize="22" fontWeight="800" fontFamily="system-ui">
+            WHAT
+          </text>
+          <text x="380" y="200" textAnchor="middle" fill={c.accent} fontSize="20" fontWeight="800" fontFamily="system-ui">
+            HOW
+          </text>
+          <text x="380" y="385" textAnchor="middle" fill="#fff" fontSize="18" fontWeight="800" fontFamily="system-ui">
+            WHY
+          </text>
+        </svg>
+      )
+
+    case 'peso':
+      return (
+        <svg viewBox="0 0 900 720" className="w-full h-auto max-h-[280px]" aria-hidden>
+          <circle cx="450" cy="210" r="170" fill="#7a3ea0" opacity="0.92" />
+          <circle cx="280" cy="360" r="170" fill="#dc3f45" opacity="0.92" />
+          <circle cx="620" cy="360" r="170" fill="#86cbd4" opacity="0.92" />
+          <circle cx="450" cy="510" r="170" fill="#b7d94f" opacity="0.92" />
+          <circle cx="450" cy="360" r="66" fill="#03040a" />
+          <text x="450" y="150" textAnchor="middle" fill="#fff" fontSize="32" fontWeight="850" fontFamily="system-ui">
+            Earned
+          </text>
+          <text x="230" y="360" textAnchor="middle" fill="#fff" fontSize="32" fontWeight="850" fontFamily="system-ui">
+            Paid
+          </text>
+          <text x="670" y="360" textAnchor="middle" fill="#fff" fontSize="32" fontWeight="850" fontFamily="system-ui">
+            Shared
+          </text>
+          <text x="450" y="590" textAnchor="middle" fill="#fff" fontSize="32" fontWeight="850" fontFamily="system-ui">
+            Owned
+          </text>
+          <text x="450" y="360" textAnchor="middle" fill="#fff" fontSize="18" fontWeight="850" fontFamily="system-ui">
+            Ry
+          </text>
         </svg>
       )
 

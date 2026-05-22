@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { FolderOpen, Plus, Pencil, Trash2, Check, X, ChevronDown, ChevronRight, FolderPlus, GripVertical } from 'lucide-react'
 import type { Workspace } from '@/lib/workspaces'
@@ -17,6 +17,8 @@ interface WorkspacesSectionProps {
   workspaces: Workspace[]
   projects: Project[]
   onWorkspacesChange: () => void
+  /** When true (e.g. no projects yet), de-emphasize workspace vs project creation */
+  deEmphasize?: boolean
 }
 
 function formatDate(iso: string) {
@@ -29,7 +31,12 @@ function formatDate(iso: string) {
   return d.toLocaleDateString('da-DK', { day: 'numeric', month: 'short' })
 }
 
-export default function WorkspacesSection({ workspaces, projects, onWorkspacesChange }: WorkspacesSectionProps) {
+export default function WorkspacesSection({
+  workspaces,
+  projects,
+  onWorkspacesChange,
+  deEmphasize = false,
+}: WorkspacesSectionProps) {
   const [creating, setCreating] = useState(false)
   const [newName, setNewName] = useState('')
   const [newColor, setNewColor] = useState(WORKSPACE_COLORS[0])
@@ -89,19 +96,27 @@ export default function WorkspacesSection({ workspaces, projects, onWorkspacesCh
     projects.filter((p) => !ws.projectIds.includes(p.id))
 
   return (
-    <div className="mb-10">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-bold uppercase tracking-widest text-gray-400">Workspaces</span>
-          <span className="text-[10px] font-bold bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">{workspaces.length}</span>
+    <section className={`mb-8 ${deEmphasize ? 'opacity-90' : ''}`}>
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold uppercase tracking-widest text-gray-400">Workspaces</span>
+            <span className="text-[10px] font-bold bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">{workspaces.length}</span>
+          </div>
+          <p className="text-xs text-gray-500 mt-1 max-w-xl">
+            Workspaces samler projekter for et team, fag eller kunde.
+          </p>
         </div>
-        <button
-          onClick={() => setCreating(true)}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-xs font-semibold text-gray-600 hover:border-indigo-300 hover:text-indigo-600 transition-all shadow-sm"
-        >
-          <FolderPlus className="w-3.5 h-3.5" />
-          Nyt workspace
-        </button>
+        {!deEmphasize && (
+          <button
+            type="button"
+            onClick={() => setCreating(true)}
+            className="inline-flex items-center gap-1.5 self-start px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-xs font-semibold text-gray-600 hover:border-indigo-300 hover:text-indigo-600 transition-all shadow-sm"
+          >
+            <FolderPlus className="w-3.5 h-3.5" />
+            Nyt workspace
+          </button>
+        )}
       </div>
 
       {/* Create form */}
@@ -141,8 +156,21 @@ export default function WorkspacesSection({ workspaces, projects, onWorkspacesCh
       )}
 
       {workspaces.length === 0 && !creating && (
-        <div className="rounded-xl border border-dashed border-gray-200 bg-white/60 p-5 text-sm text-gray-400 text-center">
-          Ingen workspaces endnu. Opret et for at organisere dine projekter.
+        <div className="rounded-xl border border-dashed border-gray-200 bg-white/60 p-4 text-sm text-gray-500 text-center">
+          {deEmphasize ? (
+            <>
+              <p>Valgfrit: opret et workspace senere for at gruppere projekter.</p>
+              <button
+                type="button"
+                onClick={() => setCreating(true)}
+                className="mt-2 text-xs font-semibold text-gray-600 hover:text-indigo-600 underline-offset-2 hover:underline"
+              >
+                Opret workspace
+              </button>
+            </>
+          ) : (
+            'Ingen workspaces endnu. Opret et for at organisere dine projekter.'
+          )}
         </div>
       )}
 
@@ -305,6 +333,6 @@ export default function WorkspacesSection({ workspaces, projects, onWorkspacesCh
           )
         })}
       </div>
-    </div>
+    </section>
   )
 }

@@ -8,7 +8,10 @@ export type DiamondDiagramSelection = DoubleDiamondPhase | 'hmw'
 type Props = {
   /** Ingen klik på faser/HMW — bruges fx i projekt-workspace med overlay-ikoner */
   readOnly?: boolean
-  activeSelection?: DiamondDiagramSelection
+  /** Kompakt layout til modaler — undgår min-bredde der skubber indhold væk */
+  variant?: 'default' | 'compact'
+  /** undefined = ingen fase fremhævet (fx ved "Across"-filter) */
+  activeSelection?: DiamondDiagramSelection | null
   onSelect?: (selection: DiamondDiagramSelection) => void
 }
 
@@ -17,7 +20,8 @@ const HMW_CY = 350
 
 export default function DoubleDiamondDiagram({
   readOnly = false,
-  activeSelection = 'discover',
+  variant = 'default',
+  activeSelection = null,
   onSelect,
 }: Props) {
   const [theme, setTheme] = useState<'default' | 'emerald' | 'chelsea' | 'arsenal' | 'sunset' | 'lightning-purple' | 'pink-cherry'>('default')
@@ -109,28 +113,24 @@ export default function DoubleDiamondDiagram({
                     axis: '#f59e0b',
                   }
 
-  const quadrantProps = (phase: DoubleDiamondPhase) => {
-    if (readOnly) {
-      return {
-        fill: colors.baseFill,
-        stroke: colors.baseStroke,
-        strokeWidth: 1.4,
-        className: 'pointer-events-none',
-      }
-    }
-    const active = activeSelection === phase
+  const quadrantVisualProps = (phase: DoubleDiamondPhase) => {
+    const active = !readOnly && activeSelection != null && activeSelection === phase
     return {
       fill: active ? colors.activeFill : colors.baseFill,
       stroke: active ? colors.activeStroke : colors.baseStroke,
       strokeWidth: active ? 2.4 : 1.4,
-      className: 'cursor-pointer transition-all duration-300',
+      className: 'pointer-events-none transition-all duration-300',
     }
   }
 
   return (
     <svg
       viewBox="0 0 1200 650"
-      className="w-full min-w-[800px] h-auto"
+      className={
+        variant === 'compact'
+          ? 'block h-auto w-full max-w-full'
+          : 'mx-auto h-auto w-full max-w-[1200px]'
+      }
       role="img"
       aria-label="Revamped Double Diamond model med HMW i midten"
     >
@@ -148,27 +148,11 @@ export default function DoubleDiamondDiagram({
         `}</style>
       </defs>
 
-      {/* Klikbare quadrants */}
-      <polygon
-        points="100,350 350,150 350,550"
-        {...quadrantProps('discover')}
-        onClick={readOnly ? undefined : () => onSelect?.('discover')}
-      />
-      <polygon
-        points="350,150 600,350 350,550"
-        {...quadrantProps('define')}
-        onClick={readOnly ? undefined : () => onSelect?.('define')}
-      />
-      <polygon
-        points="600,350 850,150 850,550"
-        {...quadrantProps('develop')}
-        onClick={readOnly ? undefined : () => onSelect?.('develop')}
-      />
-      <polygon
-        points="850,150 1100,350 850,550"
-        {...quadrantProps('deliver')}
-        onClick={readOnly ? undefined : () => onSelect?.('deliver')}
-      />
+      {/* Fasefarver under labels (original lagrækkefølge) */}
+      <polygon points="100,350 350,150 350,550" {...quadrantVisualProps('discover')} />
+      <polygon points="350,150 600,350 350,550" {...quadrantVisualProps('define')} />
+      <polygon points="600,350 850,150 850,550" {...quadrantVisualProps('develop')} />
+      <polygon points="850,150 1100,350 850,550" {...quadrantVisualProps('deliver')} />
 
       <g className="pointer-events-none">
         {/* Top Text Lines */}
@@ -398,32 +382,62 @@ export default function DoubleDiamondDiagram({
         <text x={1180} y={635} textAnchor="end" className="dd-tiny" style={{ fontSize: 9 }}>
           Efter Double Diamond (research → synthesis → ideation → delivery)
         </text>
-      </g>
 
-      {/* HMW — klikbar på dashboard, dekorativ når readOnly (overlay kan vise ikoner) */}
-      <g
-        onClick={readOnly ? undefined : () => onSelect?.('hmw')}
-        className={readOnly ? 'pointer-events-none' : 'cursor-pointer'}
-      >
-        <circle
-          cx={HMW_CX}
-          cy={HMW_CY}
-          r={32}
-          fill={readOnly ? '#ffffff' : activeSelection === 'hmw' ? colors.activeStroke : '#ffffff'}
-          stroke={colors.baseStroke}
-          strokeWidth={readOnly ? 2 : activeSelection === 'hmw' ? 3 : 2}
-        />
+        <circle cx={HMW_CX} cy={HMW_CY} r={32} fill="#ffffff" stroke={colors.baseStroke} strokeWidth={2} />
         <text
           x={HMW_CX}
           y={HMW_CY + 4}
           textAnchor="middle"
           fontSize={11}
-          fill={readOnly ? '#000000' : activeSelection === 'hmw' ? '#ffffff' : '#000000'}
+          fill="#000000"
           style={{ fontWeight: 700, letterSpacing: '0.1em' }}
         >
           HMW
         </text>
       </g>
+
+      {/* Usynlige klikflader ovenpå (tekst forbliver læsbar) */}
+      {!readOnly && (
+        <>
+          <polygon
+            points="100,350 350,150 350,550"
+            fill="transparent"
+            stroke="transparent"
+            className="cursor-pointer"
+            onClick={() => onSelect?.('discover')}
+          />
+          <polygon
+            points="350,150 600,350 350,550"
+            fill="transparent"
+            stroke="transparent"
+            className="cursor-pointer"
+            onClick={() => onSelect?.('define')}
+          />
+          <polygon
+            points="600,350 850,150 850,550"
+            fill="transparent"
+            stroke="transparent"
+            className="cursor-pointer"
+            onClick={() => onSelect?.('develop')}
+          />
+          <polygon
+            points="850,150 1100,350 850,550"
+            fill="transparent"
+            stroke="transparent"
+            className="cursor-pointer"
+            onClick={() => onSelect?.('deliver')}
+          />
+          <circle
+            cx={HMW_CX}
+            cy={HMW_CY}
+            r={32}
+            fill="transparent"
+            stroke="transparent"
+            className="cursor-pointer"
+            onClick={() => onSelect?.('hmw')}
+          />
+        </>
+      )}
     </svg>
   )
 }

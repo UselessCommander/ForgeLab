@@ -23,6 +23,8 @@ import { useEffect, useState } from 'react'
 import { ChevronLeft, ChevronRight, FileText, BarChart3, type LucideIcon } from 'lucide-react'
 import type { Vaerktoej } from '@/lib/vaerktoejer-data'
 import { getToolIcon } from '@/lib/vaerktoejer-icons'
+import type { Project } from '@/lib/projects'
+import ProjectActivityPanel from '@/components/platform/ProjectActivityPanel'
 
 /** Tool-slugs hvis tool åbner i en dedikeret fuldside-route under /tools/<slug>. */
 export const DEDICATED_PAGE_TOOL_SLUGS = new Set<string>([
@@ -31,6 +33,8 @@ export const DEDICATED_PAGE_TOOL_SLUGS = new Set<string>([
   'survey-template',
   'card-sorting',
   'qr-generator',
+  'peso',
+  'golden-circle',
 ])
 
 /** Tools der bidrager til Analytics-dashboardet (projekt-scoped). */
@@ -63,6 +67,7 @@ interface Props {
   onToggleCollapsed: () => void
   /** Callback til at skifte til Files-tab i workspacet (PDF'er bor der). */
   onOpenFilesTab: () => void
+  project?: Pick<Project, 'id' | 'name' | 'updatedAt' | 'createdAt' | 'toolIds'> | null
 }
 
 interface SidebarItem {
@@ -81,6 +86,7 @@ export default function ProjectBoardSidebar({
   collapsed,
   onToggleCollapsed,
   onOpenFilesTab,
+  project,
 }: Props) {
   const router = useRouter()
   const [hoveredKey, setHoveredKey] = useState<string | null>(null)
@@ -295,6 +301,10 @@ export default function ProjectBoardSidebar({
           )
         })}
       </div>
+
+      {project && (
+        <ProjectActivityPanel project={project} collapsed={collapsed} />
+      )}
     </aside>
   )
 }

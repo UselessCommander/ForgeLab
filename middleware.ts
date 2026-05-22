@@ -31,6 +31,8 @@ export function middleware(request: NextRequest) {
     '/analytics',
     '/vaerktoejer-oversigt',
     '/features',
+    '/metoder',
+    '/demo',
     '/workflow',
     '/pricing',
     '/om',
@@ -42,7 +44,12 @@ export function middleware(request: NextRequest) {
   const isPublicStandaloneTool = request.nextUrl.pathname.startsWith('/tools/')
   const isSurveyRespond = request.nextUrl.pathname.startsWith('/survey/respond/')
   const isForgotRoute = request.nextUrl.pathname.startsWith('/forgot')
-  const isPublic = isPublicRoute || isPublicStandaloneTool || isSurveyRespond || isForgotRoute
+  /** Statiske metodebilleder i /public/metoder/[slug]/ — skal kunne loades uden auth (også af next/image) */
+  const isMethodImageAsset = /^\/metoder\/[^/]+\/.+\.(webp|png|jpe?g|gif|svg)$/i.test(
+    request.nextUrl.pathname
+  )
+  const isPublic =
+    isPublicRoute || isPublicStandaloneTool || isSurveyRespond || isForgotRoute || isMethodImageAsset
 
   // API routes that don't require authentication (tracking, ab-test respond, surveys)
   const publicApiRoutes = ['/api/track', '/api/auth', '/api/ab-test/respond', '/api/surveys', '/api/billing/webhook']

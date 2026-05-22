@@ -13,6 +13,7 @@ export const TOOL_SLUGS = [
   'empathy-map',
   'card-sorting',
   'smuk-model',
+  'smp-model',
   'aaker-identity-model',
   'survey-template',
   'affinity-diagram',
@@ -23,9 +24,15 @@ export const TOOL_SLUGS = [
   'dikw-pyramiden',
   'brainstorming',
   'pestel',
+  'peso',
+  'golden-circle',
   'persona-canvas',
   'pirate-funnel',
   'service-blueprint',
+  'seo-pyramide',
+  'strategisk-afvejning',
+  'aida-funnel',
+  'dvf-venn-model',
 ] as const
 
 export type ToolSlug = (typeof TOOL_SLUGS)[number]

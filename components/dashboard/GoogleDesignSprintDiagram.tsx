@@ -1,38 +1,40 @@
 'use client'
 
 import type { GoogleDesignSprintPhase } from '@/lib/frameworks'
+import { getGvDesignSprintDay } from '@/lib/gv-design-sprint-framework'
 
 export type SprintDiagramSelection = GoogleDesignSprintPhase
 
 type Props = {
   readOnly?: boolean
-  activeSelection?: SprintDiagramSelection
+  activeSelection?: SprintDiagramSelection | null
   onSelect?: (selection: SprintDiagramSelection) => void
 }
 
-const STEPS: Array<{ id: GoogleDesignSprintPhase; day: string; label: string; short: string }> = [
-  { id: 'understand', day: 'Mandag', label: 'Understand', short: 'Kortlæg mål, indsigt og udfordringer' },
-  { id: 'sketch', day: 'Tirsdag', label: 'Sketch', short: 'Skitsér mange mulige løsninger' },
-  { id: 'decide', day: 'Onsdag', label: 'Decide', short: 'Vælg retning og testhypotese' },
-  { id: 'prototype', day: 'Torsdag', label: 'Prototype', short: 'Byg en realistisk prototype' },
-  { id: 'test', day: 'Fredag', label: 'Test', short: 'Test med brugere og lær hurtigt' },
+const DAY_ORDER: GoogleDesignSprintPhase[] = [
+  'understand',
+  'sketch',
+  'decide',
+  'prototype',
+  'test',
 ]
 
 export default function GoogleDesignSprintDiagram({
   readOnly = false,
-  activeSelection = 'understand',
+  activeSelection = null,
   onSelect,
 }: Props) {
   return (
     <div className="w-full min-w-[800px]">
       <div className="grid grid-cols-5 gap-2">
-        {STEPS.map((step, i) => {
-          const active = activeSelection === step.id
+        {DAY_ORDER.map((phaseId, i) => {
+          const day = getGvDesignSprintDay(phaseId)
+          const active = activeSelection != null && activeSelection === phaseId
           return (
             <button
-              key={step.id}
+              key={phaseId}
               type="button"
-              onClick={readOnly ? undefined : () => onSelect?.(step.id)}
+              onClick={readOnly ? undefined : () => onSelect?.(phaseId)}
               className={`relative rounded-xl border p-3 text-left transition ${
                 readOnly
                   ? 'cursor-default border-amber-200 bg-amber-50/55'
@@ -42,17 +44,24 @@ export default function GoogleDesignSprintDiagram({
               }`}
             >
               <div className="mb-2 flex items-center justify-between">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-700">{step.day}</span>
-                <span className="text-[10px] font-semibold text-neutral-400">{String(i + 1).padStart(2, '0')}</span>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-700">
+                  {day?.dayLabel ?? ''}
+                </span>
+                <span className="text-[10px] font-semibold text-neutral-400">
+                  {String(i + 1).padStart(2, '0')}
+                </span>
               </div>
-              <p className="text-sm font-bold text-neutral-900">{step.label}</p>
-              <p className="mt-1 text-[11px] leading-relaxed text-neutral-600">{step.short}</p>
+              <p className="text-sm font-bold text-neutral-900">{day?.title ?? phaseId}</p>
+              <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-neutral-600">
+                {day?.goal}
+              </p>
             </button>
           )
         })}
       </div>
       <p className="mt-3 text-[11px] text-neutral-500">
-        Google Design Sprint: 5-dages ramme for at løse kritiske spørgsmål gennem design, prototyping og test.
+        GV Design Sprint: fem dage fra Map til Test — workshopøvelser, beslutninger og få valgfrie
+        ForgeLab-værktøjer.
       </p>
     </div>
   )

@@ -1,983 +1,760 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
-import Link from 'next/link'
-import Script from 'next/script'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { ArrowLeft, Download, Loader2, QrCode, Upload, X } from 'lucide-react'
 import { useProjectToolData } from '@/lib/useProjectToolData'
 
-declare global {
-  interface Window {
-    QRCode: any
+type ErrorCorrectionLevel = 'L' | 'M' | 'Q' | 'H'
+type StylePreset = 'classic' | 'rounded' | 'dots' | 'classy' | 'classy-rounded' | 'extra-rounded'
+type ExportFormat = 'png' | 'svg'
+type ExportSize = 512 | 1024 | 2048 | 4096
+type DotType = 'square' | 'dots' | 'rounded' | 'classy' | 'classy-rounded' | 'extra-rounded'
+type CornerSquareType = 'square' | 'dot' | 'extra-rounded'
+type CornerDotType = 'square' | 'dot'
+type DownloadPreset = { format: ExportFormat; size: ExportSize }
+
+type QRGeneratorState = {
+  inputValue: string
+  size: number
+  errorCorrection: ErrorCorrectionLevel
+  foregroundColor: string
+  backgroundColor: string
+  stylePreset: StylePreset
+  logoDataUrl: string | null
+  centerText: string
+  textBelow: string
+  enableTracking: boolean
+  exportPreset: DownloadPreset
+}
+
+type QRCodeInstance = {
+  append: (el: HTMLElement) => void
+  update: (opts: Record<string, unknown>) => void
+  getRawData: (extension: 'png' | 'svg') => Promise<Blob | null>
+}
+type QRCodeCtor = new (opts: Record<string, unknown>) => QRCodeInstance
+
+const DEFAULT_STATE: QRGeneratorState = {
+  inputValue: '',
+  size: 220,
+  errorCorrection: 'M',
+  foregroundColor: '#111827',
+  backgroundColor: '#FFFFFF',
+  stylePreset: 'classic',
+  logoDataUrl: null,
+  centerText: '',
+  textBelow: '',
+  enableTracking: false,
+  exportPreset: { format: 'png', size: 2048 },
+}
+
+const STYLE_PRESETS: Array<{
+  id: StylePreset
+  label: string
+  dots: DotType
+  cornersSquare: CornerSquareType
+  cornersDot: CornerDotType
+}> = [
+  { id: 'classic', label: 'Classic', dots: 'square', cornersSquare: 'square', cornersDot: 'square' },
+  { id: 'rounded', label: 'Rounded', dots: 'rounded', cornersSquare: 'extra-rounded', cornersDot: 'dot' },
+  { id: 'dots', label: 'Dots', dots: 'dots', cornersSquare: 'dot', cornersDot: 'dot' },
+  { id: 'classy', label: 'Classy', dots: 'classy', cornersSquare: 'extra-rounded', cornersDot: 'square' },
+  { id: 'classy-rounded', label: 'Classy Rounded', dots: 'classy-rounded', cornersSquare: 'extra-rounded', cornersDot: 'dot' },
+  { id: 'extra-rounded', label: 'Extra Rounded', dots: 'extra-rounded', cornersSquare: 'extra-rounded', cornersDot: 'dot' },
+]
+
+const COLOR_PRESETS = ['#111827', '#1D4ED8', '#7C3AED', '#EA580C', '#059669', '#DC2626', '#0EA5E9', '#000000']
+
+function sanitizeState(input: Partial<QRGeneratorState>): QRGeneratorState {
+  return {
+    ...DEFAULT_STATE,
+    ...input,
+    exportPreset: {
+      format: input.exportPreset?.format === 'svg' ? 'svg' : 'png',
+      size: ([512, 1024, 2048, 4096].includes(input.exportPreset?.size as number)
+        ? (input.exportPreset?.size as ExportSize)
+        : 2048),
+    },
   }
 }
 
-type CornerStyle = 'square' | 'rounded' | 'dot' | 'classic'
-type SavedQRCode = {
-  id: string
-  qrId: string | null
-  image: string
-  text: string
-  originalUrl: string
-  createdAt: string
-  scanCount: number
+function wrapTextLines(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number
+): string[] {
+  const words = text.trim().split(/\s+/).filter(Boolean)
+  if (words.length === 0) return []
+  const lines: string[] = []
+  let line = words[0]
+  for (let i = 1; i < words.length; i += 1) {
+    const candidate = `${line} ${words[i]}`
+    if (ctx.measureText(candidate).width <= maxWidth) {
+      line = candidate
+    } else {
+      lines.push(line)
+      line = words[i]
+    }
+  }
+  lines.push(line)
+  return lines
 }
 
-const COLOR_PRESETS = [
-  { name: 'Sort', value: '#000000' },
-  { name: 'Rød', value: '#EF4444' },
-  { name: 'Orange', value: '#F97316' },
-  { name: 'Grøn', value: '#10B981' },
-  { name: 'Lyseblå', value: '#3B82F6' },
-  { name: 'Mørkeblå', value: '#1E40AF' },
-  { name: 'Lilla', value: '#8B5CF6' },
-  { name: 'Pink', value: '#EC4899' },
-]
+async function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result ?? ''))
+    reader.onerror = () => reject(new Error('Kunne ikke læse blob-data'))
+    reader.readAsDataURL(blob)
+  })
+}
 
-export default function QRGenerator() {
-  const [qrText, setQrText] = useState('')
-  const [qrSize, setQrSize] = useState(200)
-  const [errorLevel, setErrorLevel] = useState('M')
-  const [enableTracking, setEnableTracking] = useState(false)
-  const [textBelow, setTextBelow] = useState('')
-  const [qrCodeLoaded, setQrCodeLoaded] = useState(false)
+async function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => resolve(img)
+    img.onerror = () => reject(new Error('Kunne ikke indlæse billede'))
+    img.src = src
+  })
+}
+
+function downloadBlob(filename: string, blob: Blob) {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+export default function QRGeneratorPage() {
+  const router = useRouter()
+  const [state, setState] = useState<QRGeneratorState>(DEFAULT_STATE)
+  const [trackedUrl, setTrackedUrl] = useState<string | null>(null)
   const [currentQrId, setCurrentQrId] = useState<string | null>(null)
   const [scanCount, setScanCount] = useState(0)
   const [error, setError] = useState('')
-  const [finalQRImage, setFinalQRImage] = useState<string | null>(null)
-  
-  // Customization states
-  const [foregroundColor, setForegroundColor] = useState('#000000')
-  const [backgroundColor, setBackgroundColor] = useState('#FFFFFF')
-  const [cornerStyle, setCornerStyle] = useState<CornerStyle>('square')
-  const [logoFile, setLogoFile] = useState<File | null>(null)
-  const [logoPreview, setLogoPreview] = useState<string | null>(null)
-  const [centerText, setCenterText] = useState('')
-  const [showAdvanced, setShowAdvanced] = useState(false)
-  const [savedQRCodes, setSavedQRCodes] = useState<SavedQRCode[]>([])
-  const [showSaved, setShowSaved] = useState(false)
+  const [isLibraryReady, setIsLibraryReady] = useState(false)
+  const [isDownloading, setIsDownloading] = useState(false)
 
-  // Combine QR generator settings into one state object for saving (exclude UI-only and runtime states)
-  const qrGeneratorData = {
-    qrText,
-    qrSize,
-    errorLevel,
-    enableTracking,
-    textBelow,
-    foregroundColor,
-    backgroundColor,
-    cornerStyle,
-    logoPreview, // Save preview URL, not File object
-    centerText,
-    savedQRCodes,
-  }
-  const setQRGeneratorData = (data: typeof qrGeneratorData) => {
-    setQrText(data.qrText)
-    setQrSize(data.qrSize)
-    setErrorLevel(data.errorLevel)
-    setEnableTracking(data.enableTracking)
-    setTextBelow(data.textBelow)
-    setForegroundColor(data.foregroundColor)
-    setBackgroundColor(data.backgroundColor)
-    setCornerStyle(data.cornerStyle)
-    setLogoPreview(data.logoPreview)
-    setCenterText(data.centerText)
-    setSavedQRCodes(Array.isArray(data.savedQRCodes) ? data.savedQRCodes : [])
-  }
-
-  // Automatically save/load data when in a project
-  useProjectToolData('qr-generator', qrGeneratorData, setQRGeneratorData)
-  const logoInputRef = useRef<HTMLInputElement>(null)
+  const previewRef = useRef<HTMLDivElement>(null)
+  const qrInstanceRef = useRef<QRCodeInstance | null>(null)
+  const qrCtorRef = useRef<QRCodeCtor | null>(null)
   const statsIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
+  useProjectToolData<QRGeneratorState>('qr-generator', state, (saved) => {
+    setState(sanitizeState(saved))
+  })
+
+  const effectiveData = useMemo(() => {
+    if (state.enableTracking && trackedUrl) return trackedUrl
+    return state.inputValue.trim()
+  }, [state.enableTracking, trackedUrl, state.inputValue])
+
+  const stylePreset = useMemo(
+    () => STYLE_PRESETS.find((p) => p.id === state.stylePreset) ?? STYLE_PRESETS[0],
+    [state.stylePreset]
+  )
+
+  const API_URL = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'
+
+  const buildQrOptions = useCallback(
+    (size: number, data: string) => ({
+      width: size,
+      height: size,
+      data: data || ' ',
+      type: 'canvas',
+      margin: 0,
+      qrOptions: {
+        typeNumber: 0,
+        mode: 'Byte',
+        errorCorrectionLevel: state.errorCorrection,
+      },
+      image: state.logoDataUrl ?? undefined,
+      imageOptions: {
+        hideBackgroundDots: true,
+        imageSize: 0.24,
+        margin: 8,
+        crossOrigin: 'anonymous',
+      },
+      dotsOptions: {
+        color: state.foregroundColor,
+        type: stylePreset.dots,
+      },
+      cornersSquareOptions: {
+        color: state.foregroundColor,
+        type: stylePreset.cornersSquare,
+      },
+      cornersDotOptions: {
+        color: state.foregroundColor,
+        type: stylePreset.cornersDot,
+      },
+      backgroundOptions: {
+        color: state.backgroundColor,
+      },
+    }),
+    [state.errorCorrection, state.logoDataUrl, state.foregroundColor, state.backgroundColor, stylePreset]
+  )
+
+  const refreshStats = useCallback(
+    async (qrId: string) => {
+      try {
+        const response = await fetch(`${API_URL}/api/stats/${qrId}`)
+        if (!response.ok) return
+        const payload = await response.json()
+        setScanCount(typeof payload.count === 'number' ? payload.count : 0)
+      } catch {
+        // best effort only
+      }
+    },
+    [API_URL]
+  )
+
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.QRCode) {
-      setQrCodeLoaded(true)
+    let mounted = true
+    ;(async () => {
+      try {
+        const mod = await import('qr-code-styling')
+        if (!mounted) return
+        qrCtorRef.current = (mod.default || (mod as unknown)) as QRCodeCtor
+        setIsLibraryReady(true)
+      } catch {
+        setError('Kunne ikke indlæse qr-code-styling biblioteket.')
+      }
+    })()
+    return () => {
+      mounted = false
     }
   }, [])
 
-  const saveQRCode = (qrId: string | null, image: string, text: string, originalUrl: string, scanCount: number) => {
-    if (typeof window === 'undefined') return
-    try {
-      const newQRCode = {
-        id: Date.now().toString() + Math.random().toString(36).substring(7),
-        qrId,
-        image,
-        text,
-        originalUrl,
-        createdAt: new Date().toISOString(),
-        scanCount
-      }
-      const updated = [...savedQRCodes, newQRCode]
-      setSavedQRCodes(updated)
-    } catch (err) {
-      console.error('Fejl ved gemning af QR kode:', err)
-    }
-  }
-
-  const deleteSavedQRCode = (id: string) => {
-    if (typeof window === 'undefined') return
-    try {
-      const updated = savedQRCodes.filter(qr => qr.id !== id)
-      setSavedQRCodes(updated)
-    } catch (err) {
-      console.error('Fejl ved sletning af QR kode:', err)
-    }
-  }
-
-  const loadSavedQRCode = (savedQR: typeof savedQRCodes[0]) => {
-    setFinalQRImage(savedQR.image)
-    setQrText(savedQR.text)
-    setCurrentQrId(savedQR.qrId)
-    setScanCount(savedQR.scanCount)
-    if (savedQR.qrId) {
-      startAutoRefreshStats(savedQR.qrId)
-    }
-  }
-
-  const API_URL = typeof window !== 'undefined' 
-    ? window.location.origin 
-    : 'http://localhost:3000'
-
-  const drawCorner = useCallback((
-    ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    size: number,
-    corner: CornerStyle,
-    color: string
-  ) => {
-    ctx.fillStyle = color
-    
-    switch (corner) {
-      case 'square':
-        ctx.fillRect(x, y, size, size)
-        break
-      case 'rounded':
-        const cornerRadius = size * 0.3
-        ctx.beginPath()
-        ctx.moveTo(x + cornerRadius, y)
-        ctx.lineTo(x + size - cornerRadius, y)
-        ctx.quadraticCurveTo(x + size, y, x + size, y + cornerRadius)
-        ctx.lineTo(x + size, y + size - cornerRadius)
-        ctx.quadraticCurveTo(x + size, y + size, x + size - cornerRadius, y + size)
-        ctx.lineTo(x + cornerRadius, y + size)
-        ctx.quadraticCurveTo(x, y + size, x, y + size - cornerRadius)
-        ctx.lineTo(x, y + cornerRadius)
-        ctx.quadraticCurveTo(x, y, x + cornerRadius, y)
-        ctx.closePath()
-        ctx.fill()
-        break
-      case 'dot':
-        ctx.beginPath()
-        ctx.arc(x + size / 2, y + size / 2, size / 2, 0, Math.PI * 2)
-        ctx.fill()
-        break
-      case 'classic':
-        ctx.fillRect(x, y, size, size)
-        ctx.fillStyle = backgroundColor
-        const innerSize = size * 0.4
-        const innerOffset = size * 0.3
-        ctx.fillRect(x + innerOffset, y + innerOffset, innerSize, innerSize)
-        ctx.fillStyle = color
-        break
-    }
-  }, [backgroundColor])
-
-  // Core QR code generation function
-  const generateQRCode = useCallback((text: string, skipTracking: boolean = false) => {
-    return new Promise<string>((resolve, reject) => {
-      try {
-        const container = document.createElement('div')
-        const errorLevelMap: { [key: string]: number } = {
-          'L': 0,
-          'M': 1,
-          'Q': 2,
-          'H': 3
-        }
-        const correctLevel = errorLevelMap[errorLevel] || 1
-
-        new window.QRCode(container, {
-          text: text,
-          width: qrSize,
-          height: qrSize,
-          colorDark: '#000000',
-          colorLight: '#FFFFFF',
-          correctLevel: correctLevel
-        })
-
-        setTimeout(() => {
-          const canvas = container.querySelector('canvas')
-          if (!canvas) {
-            reject(new Error('Kunne ikke generere QR kode canvas'))
-            return
-          }
-
-          const tempCtx = canvas.getContext('2d')
-          if (!tempCtx) {
-            reject(new Error('Kunne ikke få canvas context'))
-            return
-          }
-          
-          const imageData = tempCtx.getImageData(0, 0, canvas.width, canvas.height)
-          const modules = canvas.width
-          const moduleSize = canvas.width / modules
-
-          const finalCanvas = document.createElement('canvas')
-          const ctx = finalCanvas.getContext('2d')
-          if (!ctx) {
-            reject(new Error('Kunne ikke få final canvas context'))
-            return
-          }
-
-          const padding = 20
-          const textHeight = textBelow.trim() ? 60 : 0
-          finalCanvas.width = qrSize + (padding * 2)
-          finalCanvas.height = qrSize + (padding * 2) + textHeight
-
-          ctx.fillStyle = backgroundColor
-          ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height)
-
-          const qrStartX = padding
-          const qrStartY = padding
-          
-          for (let y = 0; y < modules; y++) {
-            for (let x = 0; x < modules; x++) {
-              const index = (y * modules + x) * 4
-              const r = imageData.data[index]
-              const isDark = r < 128
-
-              if (isDark) {
-                const pixelX = qrStartX + x * moduleSize
-                const pixelY = qrStartY + y * moduleSize
-                
-                const isCorner = (
-                  (x < 7 && y < 7) ||
-                  (x >= modules - 7 && y < 7) ||
-                  (x < 7 && y >= modules - 7)
-                )
-
-                if (isCorner) {
-                  drawCorner(ctx, pixelX, pixelY, moduleSize, cornerStyle, foregroundColor)
-                } else {
-                  ctx.fillStyle = foregroundColor
-                  ctx.fillRect(pixelX, pixelY, moduleSize, moduleSize)
-                }
-              }
-            }
-          }
-
-          const finalizeQR = () => {
-            if (!ctx) return
-            
-            if (textBelow.trim()) {
-              ctx.fillStyle = '#1a1a1a'
-              ctx.font = 'bold 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-              ctx.textAlign = 'center'
-              ctx.textBaseline = 'top'
-              
-              const maxWidth = qrSize - 20
-              const words = textBelow.split(' ')
-              let line = ''
-              let y = qrSize + padding + 10
-              
-              for (let i = 0; i < words.length; i++) {
-                const testLine = line + words[i] + ' '
-                const metrics = ctx.measureText(testLine)
-                if (metrics.width > maxWidth && i > 0) {
-                  ctx.fillText(line, finalCanvas.width / 2, y)
-                  line = words[i] + ' '
-                  y += 22
-                } else {
-                  line = testLine
-                }
-              }
-              ctx.fillText(line, finalCanvas.width / 2, y)
-            }
-            
-            resolve(finalCanvas.toDataURL('image/png'))
-          }
-
-          const addLogoAndText = () => {
-            if (logoPreview || centerText) {
-              const centerX = qrStartX + qrSize / 2
-              const centerY = qrStartY + qrSize / 2
-              const logoSize = qrSize * 0.2
-
-              if (logoPreview) {
-                const logoImg = new Image()
-                logoImg.onload = () => {
-                  ctx.save()
-                  ctx.globalCompositeOperation = 'destination-over'
-                  ctx.drawImage(logoImg, centerX - logoSize / 2, centerY - logoSize / 2, logoSize, logoSize)
-                  ctx.restore()
-                  finalizeQR()
-                }
-                logoImg.onerror = () => finalizeQR()
-                logoImg.src = logoPreview
-              } else if (centerText) {
-                ctx.fillStyle = foregroundColor
-                ctx.font = `bold ${logoSize * 0.3}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`
-                ctx.textAlign = 'center'
-                ctx.textBaseline = 'middle'
-                ctx.fillText(centerText, centerX, centerY)
-                finalizeQR()
-              }
-            } else {
-              finalizeQR()
-            }
-          }
-
-          addLogoAndText()
-        }, 200)
-      } catch (err: any) {
-        reject(err)
-      }
-    })
-  }, [qrSize, errorLevel, foregroundColor, backgroundColor, cornerStyle, logoPreview, centerText, textBelow, drawCorner])
-
-  // Live preview effect with debouncing
   useEffect(() => {
-    if (!qrCodeLoaded || !qrText.trim()) {
-      setFinalQRImage(null)
-      return
+    if (!isLibraryReady || !previewRef.current || !qrCtorRef.current) return
+    if (!qrInstanceRef.current) {
+      qrInstanceRef.current = new qrCtorRef.current(buildQrOptions(state.size, effectiveData))
+      qrInstanceRef.current.append(previewRef.current)
+    } else {
+      qrInstanceRef.current.update(buildQrOptions(state.size, effectiveData))
     }
-
-    const timeoutId = setTimeout(async () => {
-      if (typeof window === 'undefined' || !window.QRCode) {
-        return
-      }
-
-      const text = qrText.trim()
-      if (!text) {
-        setFinalQRImage(null)
-        return
-      }
-
-      try {
-        const imageData = await generateQRCode(text, true)
-        setFinalQRImage(imageData)
-      } catch (err: any) {
-        console.error('Preview generation error:', err)
-      }
-    }, 500)
-
-    return () => clearTimeout(timeoutId)
-  }, [qrText, qrCodeLoaded, generateQRCode, foregroundColor, backgroundColor, cornerStyle, logoPreview, centerText, textBelow, qrSize, errorLevel])
-
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        setError('Logo filen er for stor. Maks størrelse: 5MB')
-        return
-      }
-      if (!file.type.includes('image')) {
-        setError('Logo skal være et billede')
-        return
-      }
-      setLogoFile(file)
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        setLogoPreview(e.target?.result as string)
-      }
-      reader.readAsDataURL(file)
-    }
-  }
-
-  const removeLogo = () => {
-    setLogoFile(null)
-    setLogoPreview(null)
-    if (logoInputRef.current) {
-      logoInputRef.current.value = ''
-    }
-  }
-
-  const refreshStats = async (qrId: string) => {
-    try {
-      const response = await fetch(`${API_URL}/api/stats/${qrId}`)
-      if (response.ok) {
-        const data = await response.json()
-        const count = data.count || 0
-        setScanCount(count)
-        // Update saved QR code scan count
-        const updated = savedQRCodes.map(qr => 
-          qr.qrId === qrId ? { ...qr, scanCount: count } : qr
-        )
-        setSavedQRCodes(updated)
-      }
-    } catch (err) {
-      console.error('Kunne ikke hente statistik:', err)
-    }
-  }
-
-  const startAutoRefreshStats = (qrId: string) => {
-    if (statsIntervalRef.current) {
-      clearInterval(statsIntervalRef.current)
-    }
-    statsIntervalRef.current = setInterval(() => {
-      refreshStats(qrId)
-    }, 5000)
-  }
+  }, [isLibraryReady, state.size, effectiveData, buildQrOptions])
 
   useEffect(() => {
     return () => {
-      if (statsIntervalRef.current) {
-        clearInterval(statsIntervalRef.current)
-      }
+      if (statsIntervalRef.current) clearInterval(statsIntervalRef.current)
     }
   }, [])
 
-  // Full generation with tracking
-  const generateQR = async () => {
-    if (typeof window === 'undefined' || !window.QRCode) {
-      setError('QRCode biblioteket kunne ikke indlæses. Genindlæs siden.')
-      return
-    }
-
-    const text = qrText.trim()
+  const createTrackedUrl = async () => {
+    const text = state.inputValue.trim()
     if (!text) {
-      setError('Indtast venligst tekst eller URL!')
+      setError('Indtast venligst tekst eller URL først.')
       return
     }
-
     setError('')
-    setCurrentQrId(null)
-    setScanCount(0)
-
-    if (statsIntervalRef.current) {
-      clearInterval(statsIntervalRef.current)
-      statsIntervalRef.current = null
-    }
-
-    let finalText = text
-
-    if (enableTracking) {
-      try {
-        // Ensure URL has protocol for tracking
-        let urlToTrack = text
-        if (!urlToTrack.startsWith('http://') && !urlToTrack.startsWith('https://')) {
-          urlToTrack = 'https://' + urlToTrack
-        }
-
-        const response = await fetch(`${API_URL}/api/create-tracked`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ url: urlToTrack })
-        })
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}))
-          throw new Error(errorData.error || 'Kunne ikke oprette tracking. Er serveren startet?')
-        }
-
-        const data = await response.json()
-        setCurrentQrId(data.qrId)
-        
-        // Construct full tracking URL
-        const trackUrl = data.trackUrl || `/api/track/${data.qrId}`
-        const fullTrackUrl = trackUrl.startsWith('http') 
-          ? trackUrl 
-          : `${API_URL}${trackUrl}`
-        
-        finalText = fullTrackUrl
-          refreshStats(data.qrId)
-          startAutoRefreshStats(data.qrId)
-        
-        // Generate QR code with tracking URL
-        try {
-          const imageData = await generateQRCode(finalText, false)
-          setFinalQRImage(imageData)
-          saveQRCode(data.qrId, imageData, finalText, urlToTrack, 0)
-        } catch (err: any) {
-          setError('Fejl ved generering af QR kode: ' + err.message)
-        }
-      } catch (err: any) {
-        setError('Tracking fejl: ' + err.message)
-        // Don't generate QR code if tracking fails
-        return
+    try {
+      const inputUrl =
+        text.startsWith('http://') || text.startsWith('https://') ? text : `https://${text}`
+      const response = await fetch(`${API_URL}/api/create-tracked`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: inputUrl }),
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload.error || 'Kunne ikke oprette tracking-link.')
       }
-    } else {
-      // Generate QR code without tracking
-      try {
-        const imageData = await generateQRCode(finalText, false)
-        setFinalQRImage(imageData)
-        saveQRCode(null, imageData, finalText, finalText, 0)
-      } catch (err: any) {
-        setError('Fejl ved generering af QR kode: ' + err.message)
-      }
+      const payload = await response.json()
+      const trackUrl = payload.trackUrl || `/api/track/${payload.qrId}`
+      const absoluteTrackUrl = trackUrl.startsWith('http') ? trackUrl : `${API_URL}${trackUrl}`
+      setTrackedUrl(absoluteTrackUrl)
+      setCurrentQrId(payload.qrId)
+      setScanCount(0)
+      if (statsIntervalRef.current) clearInterval(statsIntervalRef.current)
+      statsIntervalRef.current = setInterval(() => {
+        refreshStats(payload.qrId)
+      }, 5000)
+      void refreshStats(payload.qrId)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Ukendt tracking-fejl')
     }
   }
 
-  const downloadQR = () => {
-    if (!finalQRImage) {
-      alert('Generer venligst en QR kode først!')
+  const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      setError('Logo skal være et billede (png, jpg, webp eller svg).')
       return
     }
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Logo er for stort. Maks 5MB.')
+      return
+    }
+    setError('')
+    const reader = new FileReader()
+    reader.onload = () => {
+      setState((prev) => ({ ...prev, logoDataUrl: String(reader.result ?? null) }))
+    }
+    reader.readAsDataURL(file)
+  }
 
-    const link = document.createElement('a')
-    link.download = 'qr-kode.png'
-    link.href = finalQRImage
-    link.click()
+  const removeLogo = () => {
+    setState((prev) => ({ ...prev, logoDataUrl: null }))
+  }
+
+  const composePng = useCallback(
+    async (qrBlob: Blob, size: ExportSize) => {
+      const qrDataUrl = await blobToDataUrl(qrBlob)
+      const qrImage = await loadImage(qrDataUrl)
+      const pad = Math.round(size * 0.08)
+      const centerText = state.centerText.trim()
+      const footerText = state.textBelow.trim()
+      const footerHeight = footerText ? Math.round(size * 0.24) : 0
+
+      const canvas = document.createElement('canvas')
+      canvas.width = size + pad * 2
+      canvas.height = size + pad * 2 + footerHeight
+      const ctx = canvas.getContext('2d')
+      if (!ctx) throw new Error('Kunne ikke oprette eksport-canvas.')
+
+      ctx.fillStyle = state.backgroundColor
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      ctx.drawImage(qrImage, pad, pad, size, size)
+
+      if (centerText) {
+        ctx.fillStyle = state.foregroundColor
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.font = `700 ${Math.max(24, Math.round(size * 0.09))}px Inter, system-ui, sans-serif`
+        ctx.fillText(centerText.slice(0, 16), pad + size / 2, pad + size / 2)
+      }
+
+      if (footerText) {
+        ctx.fillStyle = state.foregroundColor
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'top'
+        ctx.font = `600 ${Math.max(24, Math.round(size * 0.045))}px Inter, system-ui, sans-serif`
+        const lines = wrapTextLines(ctx, footerText, size)
+        const lineHeight = Math.max(28, Math.round(size * 0.055))
+        let y = pad + size + Math.round(size * 0.06)
+        for (const line of lines.slice(0, 4)) {
+          ctx.fillText(line, pad + size / 2, y)
+          y += lineHeight
+        }
+      }
+
+      return new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob((blob) => {
+          if (!blob) reject(new Error('Kunne ikke eksportere PNG.'))
+          else resolve(blob)
+        }, 'image/png')
+      })
+    },
+    [state.backgroundColor, state.centerText, state.textBelow, state.foregroundColor]
+  )
+
+  const composeSvg = useCallback(
+    async (qrSvgBlob: Blob, size: ExportSize) => {
+      const centerText = state.centerText.trim()
+      const footerText = state.textBelow.trim()
+      if (!centerText && !footerText) return qrSvgBlob
+
+      const qrSvgRaw = await qrSvgBlob.text()
+      const pad = Math.round(size * 0.08)
+      const footerHeight = footerText ? Math.round(size * 0.24) : 0
+      const totalWidth = size + pad * 2
+      const totalHeight = size + pad * 2 + footerHeight
+      const svgPayload = btoa(unescape(encodeURIComponent(qrSvgRaw)))
+
+      const footerLine = footerText
+        ? `<text x="${totalWidth / 2}" y="${pad + size + Math.round(size * 0.12)}" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="${Math.max(
+            24,
+            Math.round(size * 0.045)
+          )}" font-weight="600" fill="${state.foregroundColor}">${footerText
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')}</text>`
+        : ''
+      const centerLine = centerText
+        ? `<text x="${pad + size / 2}" y="${pad + size / 2}" text-anchor="middle" dominant-baseline="middle" font-family="Inter, system-ui, sans-serif" font-size="${Math.max(
+            24,
+            Math.round(size * 0.09)
+          )}" font-weight="700" fill="${state.foregroundColor}">${centerText
+            .slice(0, 16)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')}</text>`
+        : ''
+
+      const wrapped = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${totalWidth}" height="${totalHeight}" viewBox="0 0 ${totalWidth} ${totalHeight}">
+  <rect width="${totalWidth}" height="${totalHeight}" fill="${state.backgroundColor}" />
+  <image href="data:image/svg+xml;base64,${svgPayload}" x="${pad}" y="${pad}" width="${size}" height="${size}" />
+  ${centerLine}
+  ${footerLine}
+</svg>`
+      return new Blob([wrapped], { type: 'image/svg+xml;charset=utf-8' })
+    },
+    [state.centerText, state.textBelow, state.foregroundColor, state.backgroundColor]
+  )
+
+  const handleDownload = async () => {
+    if (!isLibraryReady || !qrCtorRef.current) return
+    const text = effectiveData.trim()
+    if (!text) {
+      setError('Indtast venligst tekst eller URL før download.')
+      return
+    }
+    setError('')
+    setIsDownloading(true)
+    try {
+      const tempQr = new qrCtorRef.current(buildQrOptions(state.exportPreset.size, text))
+      const raw = await tempQr.getRawData(state.exportPreset.format)
+      if (!raw) throw new Error('Kunne ikke generere eksportfil.')
+
+      if (state.exportPreset.format === 'png') {
+        const pngBlob = await composePng(raw, state.exportPreset.size)
+        downloadBlob('qr-code.png', pngBlob)
+      } else {
+        const svgBlob = await composeSvg(raw, state.exportPreset.size)
+        downloadBlob('qr-code.svg', svgBlob)
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Download fejlede.')
+    } finally {
+      setIsDownloading(false)
+    }
   }
 
   return (
-    <>
-      <Script
-        src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"
-        onLoad={() => setQrCodeLoaded(true)}
-      />
-      <div className="min-h-screen px-4 py-8 md:py-12 bg-gradient-to-br from-gray-50 to-gray-100">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Left Column - Controls */}
-            <div className="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-gray-200">
-              {/* Back Link */}
-              <Link 
-                href="/dashboard" 
-                className="inline-flex items-center gap-2 text-gray-700 font-medium mb-8 hover:text-gray-900 transition-colors"
-              >
-                <span>←</span>
-                <span>Tilbage til Dashboard</span>
-              </Link>
-              
-              {/* Header */}
-              <div className="text-center mb-8">
-                <div className="flex items-center justify-center gap-3 mb-4">
-                  <span className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-amber-500 text-white text-xl font-extrabold shadow-sm shadow-amber-500/30 select-none">F</span>
-                  <h1 className="text-3xl md:text-4xl font-semibold text-gray-900">
-                    QR Code Generator
-                  </h1>
-                </div>
-              </div>
-              
-              {/* Input */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Indtast tekst eller URL
-                </label>
-                <textarea
-                  value={qrText}
-                  onChange={(e) => setQrText(e.target.value)}
-                  placeholder="Skriv din tekst eller URL her..."
-                  className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-900 focus:outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-all duration-200 resize-none min-h-[100px]"
-                />
-              </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 px-4 py-8 md:px-6">
+      <div className="mx-auto max-w-7xl">
+        <button
+          onClick={() => router.back()}
+          className="mb-5 inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Tilbage
+        </button>
 
-              {/* Tracking Checkbox */}
-              <div className="flex items-center gap-3 mb-6 p-4 rounded-lg bg-gray-50 border border-gray-200">
-                <input
-                  type="checkbox"
-                  id="enableTracking"
-                  checked={enableTracking}
-                  onChange={(e) => setEnableTracking(e.target.checked)}
-                  className="w-5 h-5 rounded border-gray-300 text-gray-900 focus:ring-gray-900 cursor-pointer"
-                />
-                <label htmlFor="enableTracking" className="text-gray-700 font-medium cursor-pointer">
-                  Aktiver scanning tracking
-                </label>
-              </div>
-
-              {/* Basic Options */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Størrelse
-                  </label>
-                  <input
-                    type="number"
-                    value={qrSize}
-                    onChange={(e) => setQrSize(parseInt(e.target.value))}
-                    min="100"
-                    max="500"
-                    step="50"
-                    className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-900 focus:outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-all duration-200"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Fejlkorrektion
-                  </label>
-                  <select
-                    value={errorLevel}
-                    onChange={(e) => setErrorLevel(e.target.value)}
-                    className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-900 focus:outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-all duration-200"
-                  >
-                    <option value="L">Lav</option>
-                    <option value="M">Medium</option>
-                    <option value="Q">Høj</option>
-                    <option value="H">Meget høj</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Advanced Options Toggle */}
-              <div className="mb-6">
-                <button
-                  onClick={() => setShowAdvanced(!showAdvanced)}
-                  className="w-full px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium text-gray-700 transition-all duration-200 flex items-center justify-between"
-                >
-                  <span>Avancerede Indstillinger</span>
-                  <span className={showAdvanced ? 'rotate-180' : ''}>▼</span>
-                </button>
-              </div>
-
-              {/* Advanced Options */}
-              {showAdvanced && (
-                <div className="space-y-4 mb-6 p-4 bg-gray-50 rounded-xl border border-gray-200 max-h-[calc(100vh-300px)] overflow-y-auto">
-                  {/* Colors - Side by side layout */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Color Presets */}
-                    <div>
-                      <h3 className="text-base font-semibold text-gray-900 mb-2">Preset Farver</h3>
-                      <div className="flex flex-wrap gap-2">
-                        {COLOR_PRESETS.map((preset) => (
-                          <button
-                            key={preset.value}
-                            onClick={() => setForegroundColor(preset.value)}
-                            className={`w-8 h-8 rounded-full border-2 transition-all ${
-                              foregroundColor === preset.value 
-                                ? 'border-gray-900 scale-110' 
-                                : 'border-gray-300 hover:border-gray-500'
-                            }`}
-                            style={{ backgroundColor: preset.value }}
-                            title={preset.name}
-                          />
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Foreground & Background Colors - Side by side */}
-                    <div className="space-y-3">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">
-                          QR Kode Farve
-                        </label>
-                        <div className="flex gap-2">
-                          <input
-                            type="color"
-                            value={foregroundColor}
-                            onChange={(e) => setForegroundColor(e.target.value)}
-                            className="w-12 h-8 rounded border border-gray-300 cursor-pointer"
-                          />
-                          <input
-                            type="text"
-                            value={foregroundColor}
-                            onChange={(e) => setForegroundColor(e.target.value)}
-                            placeholder="#000000"
-                            className="flex-1 px-2 py-1 text-sm rounded border border-gray-300 bg-white text-gray-900 focus:outline-none focus:border-gray-900"
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">
-                          Baggrund Farve
-                        </label>
-                        <div className="flex gap-2">
-                          <input
-                            type="color"
-                            value={backgroundColor}
-                            onChange={(e) => setBackgroundColor(e.target.value)}
-                            className="w-12 h-8 rounded border border-gray-300 cursor-pointer"
-                          />
-                          <input
-                            type="text"
-                            value={backgroundColor}
-                            onChange={(e) => setBackgroundColor(e.target.value)}
-                            placeholder="#FFFFFF"
-                            className="flex-1 px-2 py-1 text-sm rounded border border-gray-300 bg-white text-gray-900 focus:outline-none focus:border-gray-900"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Corner Styles - Smaller */}
-                  <div>
-                    <h3 className="text-base font-semibold text-gray-900 mb-2">Hjørne Styles</h3>
-                    <div className="grid grid-cols-4 gap-2">
-                      {(['square', 'rounded', 'dot', 'classic'] as CornerStyle[]).map((corner) => (
-                        <button
-                          key={corner}
-                          onClick={() => setCornerStyle(corner)}
-                          className={`p-2 rounded border-2 transition-all ${
-                            cornerStyle === corner
-                              ? 'border-gray-900 bg-gray-100'
-                              : 'border-gray-200 hover:border-gray-400'
-                          }`}
-                        >
-                          <div className="flex justify-center mb-1">
-                            <div className={`w-6 h-6 bg-gray-900 ${
-                              corner === 'square' ? '' :
-                              corner === 'rounded' ? 'rounded-lg' :
-                              corner === 'dot' ? 'rounded-full' :
-                              'rounded-lg'
-                            }`} />
-                          </div>
-                          <p className="text-[10px] font-medium text-gray-700 capitalize text-center">
-                            {corner === 'square' ? 'Firkant' :
-                             corner === 'rounded' ? 'Afrundet' :
-                             corner === 'dot' ? 'Prik' :
-                             'Klassisk'}
-                          </p>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Logo / Center Text */}
-                  <div>
-                    <h3 className="text-base font-semibold text-gray-900 mb-2">Logo eller Center Tekst</h3>
-                    
-                    <div className="flex flex-wrap gap-2 mb-3">
-                      <button
-                        type="button"
-                        onClick={removeLogo}
-                        className={`px-3 py-1.5 rounded border-2 transition-all text-sm font-medium ${
-                          !logoPreview && !centerText
-                            ? 'border-gray-900 bg-gray-100'
-                            : 'border-gray-200 hover:border-gray-400'
-                        }`}
-                      >
-                        Ingen logo
-                      </button>
-                      
-                      <button
-                        onClick={() => logoInputRef.current?.click()}
-                        className="px-3 py-1.5 rounded border-2 border-gray-200 hover:border-gray-400 transition-all text-sm"
-                      >
-                        <span className="text-lg">📷</span>
-                        <span className="ml-1 text-xs font-medium text-gray-700">Upload</span>
-                      </button>
-                      
-                      <input
-                        ref={logoInputRef}
-                        type="file"
-                        accept="image/*"
-                        onChange={handleLogoUpload}
-                        className="hidden"
-                      />
-                    </div>
-
-                    {logoPreview && (
-                      <div className="mb-3">
-                        <img 
-                          src={logoPreview} 
-                          alt="Logo preview" 
-                          className="w-16 h-16 object-contain rounded border border-gray-200"
-                        />
-                      </div>
-                    )}
-
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
-                        Center tekst
-                      </label>
-                      <input
-                        type="text"
-                        value={centerText}
-                        onChange={(e) => {
-                          setCenterText(e.target.value)
-                          if (e.target.value) removeLogo()
-                        }}
-                        placeholder="F.eks. Logo"
-                        maxLength={10}
-                        className="w-full px-3 py-2 text-sm rounded border border-gray-300 bg-white text-gray-900 focus:outline-none focus:border-gray-900"
-                      />
-                      <p className="text-[10px] text-gray-500 mt-1">PNG, 1:1, max 5MB</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Text Below Input */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Tekst nedenunder QR-koden (valgfrit)
-                </label>
-                <input
-                  type="text"
-                  value={textBelow}
-                  onChange={(e) => setTextBelow(e.target.value)}
-                  placeholder="F.eks. Scan mig for at besøge hjemmesiden"
-                  className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-900 focus:outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-all duration-200"
-                />
-              </div>
-
-              {/* Generate Button */}
-              <button
-                onClick={generateQR}
-                className="w-full px-6 py-4 bg-gray-900 text-white rounded-lg font-medium text-lg hover:bg-gray-800 transition-all duration-200 mb-6"
-              >
-                Generer QR Kode
-              </button>
-              
-              {/* Error Message */}
-              {error && (
-                <div className="mb-6 p-4 rounded-lg bg-red-50 border border-red-200">
-                  <p className="text-red-700 text-sm">{error}</p>
-                </div>
-              )}
-              
-              {/* QR Code Display */}
-              {finalQRImage && (
-                <div className="mb-6 p-4 rounded-xl bg-gray-50 border border-gray-200">
-                  <div className="flex flex-col items-center">
-                    <div className="mb-2 text-sm text-gray-500">
-                      {qrText.trim() ? 'Live Preview' : 'Generer QR kode for at se preview'}
-                    </div>
-                    <div className="flex justify-center items-center">
-                      <img 
-                        src={finalQRImage ?? undefined} 
-                        alt="QR Code" 
-                        className="max-w-full h-auto rounded-lg shadow-sm"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-              
-              {/* Tracking Info */}
-              {currentQrId && (
-                <div className="mb-6 p-4 rounded-lg bg-gray-50 border border-gray-200">
-                  <h3 className="text-base font-semibold text-gray-900 mb-2">
-                    📊 Tracking Information
-                  </h3>
-                  <div className="space-y-2 text-sm">
-                    <p className="text-gray-700">
-                      <span className="font-medium">QR ID:</span>{' '}
-                      <code className="px-2 py-1 rounded bg-white border border-gray-200 text-xs font-mono">
-                        {currentQrId}
-                      </code>
-                    </p>
-                    <p className="text-gray-700">
-                      <span className="font-medium">Antal scanninger:</span>{' '}
-                      <span className="text-gray-900 font-bold text-lg">{scanCount}</span>
-                    </p>
-                  </div>
-                </div>
-              )}
-              
-            {/* Download Button */}
-            {finalQRImage && (
-              <button
-                onClick={downloadQR}
-                className="w-full px-6 py-4 bg-gray-700 text-white rounded-lg font-medium text-lg hover:bg-gray-600 transition-all duration-200 mb-4"
-              >
-                Download QR Kode
-              </button>
-            )}
-
-            {/* Saved QR Codes Section */}
-            <div className="mt-6 pt-6 border-t border-gray-200">
-              <button
-                onClick={() => setShowSaved(!showSaved)}
-                className="w-full px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium text-gray-700 transition-all duration-200 flex items-center justify-between"
-              >
-                <span>💾 Gemte QR Koder ({savedQRCodes.length})</span>
-                <span className={showSaved ? 'rotate-180' : ''}>▼</span>
-              </button>
-              
-              {showSaved && (
-                <div className="mt-4 space-y-3 max-h-[400px] overflow-y-auto">
-                  {savedQRCodes.length === 0 ? (
-                    <p className="text-gray-500 text-sm text-center py-4">
-                      Ingen gemte QR koder endnu. Generer en QR kode for at gemme den.
-                    </p>
-                  ) : (
-                    savedQRCodes.slice().reverse().map((savedQR) => (
-                      <div
-                        key={savedQR.id}
-                        tabIndex={0}
-                        onKeyDown={(e) => {
-                          if (e.target !== e.currentTarget) return
-                          if (e.key !== 'Delete' && e.key !== 'Backspace') return
-                          e.preventDefault()
-                          deleteSavedQRCode(savedQR.id)
-                        }}
-                        className="bg-gray-50 rounded-lg p-4 border border-gray-200 hover:border-gray-300 transition-all outline-none focus:ring-2 focus:ring-gray-400"
-                      >
-                        <div className="flex gap-3">
-                          <img
-                            src={savedQR.image}
-                            alt="Saved QR Code"
-                            className="w-20 h-20 object-contain rounded border border-gray-200"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 truncate mb-1">
-                              {savedQR.originalUrl || savedQR.text}
-                            </p>
-                            <p className="text-xs text-gray-500 mb-2">
-                              {new Date(savedQR.createdAt).toLocaleString('da-DK')}
-                            </p>
-                            {savedQR.qrId && (
-                              <p className="text-xs text-gray-600 mb-2">
-                                Scans: <span className="font-semibold">{savedQR.scanCount}</span>
-                              </p>
-                            )}
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() => {
-                                  const link = document.createElement('a')
-                                  link.download = `qr-kode-${savedQR.id.substring(0, 8)}.png`
-                                  link.href = savedQR.image
-                                  link.click()
-                                }}
-                                className="px-3 py-1.5 text-xs bg-gray-700 text-white rounded hover:bg-gray-600 transition-colors"
-                              >
-                                Download
-                              </button>
-                              <button
-                                onClick={() => loadSavedQRCode(savedQR)}
-                                className="px-3 py-1.5 text-xs bg-gray-900 text-white rounded hover:bg-gray-800 transition-colors"
-                              >
-                                Indlæs
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
+        <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm md:p-6">
+          <div className="flex items-center gap-3">
+            <div className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-amber-500/90 text-white shadow-sm shadow-amber-500/30">
+              <QrCode className="h-5 w-5" />
             </div>
-          </div>
-
-            {/* Right Column - QR Preview (on larger screens) */}
-            <div className="lg:sticky lg:top-6 lg:self-start">
-              <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
-                {finalQRImage ? (
-                  <div className="flex flex-col items-center">
-                    <div className="mb-3 text-sm font-medium text-gray-700">
-                      Live Preview
-                    </div>
-                    <div className="flex justify-center items-center bg-gray-50 p-4 rounded-lg">
-                      <img 
-                        src={finalQRImage ?? undefined} 
-                        alt="QR Code Preview" 
-                        className="max-w-full h-auto rounded-lg shadow-md"
-                      />
-                    </div>
-                    {currentQrId && (
-                      <div className="mt-4 p-3 rounded-lg bg-gray-50 border border-gray-200 w-full">
-                        <p className="text-xs text-gray-600 mb-1">Scanninger:</p>
-                        <p className="text-2xl font-bold text-gray-900">{scanCount}</p>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center h-full min-h-[300px] text-gray-400">
-                    <div className="text-4xl mb-2">🔲</div>
-                    <p className="text-sm">Indtast tekst for at se preview</p>
-                  </div>
-                )}
-              </div>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">QR Code Generator</h1>
+              <p className="text-sm text-gray-600">Live preview, logo i center, design styles og skarp eksport til print/SoMe.</p>
             </div>
           </div>
         </div>
+
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="space-y-5">
+            <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm md:p-6">
+              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Indhold</h2>
+              <label className="mb-2 block text-sm font-medium text-gray-700">URL eller tekst</label>
+              <textarea
+                value={state.inputValue}
+                onChange={(e) => {
+                  setState((prev) => ({ ...prev, inputValue: e.target.value }))
+                  setTrackedUrl(null)
+                  setCurrentQrId(null)
+                }}
+                placeholder="https://forgelab.dk eller valgfri tekst"
+                className="min-h-[120px] w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+              />
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">Størrelse ({state.size}px)</label>
+                  <input
+                    type="range"
+                    min={160}
+                    max={520}
+                    step={10}
+                    value={state.size}
+                    onChange={(e) =>
+                      setState((prev) => ({ ...prev, size: Number(e.target.value) }))
+                    }
+                    className="w-full"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">Fejlkorrektion</label>
+                  <select
+                    value={state.errorCorrection}
+                    onChange={(e) =>
+                      setState((prev) => ({
+                        ...prev,
+                        errorCorrection: e.target.value as ErrorCorrectionLevel,
+                      }))
+                    }
+                    className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+                  >
+                    <option value="L">Lav (L)</option>
+                    <option value="M">Medium (M)</option>
+                    <option value="Q">Høj (Q)</option>
+                    <option value="H">Meget høj (H)</option>
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">Brug Q/H hvis du bruger logo i midten for bedre scanbarhed.</p>
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm md:p-6">
+              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Design style</h2>
+              <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {STYLE_PRESETS.map((preset) => (
+                  <button
+                    key={preset.id}
+                    onClick={() => setState((prev) => ({ ...prev, stylePreset: preset.id }))}
+                    className={`rounded-xl border px-3 py-2 text-sm font-medium transition ${
+                      state.stylePreset === preset.id
+                        ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                        : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">QR farve</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="color"
+                      value={state.foregroundColor}
+                      onChange={(e) =>
+                        setState((prev) => ({ ...prev, foregroundColor: e.target.value }))
+                      }
+                      className="h-10 w-12 rounded border border-gray-300"
+                    />
+                    <input
+                      type="text"
+                      value={state.foregroundColor}
+                      onChange={(e) =>
+                        setState((prev) => ({ ...prev, foregroundColor: e.target.value }))
+                      }
+                      className="flex-1 rounded-xl border border-gray-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {COLOR_PRESETS.map((color) => (
+                      <button
+                        key={color}
+                        onClick={() => setState((prev) => ({ ...prev, foregroundColor: color }))}
+                        className={`h-6 w-6 rounded-full border ${
+                          state.foregroundColor === color ? 'scale-110 border-gray-700' : 'border-gray-300'
+                        }`}
+                        style={{ backgroundColor: color }}
+                        aria-label={`Vælg farve ${color}`}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">Baggrundsfarve</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="color"
+                      value={state.backgroundColor}
+                      onChange={(e) =>
+                        setState((prev) => ({ ...prev, backgroundColor: e.target.value }))
+                      }
+                      className="h-10 w-12 rounded border border-gray-300"
+                    />
+                    <input
+                      type="text"
+                      value={state.backgroundColor}
+                      onChange={(e) =>
+                        setState((prev) => ({ ...prev, backgroundColor: e.target.value }))
+                      }
+                      className="flex-1 rounded-xl border border-gray-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm md:p-6">
+              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Logo og tekst</h2>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">Logo i midten</label>
+                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    <Upload className="h-4 w-4" />
+                    Upload logo
+                    <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
+                  </label>
+                  <p className="mt-1 text-xs text-gray-500">Anbefalet kvadratisk logo, max 5MB. Placering/margin styres automatisk.</p>
+                  {state.logoDataUrl && (
+                    <div className="mt-3 flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 p-2">
+                      <img src={state.logoDataUrl} alt="Logo preview" className="h-12 w-12 rounded object-contain bg-white" />
+                      <button
+                        onClick={removeLogo}
+                        className="inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                        Fjern
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">Center text (valgfri)</label>
+                  <input
+                    type="text"
+                    maxLength={16}
+                    value={state.centerText}
+                    onChange={(e) => setState((prev) => ({ ...prev, centerText: e.target.value }))}
+                    className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm"
+                    placeholder="FX"
+                  />
+                  <label className="mb-1 mt-3 block text-sm font-medium text-gray-700">Tekst under QR-koden</label>
+                  <input
+                    type="text"
+                    value={state.textBelow}
+                    onChange={(e) => setState((prev) => ({ ...prev, textBelow: e.target.value }))}
+                    className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm"
+                    placeholder="Scan mig for at besøge siden"
+                  />
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm md:p-6">
+              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Tracking og eksport</h2>
+              <div className="mb-4 flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5">
+                <input
+                  id="enable-tracking"
+                  type="checkbox"
+                  checked={state.enableTracking}
+                  onChange={(e) =>
+                    setState((prev) => ({ ...prev, enableTracking: e.target.checked }))
+                  }
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+                <label htmlFor="enable-tracking" className="text-sm font-medium text-gray-700">
+                  Aktiver tracking-link
+                </label>
+                <button
+                  onClick={createTrackedUrl}
+                  disabled={!state.enableTracking}
+                  className="ml-auto rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-40"
+                >
+                  Generér tracking
+                </button>
+              </div>
+              {currentQrId && (
+                <p className="mb-3 text-xs text-gray-600">
+                  QR ID: <span className="font-mono">{currentQrId}</span> · Scanninger: <span className="font-semibold">{scanCount}</span>
+                </p>
+              )}
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">Filtype</label>
+                  <select
+                    value={state.exportPreset.format}
+                    onChange={(e) =>
+                      setState((prev) => ({
+                        ...prev,
+                        exportPreset: {
+                          ...prev.exportPreset,
+                          format: e.target.value as ExportFormat,
+                        },
+                      }))
+                    }
+                    className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm"
+                  >
+                    <option value="png">PNG</option>
+                    <option value="svg">SVG</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">Størrelse</label>
+                  <select
+                    value={String(state.exportPreset.size)}
+                    onChange={(e) =>
+                      setState((prev) => ({
+                        ...prev,
+                        exportPreset: {
+                          ...prev.exportPreset,
+                          size: Number(e.target.value) as ExportSize,
+                        },
+                      }))
+                    }
+                    className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm"
+                  >
+                    <option value="512">512 x 512</option>
+                    <option value="1024">1024 x 1024</option>
+                    <option value="2048">2048 x 2048</option>
+                    <option value="4096">4096 x 4096</option>
+                  </select>
+                </div>
+                <div className="flex items-end">
+                  <button
+                    onClick={handleDownload}
+                    disabled={isDownloading || !effectiveData || !isLibraryReady}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
+                  >
+                    {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                    Download QR-kode
+                  </button>
+                </div>
+              </div>
+              <p className="mt-2 text-xs text-gray-500">Previewet er lille, men eksporten genereres på ny i valgt opløsning (default 2048 PNG).</p>
+            </section>
+
+            {error && (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+            )}
+          </div>
+
+          <aside className="lg:sticky lg:top-6 lg:self-start">
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+              <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Live preview</h3>
+              <div
+                className="rounded-xl border border-gray-200 p-4"
+                style={{ backgroundColor: state.backgroundColor }}
+              >
+                <div className="flex flex-col items-center gap-3">
+                  <div className="relative">
+                    <div
+                      ref={previewRef}
+                      className="overflow-hidden rounded-lg"
+                      style={{ width: state.size, height: state.size }}
+                    />
+                    {state.centerText.trim() && (
+                      <div
+                        className="pointer-events-none absolute inset-0 flex items-center justify-center px-4 text-center font-extrabold"
+                        style={{
+                          color: state.foregroundColor,
+                          fontSize: Math.max(14, Math.round(state.size * 0.12)),
+                        }}
+                      >
+                        {state.centerText.trim().slice(0, 16)}
+                      </div>
+                    )}
+                  </div>
+                  {state.textBelow.trim() && (
+                    <p
+                      className="max-w-full break-words text-center font-semibold"
+                      style={{ color: state.foregroundColor, fontSize: Math.max(13, Math.round(state.size * 0.075)) }}
+                    >
+                      {state.textBelow}
+                    </p>
+                  )}
+                  {!effectiveData && (
+                    <p className="text-xs text-gray-500">Skriv tekst/URL for at aktivere QR-preview.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </aside>
+        </div>
       </div>
-    </>
+    </div>
   )
 }

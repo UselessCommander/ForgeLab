@@ -4,7 +4,8 @@ import type { DesignThinkingPhase } from '@/lib/frameworks'
 
 type Props = {
   readOnly?: boolean
-  activeSelection?: DesignThinkingPhase
+  /** undefined = ingen fase fremhævet (fx ved "Across"-filter) */
+  activeSelection?: DesignThinkingPhase | null
   onSelect?: (selection: DesignThinkingPhase) => void
 }
 
@@ -98,7 +99,7 @@ const BUBBLE_R = 90
 
 export default function DesignThinkingDiagram({
   readOnly = false,
-  activeSelection = 'empathize',
+  activeSelection = null,
   onSelect,
 }: Props) {
   return (
@@ -117,7 +118,7 @@ export default function DesignThinkingDiagram({
           aria-hidden
         >
           {HOTSPOTS.map(spot => {
-            const isActive = activeSelection === spot.id
+            const isActive = activeSelection != null && activeSelection === spot.id
             if (!isActive) return null
             return (
               <circle

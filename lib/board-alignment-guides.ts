@@ -24,6 +24,25 @@ export type BoardSnapExclude = {
 
 export const BOARD_ALIGN_THRESHOLD = 6
 
+/** Skip React state updates when snap guides are unchanged. */
+export function alignmentGuidesEqual(a: AlignmentGuide[], b: AlignmentGuide[]): boolean {
+  if (a === b) return true
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    const ga = a[i]
+    const gb = b[i]
+    if (
+      ga.orientation !== gb.orientation ||
+      ga.position !== gb.position ||
+      ga.start !== gb.start ||
+      ga.end !== gb.end
+    ) {
+      return false
+    }
+  }
+  return true
+}
+
 function rectEdges(rect: SnapRect) {
   return {
     left: rect.left,

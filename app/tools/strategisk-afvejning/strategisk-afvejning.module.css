@@ -1,0 +1,22 @@
+.panelTextarea:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.panelTextarea::-webkit-scrollbar {
+  width: 6px;
+}
+
+.panelTextarea::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.panelTextarea::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 10px;
+}
+
+.panelTextarea {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}

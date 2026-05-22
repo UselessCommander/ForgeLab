@@ -180,6 +180,16 @@ Hvornår bruger man Card Sorting? Brug værktøjet når du bygger eller omstrukt
     `.trim(),
   },
   {
+    slug: 'smp-model',
+    title: 'SM/T/P Strategi Værktøj',
+    shortDescription:
+      'Segmentering, målgruppevalg og positionering — med valgfri SMUK-vurdering fra ForgeLab.',
+    categories: ['strategi', 'markedsfoering'],
+    longSeoContent: `
+SM/T/P-værktøjet guider dig fra segmentering (S) over målgruppevalg (M/T) til positionering (P). Du kan arbejde frit med argumentation for målgruppevalg eller tilføje ForgeLabs SMUK-model for en systematisk scoring af segmenter. Alt kan gemmes i projekter sammen med andre strategi-værktøjer.
+    `.trim(),
+  },
+  {
     slug: 'smuk-model',
     title: 'SMUK-model',
     shortDescription:
@@ -290,6 +300,56 @@ Hvornår bruger man brugerrejse? Brug værktøjet i research- og opdagelsesfasen
     `.trim(),
   },
   {
+    slug: 'dvf-venn-model',
+    title: 'DVF Venn-modellen',
+    shortDescription:
+      'Desirability, Viability og Feasibility — interaktivt Venn-diagram med sweet spot.',
+    categories: ['innovation-design', 'strategi'],
+    longSeoContent: `
+DVF-modellen (Desirability, Viability, Feasibility) bruges til at vurdere om et koncept er værd at realisere. ForgeLabs interaktive Venn-diagram viser de tre perspektiver som overlappende cirkler med et beregnet sweet spot i midten for innovation.
+
+Hvornår bruger du DVF? Brug værktøjet i idévalidering, design reviews og når teamet skal balancere brugerbehov, forretning og teknisk gennemførlighed. Klik på hver cirkel og skriv noter — alt gemmes i ForgeLab-projektet.
+    `.trim(),
+  },
+  {
+    slug: 'aida-funnel',
+    title: 'AIDA-tragtmodellen',
+    shortDescription:
+      'Interaktiv AIDA-funnel: Attention, Interest, Desire og Action med klikbare lag.',
+    categories: ['markedsfoering', 'strategi'],
+    longSeoContent: `
+AIDA-tragtmodellen (Attention, Interest, Desire, Action) er et klassisk rammeværk til kommunikation og marketing. ForgeLabs interaktive funnel giver dig fire farvede lag, hvor du klikker og skriver budskaber til hvert trin — fra opmærksomhed til handling.
+
+Hvornår bruger du AIDA? Brug værktøjet når du planlægger landingssider, kampagner, e-mails eller pitch-decks og skal strukturere budskabet trin for trin. Alt gemmes i ForgeLab-projektet.
+    `.trim(),
+  },
+  {
+    slug: 'strategisk-afvejning',
+    title: 'Rollespil: Englen, djævlen og dommeren',
+    shortDescription:
+      'Vurder idéer med englen (potentiale), djævelen (risiko) og dommeren (strategisk konklusion).',
+    categories: ['strategi', 'innovation-design'],
+    longSeoContent: `
+Rollespil: Englen, djævlen og dommeren er en klassisk metode til at teste idéer og beslutninger før de implementeres. ForgeLabs værktøj giver dig tre paneler: Potentialet (englen), Risikoen (djævelens advokat) og Dommen (dommeren).
+
+Hvornår bruger du metoden? Brug værktøjet i strategimøder, konceptvalg eller når et team skal blive enige om, om en idé er værd at gå videre med. Angiv emnet øverst og udfyld de tre perspektiver. Alt gemmes i ForgeLab-projektet.
+    `.trim(),
+  },
+  {
+    slug: 'seo-pyramide',
+    title: 'SEO-pyramiden',
+    shortDescription:
+      'Prioritér SEO fra crawlability til featured snippets med en visuel hierarkipyramide.',
+    categories: ['strategi', 'markedsfoering'],
+    longSeoContent: `
+SEO-pyramiden er en visuel model til at strukturere SEO-arbejde i syv lag — fra teknisk crawlability til featured snippets i søgeresultater. ForgeLabs værktøj giver dig en interaktiv pyramide, hvor du kan notere konkrete tiltag og prioriteringer på hvert niveau.
+
+Hvad er SEO-pyramiden? Modellen bygger på princippet om, at SEO først skal være teknisk tilgængelig (crawlable), derefter interessant og optimeret, før man arbejder med brugeroplevelse, deling, klik og synlighed i særlige SERP-features.
+
+Hvornår bruger man SEO-pyramiden? Brug værktøjet når du planlægger SEO-strategi, prioriterer backlog eller skal kommunikere hierarkiet i et team. I ForgeLab gemmes noterne i projektet sammen med dine øvrige strategi-værktøjer.
+    `.trim(),
+  },
+  {
     slug: 'dikw-pyramiden',
     title: 'DIKW-pyramiden',
     shortDescription:
@@ -329,6 +389,32 @@ PESTEL er et klassisk strategiværktøj til omverdensanalyse. Modellen hjælper 
 Hvad er PESTEL? PESTEL bruges til at forstå muligheder og risici i omgivelserne, før man vælger strategi eller lancerer nye initiativer. Når faktorerne er kortlagt, bliver det lettere at prioritere handlinger og scenarier.
 
 Hvornår bruger man PESTEL? Brug værktøjet i den tidlige analysefase, ved markedsvurdering eller før større strategiske beslutninger. I ForgeLab kan PESTEL gemmes direkte i projekter sammen med øvrige værktøjer.
+    `.trim(),
+  },
+  {
+    slug: 'golden-circle',
+    title: 'The Golden Circle',
+    shortDescription:
+      'Formuler WHY, HOW og WHAT — fra formål og tilgang til konkret tilbud.',
+    categories: ['strategi', 'markedsfoering'],
+    longSeoContent: `
+The Golden Circle (Simon Sinek) starter med WHY: hvorfor eksisterer idéen eller organisationen? Derefter HOW — hvordan I gør det — og WHAT — hvad I konkret tilbyder. ForgeLabs Golden Circle-værktøj giver et interaktivt diagram og tre statements du kan gemme i projektet.
+
+Hvornår bruger du Golden Circle? Brug modellen til pitch, brandfortælling, produktstrategi og når teamet skal aligne om purpose før features og kanaler.
+    `.trim(),
+  },
+  {
+    slug: 'peso',
+    title: 'PESO-model',
+    shortDescription:
+      'Kortlæg Paid, Earned, Shared og Owned media med overlap og integreret kernefortælling.',
+    categories: ['markedsfoering', 'strategi'],
+    longSeoContent: `
+PESO-modellen (Paid, Earned, Shared, Owned) er et strategisk kommunikationsframework til at planlægge og integrere kanaler. ForgeLabs PESO-værktøj giver dig det klassiske diagram med overlap-felter og kernen — du dokumenterer hvert felt, og resultatet vises på værktøjssiden og projekt-boardet.
+
+Hvad er PESO? Paid media er betalt eksponering, Earned er tredjeparts omtale, Shared er sociale og fællesskabsbaserede kanaler, og Owned er egne platforme som website og nyhedsbrev. Overlapfelterne viser, hvor strategierne mødes, og kernen samler den integrerede fortælling.
+
+Hvornår bruger man PESO? Brug modellen i kommunikations- og marketingplaner, kanalstrategi, kampagneworkshops og når I skal aligne teamet om roller og prioriteringer på tværs af medier.
     `.trim(),
   },
   {

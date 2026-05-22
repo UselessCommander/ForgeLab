@@ -9,7 +9,7 @@ function isDemoProject(projectId: string): boolean {
   return projectId.startsWith('demo-')
 }
 
-/** Normaliseret placering af ikon på Double Diamond-canvas (0–1 i forhold til viewBox-bredde/højde) */
+/** Tool card position on the project board (absolute world pixels; legacy 0–1 layouts are migrated on load). */
 export type DdCanvasPosition = { x: number; y: number }
 
 export interface Project {

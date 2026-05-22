@@ -17,7 +17,9 @@ import {
   Route,
   Lightbulb,
   CircleHelp,
+  Circle,
   Search,
+  Share2,
   Building2,
   UserRound,
   type LucideIcon,
@@ -38,6 +40,7 @@ export const TOOL_ICONS: Record<string, { Icon: LucideIcon; bg: string; text: st
   'card-sorting': { Icon: Layers, bg: 'bg-cyan-50', text: 'text-cyan-600' },
   'survey-template': { Icon: ClipboardList, bg: 'bg-lime-50', text: 'text-lime-600' },
   'smuk-model': { Icon: BarChart3, bg: 'bg-sky-50', text: 'text-sky-700' },
+  'smp-model': { Icon: Target, bg: 'bg-indigo-50', text: 'text-indigo-700' },
   'aaker-identity-model': { Icon: LayoutGrid, bg: 'bg-amber-50', text: 'text-amber-700' },
   'affinity-diagram': { Icon: Workflow, bg: 'bg-violet-50', text: 'text-violet-700' },
   scamper: { Icon: Lightbulb, bg: 'bg-yellow-50', text: 'text-yellow-700' },
@@ -50,6 +53,12 @@ export const TOOL_ICONS: Record<string, { Icon: LucideIcon; bg: string; text: st
   'persona-canvas': { Icon: UserRound, bg: 'bg-pink-50', text: 'text-pink-700' },
   'pirate-funnel': { Icon: BarChart3, bg: 'bg-emerald-50', text: 'text-emerald-700' },
   'service-blueprint': { Icon: Workflow, bg: 'bg-slate-100', text: 'text-slate-800' },
+  'seo-pyramide': { Icon: Layers, bg: 'bg-amber-50', text: 'text-amber-700' },
+  'strategisk-afvejning': { Icon: GitCompare, bg: 'bg-emerald-50', text: 'text-emerald-700' },
+  'aida-funnel': { Icon: BarChart3, bg: 'bg-blue-50', text: 'text-blue-700' },
+  'dvf-venn-model': { Icon: Target, bg: 'bg-rose-50', text: 'text-rose-700' },
+  peso: { Icon: Share2, bg: 'bg-amber-50', text: 'text-amber-700' },
+  'golden-circle': { Icon: Circle, bg: 'bg-amber-50', text: 'text-amber-700' },
 }
 
 export function getToolIcon(slug: string) {

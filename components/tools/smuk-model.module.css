@@ -1,0 +1,20 @@
+/* SMUK-model — minimalistisk styling */
+
+.smukRoot {
+  color: #334155; /* slate-700 */
+}
+
+.smukRoot input[type='number']::-webkit-inner-spin-button,
+.smukRoot input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.smukRoot input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.smoothTransition {
+  transition: all 0.2s ease-in-out;
+}

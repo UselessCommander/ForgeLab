@@ -1,0 +1,36 @@
+.fadeIn {
+  animation: smpFadeIn 0.3s ease-in-out;
+}
+
+@keyframes smpFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.lineClamp2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Fast bredde — samme som målgruppevalg-panelet */
+.smpShell {
+  width: 1060px;
+  min-width: 1060px;
+  max-width: 1060px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.targetingPanel {
+  width: 1060px;
+  min-width: 1060px;
+  max-width: 1060px;
+}
