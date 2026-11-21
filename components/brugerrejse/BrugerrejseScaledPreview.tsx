@@ -5,12 +5,12 @@ import type { JourneyData } from '@/lib/brugerrejse'
 import { BrugerrejseReadonlyBoard } from './BrugerrejseReadonlyBoard'
 
 /**
- * Board preview must stay readable. Fitting the full map to card width was
- * crushing text. Keep a minimum scale and a tall viewport; overflow scrolls
- * instead of shrinking further.
+ * Fixed scale + tall viewport. Do NOT derive scale from available width:
+ * that remeasure loop (partial layout → scale 1, then full layout → shrink)
+ * made the board preview visibly collapse after open.
  */
 const PREVIEW_VIEWPORT_HEIGHT = 720
-const MIN_READABLE_SCALE = 0.85
+const PREVIEW_SCALE = 0.9
 const PREVIEW_STEP_MIN_PX = 148
 const PREVIEW_CURVE_HEIGHT = 120
 
@@ -21,39 +21,34 @@ export function BrugerrejseScaledPreview({
   data: JourneyData
   loading: boolean
 }) {
-  const viewportRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
-  const [layout, setLayout] = useState({ scale: MIN_READABLE_SCALE, width: 900, height: 900 })
+  const [spacer, setSpacer] = useState({ width: 0, height: 0 })
+  const [ready, setReady] = useState(false)
 
   useLayoutEffect(() => {
-    if (loading) return
+    if (loading) {
+      setReady(false)
+      return
+    }
 
     const measure = () => {
-      const viewport = viewportRef.current
       const content = contentRef.current
-      if (!viewport || !content) return
+      if (!content) return
 
       const naturalW = content.offsetWidth
       const naturalH = content.offsetHeight
       if (naturalW <= 0 || naturalH <= 0) return
 
-      const availableW = viewport.clientWidth
-      if (availableW <= 0) return
-
-      const scaleW = availableW / naturalW
-      const scale = Math.min(1, Math.max(scaleW, MIN_READABLE_SCALE))
-
-      setLayout({
-        scale,
-        width: Math.ceil(naturalW * scale),
-        height: Math.ceil(naturalH * scale),
+      setSpacer({
+        width: Math.ceil(naturalW * PREVIEW_SCALE),
+        height: Math.ceil(naturalH * PREVIEW_SCALE),
       })
+      setReady(true)
     }
 
     measure()
 
     const ro = new ResizeObserver(measure)
-    ro.observe(viewportRef.current)
     if (contentRef.current) ro.observe(contentRef.current)
 
     return () => ro.disconnect()
@@ -70,16 +65,21 @@ export function BrugerrejseScaledPreview({
 
   return (
     <div
-      ref={viewportRef}
       className="w-full overflow-auto rounded-lg border border-cyan-100 bg-white shadow-inner"
       style={{ height: PREVIEW_VIEWPORT_HEIGHT }}
     >
-      {/* Spacer matches visual size after CSS scale so scrollbars are correct. */}
-      <div style={{ width: layout.width, height: layout.height, position: 'relative' }}>
+      <div
+        style={{
+          width: spacer.width || undefined,
+          height: spacer.height || undefined,
+          position: 'relative',
+          opacity: ready ? 1 : 0,
+        }}
+      >
         <div
           ref={contentRef}
           style={{
-            transform: `scale(${layout.scale})`,
+            transform: `scale(${PREVIEW_SCALE})`,
             transformOrigin: 'top left',
             width: 'max-content',
             position: 'absolute',
