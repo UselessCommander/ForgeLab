@@ -37,3 +37,6 @@ next-env.d.ts
 scans.json
 users.json
 *.log
+
+# local analysis / planning artifacts (not for remote)
+/docs/

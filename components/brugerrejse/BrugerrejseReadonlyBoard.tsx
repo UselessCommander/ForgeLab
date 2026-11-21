@@ -93,7 +93,8 @@ export function BrugerrejseReadonlyBoard({
                 style={{ gridColumn: `span ${n}` }}
               >
                 <div
-                  className={`${c.bg} px-4 py-2.5 text-[13px] font-semibold tracking-wide text-white`}
+                  style={{ backgroundColor: c.hex }}
+                  className="px-4 py-2.5 text-[13px] font-semibold tracking-wide text-white"
                 >
                   {phase.label || 'Fase'}
                 </div>
@@ -121,7 +122,8 @@ export function BrugerrejseReadonlyBoard({
               <div key={step.id} className={`${cellCls} py-2.5`}>
                 <div className="flex items-center gap-1.5">
                   <span
-                    className={`inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full ${c.bg} text-[10px] font-semibold text-white ring-1 ring-white`}
+                    style={{ backgroundColor: c.hex }}
+                    className="inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-white ring-1 ring-white"
                   >
                     {si + 1}
                   </span>
