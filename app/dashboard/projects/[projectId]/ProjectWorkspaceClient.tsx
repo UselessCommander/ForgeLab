@@ -653,8 +653,11 @@ function worldBoundsForBoardSection(section: BoardSection): WorldBounds {
   return worldBoundsFromRect(section.x, section.y, section.width, section.height)
 }
 
-function isWideBoardPreviewSlug(slug: string): boolean {
-  return slug === 'service-blueprint' || slug === 'brugerrejse'
+/** Default board card size — brugerrejse needs extra height to stay readable. */
+function boardPreviewCardSize(slug: string): { w: number; h: number } {
+  if (slug === 'brugerrejse') return { w: 1200, h: 860 }
+  if (slug === 'service-blueprint') return { w: 980, h: 620 }
+  return { w: 680, h: 400 }
 }
 
 /** Fjern interaktive elementer fra kloner til eksport. */
@@ -3587,11 +3590,11 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
         .filter(({ slug, idx }) => {
           const pos = cardPositions[slug] || defaultPos(slug, idx)
           if (!pos) return false
-          const isWide = isWideBoardPreviewSlug(slug)
+          const previewSize = boardPreviewCardSize(slug)
           const cached = cardSizeCacheRef.current[slug]
           const cardEl = cardElementRefs.current[slug]
-          const w = cached?.w ?? cardEl?.offsetWidth ?? (isWide ? 980 : 680)
-          const h = cached?.h ?? cardEl?.offsetHeight ?? (isWide ? 620 : 400)
+          const w = cached?.w ?? cardEl?.offsetWidth ?? previewSize.w
+          const h = cached?.h ?? cardEl?.offsetHeight ?? previewSize.h
           const cardMinX = pos.x
           const cardMinY = pos.y
           const cardMaxX = pos.x + w
@@ -3927,12 +3930,12 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
     cardDragDidMoveRef.current = false
 
     const cardEl = cardElementRefs.current[slug]
-    const isWide = isWideBoardPreviewSlug(slug)
+    const previewSize = boardPreviewCardSize(slug)
     const cachedSize = cardSizeCacheRef.current[slug]
     alignmentTargetsCacheRef.current = null
     alignmentDragMetaRef.current = {
-      w: cachedSize?.w ?? cardEl?.offsetWidth ?? (isWide ? 980 : 680),
-      h: cachedSize?.h ?? cardEl?.offsetHeight ?? (isWide ? 620 : 400),
+      w: cachedSize?.w ?? cardEl?.offsetWidth ?? previewSize.w,
+      h: cachedSize?.h ?? cardEl?.offsetHeight ?? previewSize.h,
       exclude: { cardSlugs: moveSlugs },
     }
 
@@ -5143,9 +5146,9 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       const idx = toolIds.indexOf(slug)
       const pos = cardPositions[slug] || defaultPos(slug, idx >= 0 ? idx : 0)
       const cardEl = cardElementRefs.current[slug]
-      const isWide = isWideBoardPreviewSlug(slug)
-      const w = cardEl?.offsetWidth ?? (isWide ? 980 : 680)
-      const h = cardEl?.offsetHeight ?? (isWide ? 620 : 400)
+      const previewSize = boardPreviewCardSize(slug)
+      const w = cardEl?.offsetWidth ?? previewSize.w
+      const h = cardEl?.offsetHeight ?? previewSize.h
       add(worldBoundsFromRect(pos.x, pos.y, w, h))
     })
     selectedFlowNodeIds.forEach(id => {
@@ -5210,9 +5213,9 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
       if (BOARD_EXCLUDED_TOOL_SLUGS.has(slug)) return
       const pos = cardPositions[slug] || defaultPos(slug, idx)
       const cardEl = cardElementRefs.current[slug]
-      const isWide = isWideBoardPreviewSlug(slug)
-      const w = cardEl?.offsetWidth ?? (isWide ? 980 : 680)
-      const h = cardEl?.offsetHeight ?? (isWide ? 620 : 400)
+      const previewSize = boardPreviewCardSize(slug)
+      const w = cardEl?.offsetWidth ?? previewSize.w
+      const h = cardEl?.offsetHeight ?? previewSize.h
       const cardBox = worldBoundsFromRect(pos.x, pos.y, w, h)
       if (worldBoundsIntersect(box, cardBox)) {
         payload.cards[slug] = { x: pos.x, y: pos.y }
@@ -5273,9 +5276,9 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
         if (BOARD_EXCLUDED_TOOL_SLUGS.has(slug)) return
         const pos = cardPositions[slug] || defaultPos(slug, idx)
         const cardEl = cardElementRefs.current[slug]
-        const isWide = isWideBoardPreviewSlug(slug)
-        const w = cardEl?.offsetWidth ?? (isWide ? 980 : 680)
-        const h = cardEl?.offsetHeight ?? (isWide ? 620 : 400)
+        const previewSize = boardPreviewCardSize(slug)
+        const w = cardEl?.offsetWidth ?? previewSize.w
+        const h = cardEl?.offsetHeight ?? previewSize.h
         const cardBox = worldBoundsFromRect(pos.x, pos.y, w, h)
         if (worldBoundsIntersect(box, cardBox)) add(cardBox)
       })
@@ -6907,10 +6910,10 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
         if (BOARD_EXCLUDED_TOOL_SLUGS.has(slug) || excludedCards.has(slug)) return
         const pos = cardPositions[slug] || defaultPos(slug, idx)
         const cardEl = cardElementRefs.current[slug]
-        const isWide = isWideBoardPreviewSlug(slug)
+        const previewSize = boardPreviewCardSize(slug)
         const cached = cardSizeCacheRef.current[slug]
-        const w = cached?.w ?? cardEl?.offsetWidth ?? (isWide ? 980 : 680)
-        const h = cached?.h ?? cardEl?.offsetHeight ?? (isWide ? 620 : 400)
+        const w = cached?.w ?? cardEl?.offsetWidth ?? previewSize.w
+        const h = cached?.h ?? cardEl?.offsetHeight ?? previewSize.h
         targets.push({ left: pos.x, top: pos.y, width: w, height: h })
       })
 
@@ -7521,10 +7524,10 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
         return
       }
       const pos = cardPositions[slug] || defaultPos(slug, idx)
-      const isWide = isWideBoardPreviewSlug(slug)
+      const previewSize = boardPreviewCardSize(slug)
       const cached = cardSizeCacheRef.current[slug]
-      const w = cached?.w ?? (isWide ? 980 : 680)
-      const h = cached?.h ?? (isWide ? 620 : 400)
+      const w = cached?.w ?? previewSize.w
+      const h = cached?.h ?? previewSize.h
       if (visible(worldBoundsFromRect(pos.x, pos.y, w, h))) cards.add(slug)
     })
 
@@ -10448,10 +10451,10 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
             const isLocked = lockedCardSlugs.includes(slug)
             const phase = toolPhases[slug] || getDefaultPhaseForTool(pickerFramework, slug)
             const phaseLabel = phase ? frameworkPhases.find(p => p.id === phase)?.label : null
-            const isWideBoardPreview = isWideBoardPreviewSlug(slug)
+            const previewSize = boardPreviewCardSize(slug)
             const cardSizeCached = cardSizeCacheRef.current[slug]
-            const cardW = cardSizeCached?.w ?? (isWideBoardPreview ? 980 : 680)
-            const cardH = cardSizeCached?.h ?? (isWideBoardPreview ? 620 : 400)
+            const cardW = cardSizeCached?.w ?? previewSize.w
+            const cardH = cardSizeCached?.h ?? previewSize.h
             const cardZ = isDragging
               ? 1000
               : resolveBoardZIndex(
@@ -10521,8 +10524,8 @@ export default function ProjectWorkspaceClient({ projectId }: ProjectWorkspaceCl
                   left: pos.x,
                   top: pos.y,
                   width: 'max-content',
-                  minWidth: isWideBoardPreview ? 980 : 680,
-                  minHeight: isWideBoardPreview ? 620 : 400,
+                  minWidth: previewSize.w,
+                  minHeight: previewSize.h,
                   display: 'flex',
                   flexDirection: 'column',
                   background: 'transparent',

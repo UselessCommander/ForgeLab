@@ -4,7 +4,8 @@ import { useLayoutEffect, useRef, useState } from 'react'
 import type { JourneyData } from '@/lib/brugerrejse'
 import { BrugerrejseReadonlyBoard } from './BrugerrejseReadonlyBoard'
 
-const MAX_PREVIEW_HEIGHT = 640
+/** Tall enough that a full journey (curve + rows) stays readable on the board. */
+const MAX_PREVIEW_HEIGHT = 960
 const PREVIEW_STEP_MIN_PX = 160
 
 export function BrugerrejseScaledPreview({
@@ -16,7 +17,7 @@ export function BrugerrejseScaledPreview({
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
-  const [layout, setLayout] = useState({ scale: 0.45, height: 400, width: 520 })
+  const [layout, setLayout] = useState({ scale: 0.55, height: 560, width: 720 })
 
   useLayoutEffect(() => {
     if (loading) return
@@ -33,6 +34,7 @@ export function BrugerrejseScaledPreview({
       const parentW = container.parentElement?.clientWidth ?? naturalW
       const scaleW = parentW / naturalW
       const scaleH = MAX_PREVIEW_HEIGHT / naturalH
+      // Prefer filling card width; only shrink further if the map would exceed max height.
       const scale = Math.min(scaleW, scaleH, 1)
 
       setLayout({
@@ -56,7 +58,7 @@ export function BrugerrejseScaledPreview({
     return (
       <div
         className="mx-auto w-full max-w-full animate-pulse rounded-lg border border-cyan-100 bg-cyan-50/30"
-        style={{ height: 400 }}
+        style={{ height: 560 }}
       />
     )
   }
