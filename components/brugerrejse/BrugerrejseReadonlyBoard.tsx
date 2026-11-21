@@ -54,9 +54,12 @@ function StaticTextCell({
 export function BrugerrejseReadonlyBoard({
   data,
   stepMinPx,
+  curveHeightPx = 72,
 }: {
   data: JourneyData
   stepMinPx?: number
+  /** Pixel height of the Oplevelse SVG (board preview uses a taller curve). */
+  curveHeightPx?: number
 }) {
   const gridCols = buildJourneyGridCols(data, stepMinPx)
   const cellCls = 'border-l border-gray-100 px-3'
@@ -203,7 +206,7 @@ export function BrugerrejseReadonlyBoard({
               <svg
                 viewBox="0 0 1000 100"
                 preserveAspectRatio="none"
-                style={{ width: '100%', height: 72, display: 'block' }}
+                style={{ width: '100%', height: curveHeightPx, display: 'block' }}
               >
                 <defs>
                   {experienceSvg.scaledPts.map((p, i) => {
