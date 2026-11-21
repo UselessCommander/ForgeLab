@@ -61,6 +61,11 @@ export function BrugerrejseReadonlyBoard({
   const gridCols = buildJourneyGridCols(data, stepMinPx)
   const cellCls = 'border-l border-gray-100 px-3'
   const allSteps = allStepsInOrder(data)
+  const stepNumberById = useMemo(() => {
+    const map = new Map<string, number>()
+    allSteps.forEach((s, i) => map.set(s.id, i + 1))
+    return map
+  }, [allSteps])
   const stepColCount = data.phases.reduce(
     (sum, ph) => sum + Math.max(1, stepsForPhase(data, ph.id).length),
     0,
@@ -118,21 +123,24 @@ export function BrugerrejseReadonlyBoard({
                 </div>,
               ]
             }
-            return steps.map((step, si) => (
+            return steps.map((step) => {
+              const stepNo = stepNumberById.get(step.id) ?? 1
+              return (
               <div key={step.id} className={`${cellCls} py-2.5`}>
                 <div className="flex items-center gap-1.5">
                   <span
                     style={{ backgroundColor: c.hex }}
                     className="inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-white ring-1 ring-white"
                   >
-                    {si + 1}
+                    {stepNo}
                   </span>
                   <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-gray-800">
-                    {step.name.trim() || `Trin ${si + 1}`}
+                    {step.name.trim() || `Trin ${stepNo}`}
                   </span>
                 </div>
               </div>
-            ))
+              )
+            })
           })}
         </div>
 

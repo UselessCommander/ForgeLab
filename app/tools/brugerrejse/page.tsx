@@ -256,7 +256,7 @@ function JourneyLabelCell({
   return (
     <div
       style={bgStyle}
-      className={`relative sticky left-0 z-10 ${bgStyle ? '' : bg || 'bg-white'} group/label flex items-center gap-1.5 pl-1.5 pr-4 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500 border-r border-gray-100 ${
+      className={`relative sticky left-0 z-10 self-stretch ${bgStyle ? '' : bg || 'bg-white'} group/label flex items-start gap-1.5 pl-1.5 pr-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500 border-r border-gray-100 ${
         dragOver ? 'ring-2 ring-inset ring-amber-400 bg-amber-50/80' : ''
       } ${cls ?? ''}`}
       onDragOver={
@@ -447,15 +447,56 @@ function ChannelEmojiPicker({
   )
 }
 
-function stepStateCls(isSelected: boolean, isHovered: boolean) {
-  if (isSelected) return 'bg-amber-50/40 ring-1 ring-inset ring-amber-200/60'
-  if (isHovered) return 'bg-gray-50/60'
-  return ''
+/** Textarea that grows with content so journey rows expand instead of clipping. */
+function AutoGrowTextarea({
+  value,
+  onChange,
+  className,
+  minRows = 2,
+  ...rest
+}: Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, 'value' | 'onChange' | 'rows'> & {
+  value: string
+  onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void
+  minRows?: number
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null)
+
+  const adjust = useCallback(() => {
+    const el = ref.current
+    if (!el) return
+    el.style.height = 'auto'
+    const next = el.scrollHeight
+    el.style.height = `${next}px`
+  }, [])
+
+  useLayoutEffect(() => {
+    adjust()
+  }, [value, adjust])
+
+  useEffect(() => {
+    const onResize = () => adjust()
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [adjust])
+
+  return (
+    <textarea
+      {...rest}
+      ref={ref}
+      value={value}
+      rows={minRows}
+      onChange={(e) => {
+        onChange(e)
+        requestAnimationFrame(adjust)
+      }}
+      className={`overflow-hidden resize-none [field-sizing:content] ${className ?? ''}`}
+    />
+  )
 }
 
 function JourneyRow({
   label, labelCls, bg, bgStyle, labelStyle, gridCols, cellCls, phases, stepsForPhase, children,
-  selectedStepId, hoveredStepId, onSelectStep, onHoverStep, onResizeStart,
+  onResizeStart,
   onLabelChange, onRemove,
   rowId, dragOver, onRowDragStart, onRowDragOver, onRowDrop, onRowDragEnd,
   extra,
@@ -470,10 +511,6 @@ function JourneyRow({
   phases: JourneyPhase[]
   stepsForPhase: (phaseId: string) => JourneyStep[]
   children: (col: { phase: JourneyPhase; step: JourneyStep; si: number }) => React.ReactNode
-  selectedStepId?: string | null
-  hoveredStepId?: string | null
-  onSelectStep?: (id: string) => void
-  onHoverStep?: (id: string | null) => void
   onResizeStart?: (e: React.PointerEvent) => void
   onLabelChange?: (value: string) => void
   onRemove?: () => void
@@ -487,7 +524,7 @@ function JourneyRow({
 }) {
   return (
     <div
-      className={`grid border-b border-gray-100 ${bgStyle ? '' : bg ?? ''}`}
+      className={`grid items-start border-b border-gray-100 ${bgStyle ? '' : bg ?? ''}`}
       style={{ gridTemplateColumns: gridCols, ...bgStyle }}
     >
       <JourneyLabelCell
@@ -511,18 +548,10 @@ function JourneyRow({
         const steps = stepsForPhase(phase.id)
         if (steps.length === 0) return [<div key={phase.id} className={cellCls} />]
         return steps.map((step, si) => {
-          const stateCls = stepStateCls(selectedStepId === step.id, hoveredStepId === step.id)
           return (
             <div
               key={step.id}
-              className={`${cellCls} transition-colors ${stateCls}`}
-              onMouseEnter={() => onHoverStep?.(step.id)}
-              onMouseLeave={() => onHoverStep?.(null)}
-              onClick={(e) => {
-                if (e.target instanceof HTMLElement && e.target.closest('input, textarea, button, select, a, label'))
-                  return
-                onSelectStep?.(step.id)
-              }}
+              className={`${cellCls} self-stretch transition-colors`}
             >
               {children({ phase, step, si })}
             </div>
@@ -640,8 +669,6 @@ export default function BrugerrejsePage() {
   useProjectToolData<JourneyData>('brugerrejse', data, setNormalized as (d: JourneyData) => void)
 
   const [importingPersona, setImportingPersona] = useState(false)
-  const [selectedStepId, setSelectedStepId] = useState<string | null>(null)
-  const [hoveredStepId, setHoveredStepId] = useState<string | null>(null)
   const [labelColWidth, setLabelColWidth] = useState(LABEL_COL_WIDTH_DEFAULT_PX)
   const [backNav, setBackNav] = useState<{ href: string; label: string }>({
     href: '/dashboard',
@@ -769,7 +796,6 @@ export default function BrugerrejsePage() {
 
   const removeStep = (stepId: string) => {
     setData((p) => ({ ...p, steps: p.steps.length > 1 ? p.steps.filter((s) => s.id !== stepId) : p.steps }))
-    if (selectedStepId === stepId) setSelectedStepId(null)
   }
 
   const updateStep = (stepId: string, patch: Partial<JourneyStep>) =>
@@ -1000,6 +1026,13 @@ export default function BrugerrejsePage() {
     [data.phases, data.steps]
   )
 
+  /** Global 1-based step numbers across all phases (do not restart per phase). */
+  const stepNumberById = useMemo(() => {
+    const map = new Map<string, number>()
+    allSteps.forEach((s, i) => map.set(s.id, i + 1))
+    return map
+  }, [allSteps])
+
   const curvePoints = useMemo(() => {
     const n = allSteps.length
     if (n === 0) return []
@@ -1145,10 +1178,6 @@ export default function BrugerrejsePage() {
               cellCls,
               phases: data.phases,
               stepsForPhase,
-              selectedStepId,
-              hoveredStepId,
-              onSelectStep: setSelectedStepId,
-              onHoverStep: setHoveredStepId,
               onResizeStart: onLabelColResizeStart,
             }
 
@@ -1241,12 +1270,12 @@ export default function BrugerrejsePage() {
                         const empty = !val.trim()
                         return (
                           <div className="py-2">
-                            <textarea
+                            <AutoGrowTextarea
                               value={val}
                               onChange={(e) => updateCustomField(step.id, row.id, e.target.value)}
                               placeholder="Skriv her..."
-                              rows={2}
-                              className={`w-full text-xs text-gray-700 rounded-lg px-2 py-1.5 resize-none focus:outline-none focus:ring-2 focus:ring-amber-300 focus:bg-white focus:border-amber-200 placeholder:text-gray-300 transition-colors border ${empty ? 'bg-transparent border-transparent hover:border-gray-200' : 'bg-white border-gray-200'}`}
+                              minRows={2}
+                              className={`w-full text-xs text-gray-700 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:bg-white focus:border-amber-200 placeholder:text-gray-300 transition-colors border ${empty ? 'bg-transparent border-transparent hover:border-gray-200' : 'bg-white border-gray-200'}`}
                               suppressHydrationWarning
                             />
                           </div>
@@ -1279,12 +1308,13 @@ export default function BrugerrejsePage() {
                         return (
                           <div className="py-2 space-y-1.5">
                             {items.map((item, idx) => (
-                              <div key={idx} className="flex items-center gap-1.5">
-                                <span className="text-gray-400 text-xs shrink-0 leading-none">•</span>
-                                <input
+                              <div key={idx} className="flex items-start gap-1.5">
+                                <span className="text-gray-400 text-xs shrink-0 leading-none mt-1.5">•</span>
+                                <AutoGrowTextarea
                                   value={item}
                                   onChange={(e) => updateCustomListItem(step.id, row.id, idx, e.target.value)}
                                   placeholder="Punkt..."
+                                  minRows={1}
                                   className="flex-1 min-w-0 text-xs text-gray-700 bg-white border border-gray-200 rounded-md px-2 py-1 placeholder:text-gray-400 transition-colors focus:outline-none focus:border-amber-300 focus:ring-2 focus:ring-amber-100"
                                   suppressHydrationWarning
                                 />
@@ -1316,7 +1346,7 @@ export default function BrugerrejsePage() {
 
                 if (preset === 'touchpoint') {
                   return (
-                    <div key={rowKey} className="grid border-b border-gray-100" style={{ gridTemplateColumns: gridCols, ...tintBgStyle }}>
+                    <div key={rowKey} className="grid items-start border-b border-gray-100" style={{ gridTemplateColumns: gridCols, ...tintBgStyle }}>
                       <JourneyLabelCell
                         bgStyle={tintBgStyle}
                         labelStyle={tintLabelStyle}
@@ -1351,41 +1381,33 @@ export default function BrugerrejsePage() {
                             </button>
                           </div>
                         )]
-                        return steps.map((step, si) => {
-                          const stateCls = stepStateCls(selectedStepId === step.id, hoveredStepId === step.id)
+                        return steps.map((step) => {
+                          const stepNo = stepNumberById.get(step.id) ?? 1
                           return (
                             <div
                               key={step.id}
-                              className={`${cellCls} py-3 transition-colors ${stateCls}`}
-                              onMouseEnter={() => setHoveredStepId(step.id)}
-                              onMouseLeave={() => setHoveredStepId(null)}
-                              onClick={(e) => {
-                                if (e.target instanceof HTMLElement && e.target.closest('input, textarea, button, select, a, label'))
-                                  return
-                                setSelectedStepId(step.id)
-                              }}
+                              className={`${cellCls} self-stretch py-3 transition-colors`}
                             >
-                              <div className="group/step flex items-center gap-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() => setSelectedStepId(step.id)}
-                                  title="Åbn detaljer"
+                              <div className="group/step flex items-start gap-1.5">
+                                <span
+                                  title={`Trin ${stepNo}`}
                                   style={{ backgroundColor: c.hex }}
-                                  className="inline-flex w-[18px] h-[18px] rounded-full text-white text-[10px] font-semibold items-center justify-center shrink-0 ring-1 ring-white shadow-sm hover:scale-110 transition-transform"
+                                  className="inline-flex w-[18px] h-[18px] mt-0.5 rounded-full text-white text-[10px] font-semibold items-center justify-center shrink-0 ring-1 ring-white shadow-sm"
                                 >
-                                  {si + 1}
-                                </button>
-                                <input
+                                  {stepNo}
+                                </span>
+                                <AutoGrowTextarea
                                   value={step.name}
                                   onChange={(e) => updateStep(step.id, { name: e.target.value })}
-                                  placeholder={`Trin ${si + 1}`}
+                                  placeholder={`Trin ${stepNo}`}
                                   title="Klik for at omdøbe trin"
-                                  className="flex-1 min-w-0 text-[13px] font-semibold text-gray-800 bg-transparent border-b border-transparent placeholder:text-gray-300 placeholder:font-normal hover:border-gray-200 focus:border-amber-400 focus:outline-none py-0.5 cursor-text transition-colors"
+                                  minRows={1}
+                                  className="flex-1 min-w-0 text-[13px] font-semibold text-gray-800 bg-transparent border-b border-transparent placeholder:text-gray-300 placeholder:font-normal hover:border-gray-200 focus:border-amber-400 focus:outline-none py-0.5 cursor-text transition-colors leading-snug"
                                   suppressHydrationWarning
                                 />
                                 <button type="button" onClick={() => removeStep(step.id)}
                                   title="Slet trin"
-                                  className="shrink-0 text-gray-300 hover:text-rose-500 p-0.5 rounded opacity-0 group-hover/step:opacity-100 focus:opacity-100 transition-opacity">
+                                  className="shrink-0 text-gray-300 hover:text-rose-500 p-0.5 rounded opacity-0 group-hover/step:opacity-100 focus:opacity-100 transition-opacity mt-0.5">
                                   <Trash2 className="w-3 h-3" />
                                 </button>
                               </div>
@@ -1500,17 +1522,14 @@ export default function BrugerrejsePage() {
                               }
                               return steps.map((step) => {
                                 const active = step.activeChannelIds.includes(channel.id)
-                                const stateCls = stepStateCls(selectedStepId === step.id, hoveredStepId === step.id)
                                 return (
                                   <button
                                     type="button"
                                     key={step.id}
                                     onClick={() => toggleChannelStep(step.id, channel.id)}
-                                    onMouseEnter={() => setHoveredStepId(step.id)}
-                                    onMouseLeave={() => setHoveredStepId(null)}
                                     aria-pressed={active}
                                     title={`${active ? 'Fjern' : 'Tilføj'} ${channel.name || 'kanal'}${step.name ? ' – ' + step.name : ''}`}
-                                    className={`group/cell relative border-l border-gray-100 py-2.5 flex items-center justify-center transition-all ${stateCls} ${
+                                    className={`group/cell relative border-l border-gray-100 py-2.5 flex items-center justify-center transition-all ${
                                       active
                                         ? 'bg-amber-50/70 hover:bg-amber-100/80 ring-1 ring-inset ring-amber-200/70'
                                         : 'hover:bg-black/[0.02] hover:ring-1 hover:ring-inset hover:ring-gray-200/70'
@@ -1535,17 +1554,27 @@ export default function BrugerrejsePage() {
                 if (preset === 'curve') {
                   if (allSteps.length === 0) return null
                   const H = 100
+                  const CURVE_H = 132
                   const n = allSteps.length
+                  // sentiment 2 → top (y=10), -2 → bottom (y=90)
+                  const sentimentY = (v: number) => 10 + ((2 - v) / 4) * 80
+                  const scaleMarks: { value: number; label: string }[] = [
+                    { value: 2, label: '+2' },
+                    { value: 1, label: '+1' },
+                    { value: 0, label: '0' },
+                    { value: -1, label: '−1' },
+                    { value: -2, label: '−2' },
+                  ]
                   const pts = allSteps.map((s, i) => ({
                     x: ((i + 0.5) / n) * 100,
-                    y: 10 + ((2 - s.sentiment) / 4) * 80,
+                    y: sentimentY(s.sentiment),
                     sentiment: s.sentiment,
                   }))
-                  const scaledPts = pts.map(p => ({ ...p, x: p.x * 10 }))
+                  const scaledPts = pts.map((p) => ({ ...p, x: p.x * 10 }))
                   return (
                     <div
                       key={rowKey}
-                      className={`grid border-b border-gray-100 ${tintBgStyle ? '' : 'bg-gradient-to-b from-gray-50/40 via-white to-gray-50/30'}`}
+                      className={`grid items-start border-b border-gray-100 ${tintBgStyle ? '' : 'bg-gradient-to-b from-gray-50/40 via-white to-gray-50/30'}`}
                       style={{ gridTemplateColumns: gridCols, ...tintBgStyle }}
                     >
                       <JourneyLabelCell
@@ -1564,47 +1593,111 @@ export default function BrugerrejsePage() {
                         onRowDragEnd={onRowDragEnd}
                         extra={labelHandlers.extra}
                       />
-                      <div className="border-l border-gray-100 py-5" style={{ gridColumn: `span ${stepCols.length}` }}>
-                        <svg viewBox="0 0 1000 100" preserveAspectRatio="none"
-                          style={{ width: '100%', height: 88, display: 'block' }}>
-                          <defs>
-                            {scaledPts.map((p, i) => {
-                              if (i === 0) return null
-                              const prev = scaledPts[i - 1]
-                              return (
-                                <linearGradient key={i} id={`seg-${row.id}-${i}`}
-                                  x1={prev.x} y1="0" x2={p.x} y2="0"
-                                  gradientUnits="userSpaceOnUse">
-                                  <stop offset="0%" stopColor={sentimentColor(scaledPts[i - 1].sentiment)} />
-                                  <stop offset="100%" stopColor={sentimentColor(p.sentiment)} />
-                                </linearGradient>
-                              )
-                            })}
-                          </defs>
-                          <line x1="0" y1="50" x2="1000" y2="50" stroke="#e5e7eb" strokeWidth="0.4" vectorEffect="nonScalingStroke" />
-                          {allSteps.map((_, i) => i > 0 && (
-                            <line key={i} x1={(i / n) * 1000} y1="0" x2={(i / n) * 1000} y2={H}
-                              stroke="#f3f4f6" strokeWidth="0.4" vectorEffect="nonScalingStroke" />
-                          ))}
-                          {scaledPts.map((p, i) => {
-                            if (i === 0) return null
-                            const prev = scaledPts[i - 1]
-                            const cpx = (prev.x + p.x) / 2
-                            const d = `M ${prev.x} ${prev.y} C ${cpx} ${prev.y}, ${cpx} ${p.y}, ${p.x} ${p.y}`
-                            return (
-                              <path key={i} d={d} fill="none"
-                                stroke={`url(#seg-${row.id}-${i})`}
-                                strokeWidth="6" strokeLinecap="round" strokeLinejoin="round"
-                                vectorEffect="nonScalingStroke" />
-                            )
-                          })}
-                        </svg>
-                        <div className="grid mt-1" style={{ gridTemplateColumns: `repeat(${n}, 1fr)` }}>
-                          {allSteps.map((s, i) => (
-                            <div key={s.id} className="text-center text-[10px] font-medium text-gray-500 truncate px-1">
-                              {s.name || `Trin ${i + 1}`}
+                      <div className="border-l border-gray-100 py-4 pr-3" style={{ gridColumn: `span ${stepCols.length}` }}>
+                        <div className="flex gap-2">
+                          <div
+                            className="flex w-7 shrink-0 flex-col justify-between py-[2px] text-right text-[10px] font-semibold tabular-nums text-gray-400 select-none"
+                            style={{ height: CURVE_H }}
+                            aria-hidden
+                          >
+                            {scaleMarks.map((m) => (
+                              <span key={m.value} className="leading-none">
+                                {m.label}
+                              </span>
+                            ))}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <svg
+                              viewBox="0 0 1000 100"
+                              preserveAspectRatio="none"
+                              style={{ width: '100%', height: CURVE_H, display: 'block' }}
+                              aria-label="Oplevelseskurve"
+                            >
+                              <defs>
+                                {scaledPts.map((p, i) => {
+                                  if (i === 0) return null
+                                  const prev = scaledPts[i - 1]
+                                  return (
+                                    <linearGradient
+                                      key={i}
+                                      id={`seg-${row.id}-${i}`}
+                                      x1={prev.x}
+                                      y1="0"
+                                      x2={p.x}
+                                      y2="0"
+                                      gradientUnits="userSpaceOnUse"
+                                    >
+                                      <stop offset="0%" stopColor={sentimentColor(scaledPts[i - 1].sentiment)} />
+                                      <stop offset="100%" stopColor={sentimentColor(p.sentiment)} />
+                                    </linearGradient>
+                                  )
+                                })}
+                              </defs>
+                              {scaleMarks.map((m) => (
+                                <line
+                                  key={m.value}
+                                  x1="0"
+                                  y1={sentimentY(m.value)}
+                                  x2="1000"
+                                  y2={sentimentY(m.value)}
+                                  stroke={m.value === 0 ? '#d1d5db' : '#f3f4f6'}
+                                  strokeWidth={m.value === 0 ? 0.6 : 0.4}
+                                  vectorEffect="nonScalingStroke"
+                                />
+                              ))}
+                              {allSteps.map((_, i) =>
+                                i > 0 ? (
+                                  <line
+                                    key={i}
+                                    x1={(i / n) * 1000}
+                                    y1="0"
+                                    x2={(i / n) * 1000}
+                                    y2={H}
+                                    stroke="#f3f4f6"
+                                    strokeWidth="0.4"
+                                    vectorEffect="nonScalingStroke"
+                                  />
+                                ) : null,
+                              )}
+                              {scaledPts.map((p, i) => {
+                                if (i === 0) return null
+                                const prev = scaledPts[i - 1]
+                                const cpx = (prev.x + p.x) / 2
+                                const d = `M ${prev.x} ${prev.y} C ${cpx} ${prev.y}, ${cpx} ${p.y}, ${p.x} ${p.y}`
+                                return (
+                                  <path
+                                    key={i}
+                                    d={d}
+                                    fill="none"
+                                    stroke={`url(#seg-${row.id}-${i})`}
+                                    strokeWidth="6"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    vectorEffect="nonScalingStroke"
+                                  />
+                                )
+                              })}
+                              {scaledPts.map((p, i) => (
+                                <circle
+                                  key={`pt-${i}`}
+                                  cx={p.x}
+                                  cy={p.y}
+                                  r="3.5"
+                                  fill={sentimentColor(p.sentiment)}
+                                  stroke="#fff"
+                                  strokeWidth="1.5"
+                                  vectorEffect="nonScalingStroke"
+                                />
+                              ))}
+                            </svg>
+                            <div className="grid mt-1.5" style={{ gridTemplateColumns: `repeat(${n}, 1fr)` }}>
+                              {allSteps.map((s, i) => (
+                                <div key={s.id} className="text-center text-[10px] font-medium text-gray-500 truncate px-1">
+                                  {s.name || `Trin ${i + 1}`}
+                                </div>
+                              ))}
                             </div>
-                          ))}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1618,11 +1711,12 @@ export default function BrugerrejsePage() {
                         const empty = !step.action.trim()
                         return (
                           <div className="py-2">
-                            <textarea value={step.action}
+                            <AutoGrowTextarea
+                              value={step.action}
                               onChange={(e) => updateStep(step.id, { action: e.target.value })}
                               placeholder="Hvad gør brugeren?"
-                              rows={2}
-                              className={`w-full text-xs text-gray-700 rounded-lg px-2 py-1.5 resize-none focus:outline-none focus:ring-2 focus:ring-sky-300 focus:bg-white focus:border-sky-200 placeholder:text-gray-300 transition-colors border ${empty ? 'bg-transparent border-transparent hover:border-sky-100/80' : 'bg-white border-sky-100'}`}
+                              minRows={2}
+                              className={`w-full text-xs text-gray-700 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-sky-300 focus:bg-white focus:border-sky-200 placeholder:text-gray-300 transition-colors border ${empty ? 'bg-transparent border-transparent hover:border-sky-100/80' : 'bg-white border-sky-100'}`}
                               suppressHydrationWarning
                             />
                           </div>
@@ -1639,11 +1733,12 @@ export default function BrugerrejsePage() {
                         const empty = !step.thought.trim()
                         return (
                           <div className="py-2">
-                            <textarea value={step.thought}
+                            <AutoGrowTextarea
+                              value={step.thought}
                               onChange={(e) => updateStep(step.id, { thought: e.target.value })}
                               placeholder='"Jeg håber det er nemt..."'
-                              rows={2}
-                              className={`w-full text-xs text-gray-700 rounded-lg px-2 py-1.5 resize-none focus:outline-none focus:ring-2 focus:ring-violet-300 focus:bg-white focus:border-violet-200 placeholder:text-gray-300 italic transition-colors border ${empty ? 'bg-transparent border-transparent hover:border-violet-100/80' : 'bg-white border-violet-100'}`}
+                              minRows={2}
+                              className={`w-full text-xs text-gray-700 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-violet-300 focus:bg-white focus:border-violet-200 placeholder:text-gray-300 italic transition-colors border ${empty ? 'bg-transparent border-transparent hover:border-violet-100/80' : 'bg-white border-violet-100'}`}
                               suppressHydrationWarning
                             />
                           </div>
@@ -1698,11 +1793,13 @@ export default function BrugerrejsePage() {
                         ) : (
                           <div className="py-2 space-y-1.5">
                             {step.pains.map((pain, idx) => (
-                              <div key={idx} className="flex items-center gap-1.5">
-                                <span className="text-rose-400 text-xs shrink-0 leading-none">—</span>
-                                <input value={pain}
+                              <div key={idx} className="flex items-start gap-1.5">
+                                <span className="text-rose-400 text-xs shrink-0 leading-none mt-1.5">—</span>
+                                <AutoGrowTextarea
+                                  value={pain}
                                   onChange={(e) => updateListItem(step.id, 'pains', idx, e.target.value)}
                                   placeholder="Udfordring..."
+                                  minRows={1}
                                   className="flex-1 min-w-0 text-xs text-gray-700 bg-white border border-rose-100 rounded-md px-2 py-1 placeholder:text-gray-400 transition-colors focus:outline-none focus:border-rose-300 focus:ring-2 focus:ring-rose-100"
                                   suppressHydrationWarning
                                 />
@@ -1741,11 +1838,13 @@ export default function BrugerrejsePage() {
                         ) : (
                           <div className="py-2 space-y-1.5">
                             {step.gains.map((gain, idx) => (
-                              <div key={idx} className="flex items-center gap-1.5">
-                                <span className="text-emerald-500 text-xs shrink-0 leading-none">+</span>
-                                <input value={gain}
+                              <div key={idx} className="flex items-start gap-1.5">
+                                <span className="text-emerald-500 text-xs shrink-0 leading-none mt-1.5">+</span>
+                                <AutoGrowTextarea
+                                  value={gain}
                                   onChange={(e) => updateListItem(step.id, 'gains', idx, e.target.value)}
                                   placeholder="Mulighed..."
+                                  minRows={1}
                                   className="flex-1 min-w-0 text-xs text-gray-700 bg-white border border-emerald-100 rounded-md px-2 py-1 placeholder:text-gray-400 transition-colors focus:outline-none focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100"
                                   suppressHydrationWarning
                                 />
@@ -1774,11 +1873,12 @@ export default function BrugerrejsePage() {
                         const empty = !step.opportunity.trim()
                         return (
                           <div className="py-2">
-                            <textarea value={step.opportunity}
+                            <AutoGrowTextarea
+                              value={step.opportunity}
                               onChange={(e) => updateStep(step.id, { opportunity: e.target.value })}
                               placeholder="Designmulighed / indsigt..."
-                              rows={2}
-                              className={`w-full text-xs text-gray-700 rounded-lg px-2 py-1.5 resize-none focus:outline-none focus:ring-2 focus:ring-amber-300 focus:bg-amber-50/80 focus:border-amber-200 placeholder:text-gray-300 transition-colors border ${empty ? 'bg-transparent border-transparent hover:border-amber-100' : 'bg-amber-50/60 border-amber-100'}`}
+                              minRows={2}
+                              className={`w-full text-xs text-gray-700 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:bg-amber-50/80 focus:border-amber-200 placeholder:text-gray-300 transition-colors border ${empty ? 'bg-transparent border-transparent hover:border-amber-100' : 'bg-amber-50/60 border-amber-100'}`}
                               suppressHydrationWarning
                             />
                           </div>
