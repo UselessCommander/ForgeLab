@@ -2,16 +2,16 @@
 
 import { useLayoutEffect, useRef, useState } from 'react'
 import type { JourneyData } from '@/lib/brugerrejse'
+import { journeyNaturalWidth } from '@/lib/brugerrejse'
 import { BrugerrejseReadonlyBoard } from './BrugerrejseReadonlyBoard'
 
 /**
- * Fixed scale + tall viewport. Do NOT derive scale from available width:
- * that remeasure loop (partial layout → scale 1, then full layout → shrink)
- * made the board preview visibly collapse after open.
+ * Fixed scale + tall viewport. Columns are fixed-width (no 1fr grow) so the
+ * map keeps a natural aspect instead of stretching across a wide board card.
  */
 const PREVIEW_VIEWPORT_HEIGHT = 720
 const PREVIEW_SCALE = 0.9
-const PREVIEW_STEP_MIN_PX = 148
+const PREVIEW_STEP_MIN_PX = 160
 const PREVIEW_CURVE_HEIGHT = 120
 
 export function BrugerrejseScaledPreview({
@@ -24,6 +24,8 @@ export function BrugerrejseScaledPreview({
   const contentRef = useRef<HTMLDivElement>(null)
   const [spacer, setSpacer] = useState({ width: 0, height: 0 })
   const [ready, setReady] = useState(false)
+
+  const contentWidth = journeyNaturalWidth(data, PREVIEW_STEP_MIN_PX)
 
   useLayoutEffect(() => {
     if (loading) {
@@ -70,7 +72,7 @@ export function BrugerrejseScaledPreview({
     >
       <div
         style={{
-          width: spacer.width || undefined,
+          width: spacer.width || Math.ceil(contentWidth * PREVIEW_SCALE),
           height: spacer.height || undefined,
           position: 'relative',
           opacity: ready ? 1 : 0,
@@ -81,7 +83,7 @@ export function BrugerrejseScaledPreview({
           style={{
             transform: `scale(${PREVIEW_SCALE})`,
             transformOrigin: 'top left',
-            width: 'max-content',
+            width: contentWidth,
             position: 'absolute',
             top: 0,
             left: 0,
@@ -91,6 +93,7 @@ export function BrugerrejseScaledPreview({
             data={data}
             stepMinPx={PREVIEW_STEP_MIN_PX}
             curveHeightPx={PREVIEW_CURVE_HEIGHT}
+            fixedStepCols
           />
         </div>
       </div>

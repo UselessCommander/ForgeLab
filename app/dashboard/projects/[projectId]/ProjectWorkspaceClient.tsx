@@ -653,9 +653,9 @@ function worldBoundsForBoardSection(section: BoardSection): WorldBounds {
   return worldBoundsFromRect(section.x, section.y, section.width, section.height)
 }
 
-/** Default board card size — brugerrejse preview viewport is ~720px tall. */
+/** Default board card size — brugerrejse hugs content width (no forced stretch). */
 function boardPreviewCardSize(slug: string): { w: number; h: number } {
-  if (slug === 'brugerrejse') return { w: 1280, h: 980 }
+  if (slug === 'brugerrejse') return { w: 1100, h: 980 }
   if (slug === 'service-blueprint') return { w: 980, h: 620 }
   return { w: 680, h: 400 }
 }

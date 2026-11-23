@@ -358,8 +358,10 @@ export function buildJourneyGridCols(
   data: JourneyData,
   stepMinPx = STEP_COL_MIN_PX,
   labelWidthPx = LABEL_COL_WIDTH_PX,
+  /** When false, step columns stay fixed width and never grow with the card. */
+  allowGrow = true,
 ): string {
-  const stepColUnit = `minmax(${stepMinPx}px, 1fr)`
+  const stepColUnit = allowGrow ? `minmax(${stepMinPx}px, 1fr)` : `${stepMinPx}px`
   const stepCols = data.phases.flatMap((ph) => {
     const n = stepsForPhase(data, ph.id).length
     return n === 0 ? [stepColUnit] : Array(n).fill(stepColUnit)

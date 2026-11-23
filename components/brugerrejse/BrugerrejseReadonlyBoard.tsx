@@ -55,15 +55,21 @@ export function BrugerrejseReadonlyBoard({
   data,
   stepMinPx,
   curveHeightPx = 72,
+  /** Board preview: keep columns fixed so the map does not stretch with the card. */
+  fixedStepCols = false,
 }: {
   data: JourneyData
   stepMinPx?: number
   /** Pixel height of the Oplevelse SVG (board preview uses a taller curve). */
   curveHeightPx?: number
+  fixedStepCols?: boolean
 }) {
-  const gridCols = buildJourneyGridCols(data, stepMinPx)
+  const gridCols = buildJourneyGridCols(data, stepMinPx, undefined, !fixedStepCols)
   const cellCls = 'border-l border-gray-100 px-3'
   const allSteps = allStepsInOrder(data)
+  const boardWidth = fixedStepCols
+    ? undefined // parent (ScaledPreview) sets an explicit content width
+    : 'max-content'
   const stepNumberById = useMemo(() => {
     const map = new Map<string, number>()
     allSteps.forEach((s, i) => map.set(s.id, i + 1))
@@ -87,8 +93,8 @@ export function BrugerrejseReadonlyBoard({
   }, [allSteps])
 
   return (
-    <div className="pointer-events-none select-none bg-white" style={{ width: 'max-content' }}>
-      <div className="overflow-x-auto">
+    <div className="pointer-events-none select-none bg-white" style={{ width: boardWidth ?? '100%' }}>
+      <div className={fixedStepCols ? undefined : 'overflow-x-auto'}>
         <div className="grid border-b border-gray-100" style={{ gridTemplateColumns: gridCols }}>
           <div className="sticky left-0 z-10 border-r border-gray-100 bg-white" />
           {data.phases.map((phase) => {
