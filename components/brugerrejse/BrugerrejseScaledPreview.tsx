@@ -11,7 +11,7 @@ import { BrugerrejseReadonlyBoard } from './BrugerrejseReadonlyBoard'
  */
 const PREVIEW_VIEWPORT_HEIGHT = 720
 const PREVIEW_SCALE = 0.9
-const PREVIEW_STEP_MIN_PX = 160
+const PREVIEW_STEP_MIN_PX = 184
 const PREVIEW_CURVE_HEIGHT = 120
 
 export function BrugerrejseScaledPreview({
